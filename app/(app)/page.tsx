@@ -1,6 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/profile";
 
 export default async function RelatoriosPage() {
+  const profile = await getCurrentProfile();
+  const podeVer = profile?.role === "admin" || profile?.permissions?.relatorios !== false;
+
+  if (profile && !podeVer) {
+    return (
+      <>
+        <h1>Relatórios</h1>
+        <p>Você não tem permissão para ver os relatórios. Fale com um administrador.</p>
+      </>
+    );
+  }
+
   const supabase = await createClient();
 
   // RLS garante que isso só retorna dados para quem está autenticado;

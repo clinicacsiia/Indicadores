@@ -3,11 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-// RLS (policy "profiles_update_admin") é quem realmente garante isso: só um
-// usuário com role=admin consegue gravar aqui, mesmo que esta action seja
-// chamada diretamente. Isso é defesa em profundidade, não a única barreira.
-export async function updateProfileRole(userId: string, role: "admin" | "viewer") {
+// RLS (policy "profiles_update_admin") é quem realmente garante que só admin
+// grava aqui, mesmo que estas actions sejam chamadas diretamente.
+export async function updateProfileRole(userId: string, role: string) {
+  if (role !== "admin" && role !== "viewer") {
+    return { error: "Permissão inválida." };
+  }
+
   const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+
+  // Evita que o único admin se tranque para fora da tela de Configurações.
+  if (auth.user?.id === userId && role !== "admin") {
+    return { error: "Você não pode remover o seu próprio acesso de admin." };
+  }
+
   const { error } = await supabase.from("profiles").update({ role }).eq("id", userId);
 
   if (error) {
@@ -15,7 +25,7 @@ export async function updateProfileRole(userId: string, role: "admin" | "viewer"
     return { error: "Não foi possível atualizar a permissão." };
   }
 
-  revalidatePath("/configuracoes");
+  revalidatePath("/", "layout");
   return {};
 }
 
@@ -41,6 +51,6 @@ export async function updateProfileRelatoriosAccess(userId: string, canView: boo
     return { error: "Não foi possível atualizar a permissão." };
   }
 
-  revalidatePath("/configuracoes");
+  revalidatePath("/", "layout");
   return {};
 }

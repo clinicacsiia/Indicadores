@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { signIn } from "./actions";
 
-const initialState: { error?: string } = {};
+const initialState: { error?: string; usuario?: string } = {};
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -39,8 +39,8 @@ export default function LoginPage() {
         <h1>Indicadores</h1>
         <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            Email
-            <input name="email" type="email" required autoComplete="email" />
+            Usuário
+            <input name="usuario" type="text" required autoComplete="username" autoCapitalize="none" defaultValue={state?.usuario} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             Senha

@@ -74,22 +74,16 @@ Pontos chave:
 
 - [ ] Definir o secret `KLINGO_APP_TOKEN` (token `X-APP-TOKEN` do Klingo) em
       *Edge Functions → Secrets*. Nunca commitar nem colar em chat/issue.
-- [ ] Criar o usuário `csiadmin` (Authentication → Users → Add user): use um
-      email real para login (ex.: `csiadmin@<seu-dominio>`) e defina a senha
-      ali mesmo, no painel do Supabase. **A senha nunca deve ser digitada no
-      código, em um commit ou neste chat** — só no painel.
-- [ ] Promover `csiadmin` a admin, rodando no **SQL Editor do Supabase**
-      (isso só muda a permissão, nunca envolve a senha):
-      ```sql
-      update public.profiles
-      set role = 'admin'
-      where email = 'csiadmin@<seu-dominio>';
-      ```
-      Depois disso, `csiadmin` vê a aba "Configurações" e pode promover ou
-      restringir os demais usuários por ali.
-- [ ] Criar os demais usuários que terão acesso ao painel (Authentication →
-      Users); todos nascem como `viewer` e aparecem na aba "Configurações"
-      para o admin ajustar.
+- [x] Usuário `csiadmin` criado direto no banco e promovido a admin (login
+      pela tela inicial com usuário `csiadmin`; internamente vira o email
+      `csiadmin@csi.local`). **Troque a senha após o primeiro acesso** e não
+      a registre em código, commit ou chat. Novos usuários: crie em
+      Authentication → Users (nascem `viewer`) e ajuste em "Configurações".
+- [ ] Aplicar `20261010205000_indicadores_remove_policy_aberta.sql` (remove a
+      policy antiga `using (true)` de `indicadores`; sem isso o botão "Vê
+      Relatórios" não bloqueia de fato).
+- [ ] Ativar *Leaked password protection* em Authentication → Providers →
+      Email (aviso do advisor de segurança).
 - [ ] **Trocar a chave usada pelo `pg_cron` de anon key para `service_role`.**
       A função `sync-indicadores` agora só aceita chamadas autenticadas como
       `service_role` (ver `isServiceRoleCaller` no código) — qualquer outra
