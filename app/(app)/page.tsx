@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "./actions";
 
-export default async function Home() {
+export default async function RelatoriosPage() {
   const supabase = await createClient();
 
   // RLS garante que isso só retorna dados para quem está autenticado;
@@ -18,13 +17,8 @@ export default async function Home() {
   }
 
   return (
-    <main style={{ padding: 32, fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Indicadores</h1>
-        <form action={signOut}>
-          <button type="submit">Sair</button>
-        </form>
-      </div>
+    <>
+      <h1>Relatórios</h1>
 
       {error && <p style={{ color: "crimson" }}>Não foi possível carregar os indicadores agora.</p>}
 
@@ -56,6 +50,6 @@ export default async function Home() {
           </tbody>
         </table>
       )}
-    </main>
+    </>
   );
 }

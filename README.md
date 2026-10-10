@@ -19,10 +19,15 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 
 - `lib/supabase/client.ts` — client Supabase para uso no browser.
 - `lib/supabase/server.ts` — client Supabase para Server Components e rotas.
-- `lib/supabase/middleware.ts` + `middleware.ts` — exige sessão válida em toda
+- `lib/supabase/profile.ts` — lê o perfil (`profiles`) do usuário logado.
+- `lib/supabase/middleware.ts` + `proxy.ts` — exige sessão válida em toda
   rota (exceto `/login`); redireciona para login quem não está autenticado.
 - `app/login/` — tela de login (email/senha via Supabase Auth).
-- `app/page.tsx` — lista os indicadores sincronizados (só acessível logado).
+- `app/(app)/layout.tsx` — menu lateral (Relatórios / Configurações) das
+  telas logadas; "Configurações" só aparece para quem tem `role = admin`.
+- `app/(app)/page.tsx` — aba "Relatórios": lista os indicadores sincronizados.
+- `app/(app)/configuracoes/` — aba "Configurações" (admin): define quem é
+  admin e quem pode ver Relatórios. Protegida tanto na página quanto por RLS.
 - `supabase/functions/sync-indicadores/` — Edge Function que busca a API
   externa e grava os dados no banco.
 
@@ -53,6 +58,12 @@ Pontos chave:
 - **Sem cadastro público**: não existe página de signup. Os usuários devem
   ser criados pelo painel do Supabase (Authentication → Users) ou via SQL,
   pensado para um painel interno.
+- **Permissões em tabela separada (`profiles`)**: nunca em código. Ao criar
+  um usuário no Supabase Auth, um trigger cria automaticamente a linha
+  correspondente em `profiles` com `role = 'viewer'`. Só quem já é
+  `role = 'admin'` consegue promover outro usuário a admin ou mudar quem vê
+  Relatórios — e isso é garantido por RLS (`is_admin()`), não só pela
+  interface. Nenhuma senha é lida, mostrada ou guardada por essa tabela.
 - **Sincronização automática**: `pg_cron` chama a Edge Function a cada hora
   (job `sync-indicadores-hourly`), autenticando a chamada com a chave pública
   (anon key) — ela só serve para passar a verificação de JWT da função, não
@@ -63,7 +74,22 @@ Pontos chave:
 
 - [ ] Definir o secret `KLINGO_APP_TOKEN` (token `X-APP-TOKEN` do Klingo) em
       *Edge Functions → Secrets*. Nunca commitar nem colar em chat/issue.
-- [ ] Criar os usuários que terão acesso ao painel (Authentication → Users).
+- [ ] Criar o usuário `csiadmin` (Authentication → Users → Add user): use um
+      email real para login (ex.: `csiadmin@<seu-dominio>`) e defina a senha
+      ali mesmo, no painel do Supabase. **A senha nunca deve ser digitada no
+      código, em um commit ou neste chat** — só no painel.
+- [ ] Promover `csiadmin` a admin, rodando no **SQL Editor do Supabase**
+      (isso só muda a permissão, nunca envolve a senha):
+      ```sql
+      update public.profiles
+      set role = 'admin'
+      where email = 'csiadmin@<seu-dominio>';
+      ```
+      Depois disso, `csiadmin` vê a aba "Configurações" e pode promover ou
+      restringir os demais usuários por ali.
+- [ ] Criar os demais usuários que terão acesso ao painel (Authentication →
+      Users); todos nascem como `viewer` e aparecem na aba "Configurações"
+      para o admin ajustar.
 - [ ] **Trocar a chave usada pelo `pg_cron` de anon key para `service_role`.**
       A função `sync-indicadores` agora só aceita chamadas autenticadas como
       `service_role` (ver `isServiceRoleCaller` no código) — qualquer outra

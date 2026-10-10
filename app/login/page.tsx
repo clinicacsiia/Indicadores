@@ -19,20 +19,37 @@ export default function LoginPage() {
   const [state, formAction] = useActionState(signIn, initialState);
 
   return (
-    <main style={{ padding: 32, fontFamily: "sans-serif", maxWidth: 360 }}>
-      <h1>Entrar</h1>
-      <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <label>
-          Email
-          <input name="email" type="email" required autoComplete="email" />
-        </label>
-        <label>
-          Senha
-          <input name="password" type="password" required autoComplete="current-password" />
-        </label>
-        {state?.error && <p style={{ color: "crimson" }}>{state.error}</p>}
-        <SubmitButton />
-      </form>
+    <main
+      style={{
+        fontFamily: "sans-serif",
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 320,
+          padding: 32,
+          border: "1px solid #ddd",
+          borderRadius: 8,
+        }}
+      >
+        <h1>Indicadores</h1>
+        <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Email
+            <input name="email" type="email" required autoComplete="email" />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Senha
+            <input name="password" type="password" required autoComplete="current-password" />
+          </label>
+          {state?.error && <p style={{ color: "crimson" }}>{state.error}</p>}
+          <SubmitButton />
+        </form>
+      </div>
     </main>
   );
 }
