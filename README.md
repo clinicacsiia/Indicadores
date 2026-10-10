@@ -49,10 +49,13 @@ relatório:
 - **`sync_relatorio_runs`** — auditoria por relatório/dia. Um relatório
   falhando (ex.: não aceita o parâmetro de período padrão) não derruba os
   outros.
+- **`dim_relatorio_coluna`** — dicionário de colunas por relatório (ver
+  seção própria abaixo).
 
 A função `sync-relatorios-dw` varre os relatórios ativos e, pra cada um,
 chama o Klingo um dia por vez (mesmo parâmetro `:periodo0` do
-`sync-indicadores`). Aceita o mesmo corpo `{"from":"AAAA-MM-DD","to":"AAAA-MM-DD"}`
+`sync-indicadores`), com 1 retry automático em falha transitória de rede.
+Aceita o mesmo corpo `{"from":"AAAA-MM-DD","to":"AAAA-MM-DD"}`
 pra carga histórica (máx. 31 dias por chamada), autenticado como
 `service_role`.
 
@@ -78,6 +81,61 @@ Para cadastrar um relatório que ainda não está no catálogo:
 ```sql
 insert into public.dim_relatorio (klingo_id, nome, categoria, ativo)
 values ('<id-no-klingo>', '<nome>', '<categoria>', false);
+```
+
+### Evitar duplicata quando um relatório é substituído
+
+Às vezes o mesmo relatório aparece duas vezes no painel do Klingo com nomes
+iguais e IDs diferentes (ex.: uma versão antiga e uma recriada depois) — foi
+o caso de "Faturas Emitidas" (`#13149` e `#12756`). A regra adotada é
+**o número mais alto vence**: ao cadastrar ou achar um relatório com nome
+repetido, aponte o mais antigo pro mais novo com `supersedido_por` em vez de
+deixar os dois ativos:
+
+```sql
+update public.dim_relatorio
+set ativo = false,
+    supersedido_por = (select id from public.dim_relatorio where klingo_id = '<id-mais-novo>')
+where klingo_id = '<id-mais-antigo>';
+```
+
+Isso é reforçado em duas camadas, então não dá pra esquecer por engano:
+
+- um índice único (`dim_relatorio_nome_ativo_uq`) nunca deixa dois
+  relatórios com o mesmo `nome` ficarem `ativo = true` ao mesmo tempo;
+- a Edge Function pula qualquer relatório com `supersedido_por` preenchido,
+  mesmo que `ativo` tenha sido marcado `true` por engano.
+
+### Dicionário de colunas (`dim_relatorio_coluna`)
+
+Os relatórios do Klingo vêm com colunas genéricas (`col1`, `col2`, ...) sem
+nome — pra saber "em qual relatório está tal informação" é preciso mapear o
+que cada coluna significa relatório por relatório. A cada sync,
+`dim_relatorio_coluna` registra automaticamente quais `coluna_key` (col1,
+col2...) apareceram em cada relatório e o tipo do valor observado (`string`,
+`number`, `boolean`, etc.) — isso vai se completando sozinho conforme mais
+relatórios são ativados, sem precisar mexer em código.
+
+O campo `rotulo` (o que a coluna *significa* de fato, ex. "nome do
+convênio") é só manual — a Edge Function nunca escreve nele, pra não chutar
+errado. Depois de ativar um relatório, confira as colunas no painel do
+Klingo (ícone de engrenagem ao lado do relatório) e preencha:
+
+```sql
+update public.dim_relatorio_coluna
+set rotulo = 'nome do convênio'
+where relatorio_id = (select id from public.dim_relatorio where klingo_id = '13222')
+  and coluna_key = 'col3';
+```
+
+Pra achar em qual relatório está uma informação, depois de alguns
+relatórios mapeados:
+
+```sql
+select r.klingo_id, r.nome, c.coluna_key, c.rotulo
+from public.dim_relatorio_coluna c
+join public.dim_relatorio r on r.id = c.relatorio_id
+where c.rotulo ilike '%convênio%';
 ```
 
 ### ATENÇÃO LGPD

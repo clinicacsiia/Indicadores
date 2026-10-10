@@ -13,7 +13,19 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //
 // Um relatório falhando (ex.: não aceita o parâmetro de período, token sem
 // permissão) não derruba os outros: cada relatório/dia tem seu próprio
-// try/catch e sua própria linha em `sync_relatorio_runs`.
+// try/catch e sua própria linha em `sync_relatorio_runs`. Falhas de rede
+// transitórias no Klingo têm 1 retry automático antes de contar como erro.
+//
+// Relatórios "supersedidos" (mesmo nome de outro, ID mais antigo — ver
+// dim_relatorio.supersedido_por) são pulados mesmo que ativo=true por
+// engano, pra nunca duplicar a mesma informação sob dois IDs diferentes.
+//
+// A cada relatório sincronizado, também atualiza dim_relatorio_coluna com
+// as chaves de coluna (col1, col2...) observadas e o tipo de valor de cada
+// uma — um mapa de "o que existe em cada relatório" que vai se completando
+// sozinho conforme mais relatórios são ativados. O rótulo humano (o que a
+// coluna significa) nunca é escrito por aqui, só por quem conferir o
+// relatório no Klingo e preencher manualmente.
 //
 // ATENÇÃO LGPD: ao contrário de sync-indicadores, esta função NÃO agrega nem
 // filtra campos — grava a linha como o Klingo devolveu. Só relatórios com
@@ -24,6 +36,8 @@ const KLINGO_URL = "https://api-externa.klingo.app/api/info/relatorio";
 const MAX_BACKFILL_DAYS = 31;
 const UPSERT_CHUNK_SIZE = 500;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const FETCH_RETRIES = 1;
+const RETRY_DELAY_MS = 1_000;
 
 type Row = Record<string, unknown>;
 
@@ -70,7 +84,11 @@ async function resolveDays(req: Request): Promise<string[] | null> {
   return days;
 }
 
-async function fetchReport(klingoId: string, day: string, token: string): Promise<Row[]> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchReportOnce(klingoId: string, day: string, token: string): Promise<Row[]> {
   const params = new URLSearchParams({
     id: klingoId,
     ":periodo0": "l",
@@ -88,6 +106,23 @@ async function fetchReport(klingoId: string, day: string, token: string): Promis
   const data = payload?.result?.data;
   if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
   return data as Row[];
+}
+
+// Retry simples: falha transitória de rede/Klingo não deve custar o
+// relatório inteiro. Erros de validação (payload.error, formato inesperado)
+// também passam pelo retry — se persistirem, o erro final é o que vai pro
+// log, então não perde diagnóstico.
+async function fetchReport(klingoId: string, day: string, token: string): Promise<Row[]> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+    try {
+      return await fetchReportOnce(klingoId, day, token);
+    } catch (error) {
+      lastError = error;
+      if (attempt < FETCH_RETRIES) await sleep(RETRY_DELAY_MS);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Falha desconhecida ao buscar relatório");
 }
 
 // Stringify com chaves ordenadas, pra duas linhas com o mesmo conteúdo (em
@@ -114,6 +149,32 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+// Tipo do valor, só pra dar uma pista em dim_relatorio_coluna — nunca grava
+// o valor em si (as linhas já vivem em fact_relatorio_linha; não precisa
+// duplicar conteúdo potencialmente sensível no dicionário de colunas).
+function tipoDe(value: unknown): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "number") return "number";
+  if (typeof value === "string") return "string";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "object") return "object";
+  return "desconhecido";
+}
+
+// Varre as linhas do dia e monta coluna_key -> tipo_observado (primeiro
+// valor não nulo encontrado para cada chave, entre as linhas deste dia).
+function colunasObservadas(data: Row[]): Map<string, string> {
+  const colunas = new Map<string, string>();
+  for (const row of data) {
+    for (const [key, value] of Object.entries(row)) {
+      if (colunas.has(key) && colunas.get(key) !== "null") continue;
+      colunas.set(key, tipoDe(value));
+    }
+  }
+  return colunas;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   if (!isServiceRoleCaller(req)) return json({ error: "Forbidden" }, 403);
@@ -131,13 +192,21 @@ Deno.serve(async (req: Request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const { data: relatorios, error: relatoriosError } = await supabase
+  const { data: todosAtivos, error: relatoriosError } = await supabase
     .from("dim_relatorio")
-    .select("id, klingo_id, nome")
+    .select("id, klingo_id, nome, supersedido_por")
     .eq("ativo", true);
   if (relatoriosError) return json({ error: `Falha ao ler dim_relatorio: ${relatoriosError.message}` }, 500);
-  if (!relatorios || relatorios.length === 0) {
+  if (!todosAtivos || todosAtivos.length === 0) {
     return json({ error: "Nenhum relatório ativo em dim_relatorio" }, 400);
+  }
+
+  // Rede de segurança além do índice único em (nome) where ativo: mesmo que
+  // um relatório supersedido tenha sido marcado ativo por engano, não roda.
+  const pulados = todosAtivos.filter((r) => r.supersedido_por);
+  const relatorios = todosAtivos.filter((r) => !r.supersedido_por);
+  if (relatorios.length === 0) {
+    return json({ error: "Todos os relatórios ativos estão supersedidos" }, 400);
   }
 
   let totalLinhas = 0;
@@ -170,6 +239,23 @@ Deno.serve(async (req: Request) => {
           if (error) throw new Error(`Falha ao gravar fact_relatorio_linha: ${error.message}`);
         }
 
+        const colunas = colunasObservadas(data);
+        if (colunas.size > 0) {
+          const agora = new Date().toISOString();
+          const colunasPayload = Array.from(colunas.entries()).map(([coluna_key, tipo_observado]) => ({
+            relatorio_id: relatorio.id,
+            coluna_key,
+            tipo_observado,
+            last_seen_at: agora,
+          }));
+          const { error: colunaError } = await supabase
+            .from("dim_relatorio_coluna")
+            .upsert(colunasPayload, { onConflict: "relatorio_id,coluna_key" });
+          // Falha ao atualizar o dicionário de colunas não derruba o sync dos
+          // dados em si — só registra no log da função.
+          if (colunaError) console.error(`Falha ao atualizar dim_relatorio_coluna: ${colunaError.message}`);
+        }
+
         totalLinhas += linhas.length;
         if (run) {
           await supabase
@@ -192,6 +278,7 @@ Deno.serve(async (req: Request) => {
 
   return json({
     relatorios_processados: relatorios.length,
+    relatorios_pulados_supersedidos: pulados.map((r) => `${r.nome} (#${r.klingo_id})`),
     dias: days.length,
     linhas_sincronizadas: totalLinhas,
     erros,
