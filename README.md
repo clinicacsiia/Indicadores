@@ -38,7 +38,7 @@ API externa → Edge Function (sync-indicadores) → tabela indicadores (Supabas
 
 Pontos chave:
 
-- **Credencial da API externa** (`EXTERNAL_API_KEY`, `EXTERNAL_API_URL`) vive
+- **Credencial da API externa** (`KLINGO_APP_TOKEN`) vive
   só nos *secrets* da Edge Function, no painel do Supabase. Nunca entra no
   repositório, no `.env.local` do site, nem em nenhuma variável `NEXT_PUBLIC_*`.
 - **RLS habilitado** em `indicadores` e `sync_runs` desde a migration que as
@@ -61,11 +61,8 @@ Pontos chave:
 
 ### Pendências de configuração (precisam ser feitas no painel do Supabase)
 
-- [ ] Definir o secret `EXTERNAL_API_URL` (endpoint da API externa).
-- [ ] Definir o secret `EXTERNAL_API_KEY` (token da API externa).
-- [ ] Ajustar o mapeamento de campos em
-      `supabase/functions/sync-indicadores/index.ts` conforme o formato real
-      da resposta da API (hoje é um placeholder).
+- [ ] Definir o secret `KLINGO_APP_TOKEN` (token `X-APP-TOKEN` do Klingo) em
+      *Edge Functions → Secrets*. Nunca commitar nem colar em chat/issue.
 - [ ] Criar os usuários que terão acesso ao painel (Authentication → Users).
 - [ ] **Trocar a chave usada pelo `pg_cron` de anon key para `service_role`.**
       A função `sync-indicadores` agora só aceita chamadas autenticadas como
@@ -100,6 +97,20 @@ Pontos chave:
         $$
       );
       ```
+
+### Fonte de dados (Klingo)
+
+A função consulta o relatório `13397` ("AGENDADOS X REALIZADOS") do Klingo,
+um dia por vez (`:periodo0=l` com `from = to = dia`), e grava **somente
+agregados** por dia em `indicadores`: `agendamentos_total`,
+`atendimentos_finalizados`, `atendimentos_avulsos` e
+`valor_total_procedimentos`. O relatório vem por paciente, mas nome de
+paciente e demais dados linha-a-linha são descartados na função (minimização
+de dados / LGPD) e nunca chegam ao banco.
+
+Por padrão sincroniza o dia atual (fuso America/Sao_Paulo). Para carga
+histórica, chame a função com `{"from":"AAAA-MM-DD","to":"AAAA-MM-DD"}` (máx.
+31 dias por chamada), autenticado como `service_role`.
 
 ### Observação sobre advisories
 
