@@ -25,6 +25,70 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `app/page.tsx` — lista os indicadores sincronizados (só acessível logado).
 - `supabase/functions/sync-indicadores/` — Edge Function que busca a API
   externa e grava os dados no banco.
+- `supabase/functions/sync-relatorios-dw/` — Edge Function genérica que
+  sincroniza qualquer relatório cadastrado em `dim_relatorio` (ver seção
+  "Data warehouse de relatórios" abaixo).
+
+## Data warehouse de relatórios
+
+Além do `sync-indicadores` original (que só lê o relatório `13397` e grava 4
+agregados por dia em `indicadores`), existe uma segunda camada pensada pra
+cobrir **qualquer** relatório do Klingo sem precisar de código novo a cada
+relatório:
+
+- **`dim_relatorio`** — catálogo dos relatórios do Klingo. Cada linha tem o
+  `klingo_id`, nome, categoria e uma flag `ativo`. Só relatórios com
+  `ativo = true` são sincronizados.
+- **`fact_relatorio_linha`** — uma linha por linha de relatório efetivamente
+  observada, guardada como veio do Klingo (`jsonb`), deduplicada por
+  `linha_hash` (sha256 do conteúdo). Reexecutar o sync pro mesmo
+  relatório/dia é idempotente: linha igual não cria registro novo (só
+  atualiza `last_seen_at`); linha que mudou de conteúdo cria um registro novo
+  com hash novo. **Nada é apagado** — o histórico funciona como uma
+  slowly-changing-dimension, não como uma foto única sobrescrita a cada sync.
+- **`sync_relatorio_runs`** — auditoria por relatório/dia. Um relatório
+  falhando (ex.: não aceita o parâmetro de período padrão) não derruba os
+  outros.
+
+A função `sync-relatorios-dw` varre os relatórios ativos e, pra cada um,
+chama o Klingo um dia por vez (mesmo parâmetro `:periodo0` do
+`sync-indicadores`). Aceita o mesmo corpo `{"from":"AAAA-MM-DD","to":"AAAA-MM-DD"}`
+pra carga histórica (máx. 31 dias por chamada), autenticado como
+`service_role`.
+
+### Catálogo inicial e como ativar mais relatórios
+
+O painel do Klingo desta clínica lista **101 relatórios** ao todo. A
+migration `20261010200526_create_relatorios_dw_schema.sql` cadastrou os
+**50** identificados até agora (capturados em 10/10/2026), todos **inativos**
+por padrão — exceto o `13397`, já validado. Ficam inativos porque nem todo
+relatório necessariamente aceita o mesmo parâmetro de período por dia
+(`:periodo0-from`/`:periodo0-to`); alguns (ex.: `Arquivos #12712`,
+`Verificação de ID #13437`) podem ser cadastros pontuais sem filtro de data.
+
+Para ativar um relatório depois de confirmar que ele funciona com esse
+parâmetro:
+
+```sql
+update public.dim_relatorio set ativo = true where klingo_id = '13222';
+```
+
+Para cadastrar um relatório que ainda não está no catálogo:
+
+```sql
+insert into public.dim_relatorio (klingo_id, nome, categoria, ativo)
+values ('<id-no-klingo>', '<nome>', '<categoria>', false);
+```
+
+### ATENÇÃO LGPD
+
+Diferente de `indicadores` (que só guarda agregados sem identificar
+paciente), `fact_relatorio_linha` grava a linha do relatório como o Klingo
+devolveu — vários relatórios desta clínica trazem dado identificável (nome
+de paciente, CPF, etc., dependendo do relatório). O `select` continua restrito
+a `authenticated`, mas isso foi uma decisão consciente: antes de ativar um
+relatório sensível ou de expor esses dados a mais gente além do painel
+atual, avalie RLS adicional ou mascaramento.
 
 ## Arquitetura de segurança
 
@@ -85,6 +149,29 @@ Pontos chave:
         command := $$
           select net.http_post(
             url := 'https://syhcvonwthtqalpjcmtj.supabase.co/functions/v1/sync-indicadores',
+            headers := jsonb_build_object(
+              'Content-Type', 'application/json',
+              'Authorization', 'Bearer ' || (
+                select decrypted_secret from vault.decrypted_secrets
+                where name = 'cron_service_role_key'
+              )
+            ),
+            body := '{}'::jsonb
+          );
+        $$
+      );
+      ```
+
+      O job `sync-relatorios-dw-hourly` (data warehouse de relatórios) tem o
+      mesmo problema e usa o mesmo secret do Vault — depois de criar o
+      `cron_service_role_key` acima, rode também:
+
+      ```sql
+      select cron.alter_job(
+        (select jobid from cron.job where jobname = 'sync-relatorios-dw-hourly'),
+        command := $$
+          select net.http_post(
+            url := 'https://syhcvonwthtqalpjcmtj.supabase.co/functions/v1/sync-relatorios-dw',
             headers := jsonb_build_object(
               'Content-Type', 'application/json',
               'Authorization', 'Bearer ' || (
