@@ -51,6 +51,8 @@ relatório:
   outros.
 - **`dim_relatorio_coluna`** — dicionário de colunas por relatório (ver
   seção própria abaixo).
+- **`etl_alertas`** / **`v_etl_pendencias`** — pendências para revisão humana
+  (possíveis duplicatas, erros, mudança de layout). Ver "Duplicatas e erros".
 
 A função `sync-relatorios-dw` varre os relatórios ativos e, pra cada um,
 chama o Klingo um dia por vez (mesmo parâmetro `:periodo0` do
@@ -83,28 +85,75 @@ insert into public.dim_relatorio (klingo_id, nome, categoria, ativo)
 values ('<id-no-klingo>', '<nome>', '<categoria>', false);
 ```
 
-### Evitar duplicata quando um relatório é substituído
+### Duplicatas e erros: o sistema aponta, uma pessoa decide
 
-Às vezes o mesmo relatório aparece duas vezes no painel do Klingo com nomes
-iguais e IDs diferentes (ex.: uma versão antiga e uma recriada depois) — foi
-o caso de "Faturas Emitidas" (`#13149` e `#12756`). A regra adotada é
-**o número mais alto vence**: ao cadastrar ou achar um relatório com nome
-repetido, aponte o mais antigo pro mais novo com `supersedido_por` em vez de
-deixar os dois ativos:
+Duplicata aparente nem sempre é duplicata: dois relatórios com o mesmo nome
+(como "Faturas Emitidas", `#13149` e `#12756`) podem ser versão antiga/nova
+ou um erro de cadastro no Klingo. Por isso **nada é desativado, escondido ou
+apagado automaticamente**. Tudo que merece conferência vira um alerta em
+`etl_alertas`, e o que está aberto aparece em `v_etl_pendencias` (mais grave
+primeiro):
+
+| Tipo | Quando aparece |
+| --- | --- |
+| `possivel_duplicata_nome` | dois relatórios com o mesmo nome (na hora do cadastro) |
+| `possivel_duplicata_dados` | após o sync, ≥ 50% das linhas (mín. 3) de um relatório no dia já existem idênticas em outro relatório |
+| `sync_erro` | falha ao buscar/gravar um relatório (já com 1 retry) |
+| `coluna_nova` / `coluna_ausente` | o layout de um relatório já mapeado mudou |
+| `linhas_repetidas` | linhas totalmente idênticas no mesmo relatório/dia |
+| `linha_invalida` | o Klingo devolveu algo que não é uma linha de colunas |
+
+Cada alerta repetido só soma `ocorrencias` em vez de criar outro. Para
+encerrar um, registre o que foi decidido (um alerta resolvido ou ignorado não
+reabre sozinho, exceto `sync_erro`, que pode voltar):
+
+```sql
+select * from public.v_etl_pendencias;
+
+update public.etl_alertas
+set status = 'resolvido',   -- ou 'em_analise' / 'ignorado'
+    resolvido_em = now(),
+    resolucao = 'duplicata real: #12756 descontinuado, manter só o #13149'
+where id = '<id do alerta>';
+```
+
+Se a conferência concluir que um relatório realmente substitui outro, marque
+`supersedido_por` à mão — é decisão humana, nunca preenchida pelo sistema, e a
+Edge Function pula relatórios com ele preenchido:
 
 ```sql
 update public.dim_relatorio
 set ativo = false,
-    supersedido_por = (select id from public.dim_relatorio where klingo_id = '<id-mais-novo>')
-where klingo_id = '<id-mais-antigo>';
+    supersedido_por = (select id from public.dim_relatorio where klingo_id = '<id-que-fica>')
+where klingo_id = '<id-que-sai>';
 ```
 
-Isso é reforçado em duas camadas, então não dá pra esquecer por engano:
+Linhas idênticas dentro do mesmo relatório/dia ficam num registro só com a
+contagem em `repeticoes`, então nada é subcontado. Excluir um relatório do
+catálogo é barrado enquanto houver dados ou alertas ligados a ele.
 
-- um índice único (`dim_relatorio_nome_ativo_uq`) nunca deixa dois
-  relatórios com o mesmo `nome` ficarem `ativo = true` ao mesmo tempo;
-- a Edge Function pula qualquer relatório com `supersedido_por` preenchido,
-  mesmo que `ativo` tenha sido marcado `true` por engano.
+Limites: a checagem de nome só pega nomes iguais (ignorando caixa/espaços), e a
+de dados só pega linhas idênticas em todas as colunas — mesma informação em
+colunas diferentes precisa de olho humano.
+
+### Adicionando relatórios no futuro
+
+Novos relatórios entram sempre pelo cadastro manual — o sistema **não
+descobre IDs testando a API do Klingo**, e só consulta relatórios com
+`ativo = true`, um por vez, com pausa entre as requisições.
+
+1. Cadastre com `ativo = false` (insert da seção anterior). O cadastro já
+   dispara a checagem de nome repetido; veja `v_etl_pendencias`.
+2. Ative (`ativo = true`). No primeiro sync a função compara as linhas com as
+   dos outros relatórios no mesmo dia e abre `possivel_duplicata_dados` se a
+   informação já existir em outro lugar.
+3. Revise os alertas antes de confiar nos dados: se for duplicata real,
+   decida (e registre em `resolucao`); se for erro do relatório, o dado
+   continua guardado para correção — nada é apagado.
+
+Ative poucos relatórios por vez: a função consulta todos os ativos em
+sequência numa única execução, e muitos de uma vez podem estourar o tempo
+limite da Edge Function.
 
 ### Dicionário de colunas (`dim_relatorio_coluna`)
 

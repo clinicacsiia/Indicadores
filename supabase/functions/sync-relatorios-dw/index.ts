@@ -1,36 +1,29 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
-// Sync genérico "data warehouse": varre todos os relatórios cadastrados e
-// ativos em `dim_relatorio`, busca cada um no Klingo (um dia por vez, igual
-// ao sync-indicadores original) e grava as linhas cruas em
-// `fact_relatorio_linha`, deduplicadas por hash de conteúdo.
+// Sync genérico "data warehouse": varre os relatórios ativos em
+// `dim_relatorio`, busca cada um no Klingo (um dia por vez) e grava as linhas
+// cruas em `fact_relatorio_linha`, deduplicadas por hash de conteúdo.
 //
-// Diferente de sync-indicadores (que sempre recalcula e sobrescreve 4
-// agregados por dia), aqui nada é apagado: uma linha igual à já gravada vira
-// um no-op (só atualiza last_seen_at); uma linha com conteúdo novo vira um
-// registro novo. Isso cobre o pedido de "ir atualizando só o que mudou" sem
-// truncar e recarregar tudo a cada execução.
-//
-// Um relatório falhando (ex.: não aceita o parâmetro de período, token sem
-// permissão) não derruba os outros: cada relatório/dia tem seu próprio
-// try/catch e sua própria linha em `sync_relatorio_runs`. Falhas de rede
-// transitórias no Klingo têm 1 retry automático antes de contar como erro.
-//
-// Relatórios "supersedidos" (mesmo nome de outro, ID mais antigo — ver
-// dim_relatorio.supersedido_por) são pulados mesmo que ativo=true por
-// engano, pra nunca duplicar a mesma informação sob dois IDs diferentes.
-//
-// A cada relatório sincronizado, também atualiza dim_relatorio_coluna com
-// as chaves de coluna (col1, col2...) observadas e o tipo de valor de cada
-// uma — um mapa de "o que existe em cada relatório" que vai se completando
-// sozinho conforme mais relatórios são ativados. O rótulo humano (o que a
-// coluna significa) nunca é escrito por aqui, só por quem conferir o
-// relatório no Klingo e preencher manualmente.
+// Princípios:
+// - Nada é apagado. Linha igual à já gravada só atualiza last_seen_at; linha
+//   com conteúdo novo vira um registro novo. Linhas idênticas dentro do mesmo
+//   relatório/dia ficam num registro só, com a contagem em `repeticoes`.
+// - Nada é "consertado" ou escondido sozinho. Tudo que merece olho humano
+//   (erro de sync, coluna nova/ausente, linhas repetidas, dados que já existem
+//   em outro relatório, nome de relatório repetido) vira um alerta em
+//   `etl_alertas` (consulta: view v_etl_pendencias). Um alerta aberto não
+//   para o sync — quem decide o que fazer é uma pessoa.
+// - Um relatório falhando não derruba os outros: cada relatório/dia tem seu
+//   próprio try/catch e sua linha em `sync_relatorio_runs`.
+// - Sem martelar o Klingo: requisições sequenciais, com pausa entre elas, 1
+//   retry em falha transitória e só relatórios com ativo=true. A função nunca
+//   descobre relatórios testando IDs; novos relatórios entram pelo cadastro
+//   manual em dim_relatorio.
+// - Relatórios com `supersedido_por` preenchido (decisão humana) são pulados.
 //
 // ATENÇÃO LGPD: ao contrário de sync-indicadores, esta função NÃO agrega nem
-// filtra campos — grava a linha como o Klingo devolveu. Só relatórios com
-// `ativo = true` em `dim_relatorio` rodam; mantenha inativo até confirmar o
-// que cada relatório expõe.
+// filtra campos — grava a linha como o Klingo devolveu. Mantenha o relatório
+// inativo até confirmar o que ele expõe.
 
 const KLINGO_URL = "https://api-externa.klingo.app/api/info/relatorio";
 const MAX_BACKFILL_DAYS = 31;
@@ -38,8 +31,10 @@ const UPSERT_CHUNK_SIZE = 500;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FETCH_RETRIES = 1;
 const RETRY_DELAY_MS = 1_000;
+const REQUEST_DELAY_MS = 500;
 
 type Row = Record<string, unknown>;
+type Grupo = { linha: unknown; repeticoes: number };
 
 function isServiceRoleCaller(req: Request): boolean {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer /i, "");
@@ -88,7 +83,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchReportOnce(klingoId: string, day: string, token: string): Promise<Row[]> {
+async function fetchReportOnce(klingoId: string, day: string, token: string): Promise<unknown[]> {
   const params = new URLSearchParams({
     id: klingoId,
     ":periodo0": "l",
@@ -105,14 +100,10 @@ async function fetchReportOnce(klingoId: string, day: string, token: string): Pr
   if (payload?.error) throw new Error("Klingo retornou erro no relatório");
   const data = payload?.result?.data;
   if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
-  return data as Row[];
+  return data;
 }
 
-// Retry simples: falha transitória de rede/Klingo não deve custar o
-// relatório inteiro. Erros de validação (payload.error, formato inesperado)
-// também passam pelo retry — se persistirem, o erro final é o que vai pro
-// log, então não perde diagnóstico.
-async function fetchReport(klingoId: string, day: string, token: string): Promise<Row[]> {
+async function fetchReport(klingoId: string, day: string, token: string): Promise<unknown[]> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
     try {
@@ -123,6 +114,10 @@ async function fetchReport(klingoId: string, day: string, token: string): Promis
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Falha desconhecida ao buscar relatório");
+}
+
+function isPlainObject(value: unknown): value is Row {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 // Stringify com chaves ordenadas, pra duas linhas com o mesmo conteúdo (em
@@ -137,10 +132,24 @@ function canonicalStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
-async function hashLinha(row: Row): Promise<string> {
+async function hashLinha(row: unknown): Promise<string> {
   const data = new TextEncoder().encode(canonicalStringify(row));
   const digest = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Agrupa linhas idênticas: o upsert falha se o mesmo lote tiver a mesma chave
+// duas vezes, e colapsar sem contar subconta linhas legítimas. Guarda a
+// contagem em `repeticoes`.
+async function agruparLinhas(data: unknown[]): Promise<Map<string, Grupo>> {
+  const hashes = await Promise.all(data.map(hashLinha));
+  const grupos = new Map<string, Grupo>();
+  data.forEach((linha, i) => {
+    const grupo = grupos.get(hashes[i]);
+    if (grupo) grupo.repeticoes += 1;
+    else grupos.set(hashes[i], { linha, repeticoes: 1 });
+  });
+  return grupos;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -149,9 +158,9 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-// Tipo do valor, só pra dar uma pista em dim_relatorio_coluna — nunca grava
-// o valor em si (as linhas já vivem em fact_relatorio_linha; não precisa
-// duplicar conteúdo potencialmente sensível no dicionário de colunas).
+// Só o tipo do valor, nunca o valor: as linhas já vivem em
+// fact_relatorio_linha e não faz sentido copiar conteúdo potencialmente
+// sensível pro dicionário de colunas.
 function tipoDe(value: unknown): string {
   if (value === null || value === undefined) return "null";
   if (typeof value === "boolean") return "boolean";
@@ -162,17 +171,42 @@ function tipoDe(value: unknown): string {
   return "desconhecido";
 }
 
-// Varre as linhas do dia e monta coluna_key -> tipo_observado (primeiro
-// valor não nulo encontrado para cada chave, entre as linhas deste dia).
-function colunasObservadas(data: Row[]): Map<string, string> {
+function colunasObservadas(data: unknown[]): Map<string, string> {
   const colunas = new Map<string, string>();
   for (const row of data) {
+    if (!isPlainObject(row)) continue;
     for (const [key, value] of Object.entries(row)) {
       if (colunas.has(key) && colunas.get(key) !== "null") continue;
       colunas.set(key, tipoDe(value));
     }
   }
   return colunas;
+}
+
+type Alerta = {
+  tipo: string;
+  severidade: "erro" | "aviso" | "info";
+  chave: string;
+  mensagem: string;
+  relatorioId: string;
+  periodo: string;
+  detalhes?: Record<string, unknown>;
+  reabrir?: boolean;
+};
+
+// Alerta nunca derruba o sync: se registrar falhar, só vai pro log da função.
+async function registrarAlerta(supabase: SupabaseClient, alerta: Alerta): Promise<void> {
+  const { error } = await supabase.rpc("registrar_alerta", {
+    p_tipo: alerta.tipo,
+    p_severidade: alerta.severidade,
+    p_chave: alerta.chave,
+    p_mensagem: alerta.mensagem,
+    p_relatorio_id: alerta.relatorioId,
+    p_periodo: alerta.periodo,
+    p_detalhes: alerta.detalhes ?? {},
+    p_reabrir: alerta.reabrir ?? false,
+  });
+  if (error) console.error(`Falha ao registrar alerta ${alerta.tipo}: ${error.message}`);
 }
 
 Deno.serve(async (req: Request) => {
@@ -201,18 +235,20 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Nenhum relatório ativo em dim_relatorio" }, 400);
   }
 
-  // Rede de segurança além do índice único em (nome) where ativo: mesmo que
-  // um relatório supersedido tenha sido marcado ativo por engano, não roda.
+  // supersedido_por só é preenchido por uma pessoa; se ela marcou, respeita.
   const pulados = todosAtivos.filter((r) => r.supersedido_por);
   const relatorios = todosAtivos.filter((r) => !r.supersedido_por);
   if (relatorios.length === 0) {
-    return json({ error: "Todos os relatórios ativos estão supersedidos" }, 400);
+    return json({ error: "Todos os relatórios ativos estão marcados como supersedidos" }, 400);
   }
 
   let totalLinhas = 0;
+  let primeiraRequisicao = true;
   const erros: Array<{ relatorio: string; periodo: string; mensagem: string }> = [];
 
   for (const relatorio of relatorios) {
+    const rotulo = `"${relatorio.nome}" (#${relatorio.klingo_id})`;
+
     for (const periodo of days) {
       const { data: run } = await supabase
         .from("sync_relatorio_runs")
@@ -220,29 +256,108 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
 
+      if (!primeiraRequisicao) await sleep(REQUEST_DELAY_MS);
+      primeiraRequisicao = false;
+
       try {
         const data = await fetchReport(relatorio.klingo_id, periodo, token);
-        const linhas = await Promise.all(
-          data.map(async (linha) => ({
-            relatorio_id: relatorio.id,
-            periodo,
-            linha,
-            linha_hash: await hashLinha(linha),
-            last_seen_at: new Date().toISOString(),
-          })),
-        );
+        const grupos = await agruparLinhas(data);
+        const agora = new Date().toISOString();
 
-        for (const batch of chunk(linhas, UPSERT_CHUNK_SIZE)) {
+        const linhasPayload = Array.from(grupos.entries()).map(([linha_hash, grupo]) => ({
+          relatorio_id: relatorio.id,
+          periodo,
+          linha: grupo.linha,
+          linha_hash,
+          repeticoes: grupo.repeticoes,
+          last_seen_at: agora,
+        }));
+
+        for (const batch of chunk(linhasPayload, UPSERT_CHUNK_SIZE)) {
           const { error } = await supabase
             .from("fact_relatorio_linha")
             .upsert(batch, { onConflict: "relatorio_id,periodo,linha_hash" });
           if (error) throw new Error(`Falha ao gravar fact_relatorio_linha: ${error.message}`);
         }
 
-        const colunas = colunasObservadas(data);
-        if (colunas.size > 0) {
-          const agora = new Date().toISOString();
-          const colunasPayload = Array.from(colunas.entries()).map(([coluna_key, tipo_observado]) => ({
+        totalLinhas += data.length;
+        if (run) {
+          await supabase
+            .from("sync_relatorio_runs")
+            .update({ status: "success", finished_at: new Date().toISOString(), linhas_sincronizadas: data.length })
+            .eq("id", run.id);
+        }
+
+        // --- Revisão (nada abaixo apaga ou altera dados já gravados) ---
+        if (data.length === 0) continue;
+
+        const invalidas = data.filter((row) => !isPlainObject(row)).length;
+        if (invalidas > 0) {
+          await registrarAlerta(supabase, {
+            tipo: "linha_invalida",
+            severidade: "aviso",
+            chave: `linha_invalida:${relatorio.id}`,
+            mensagem: `${rotulo} devolveu ${invalidas} linha(s) que não são um objeto de colunas em ${periodo}. Foram gravadas como vieram; conferir o relatório no Klingo.`,
+            relatorioId: relatorio.id,
+            periodo,
+            detalhes: { periodo, linhas_invalidas: invalidas },
+          });
+        }
+
+        const repetidas = Array.from(grupos.values()).filter((g) => g.repeticoes > 1);
+        if (repetidas.length > 0) {
+          const extras = repetidas.reduce((soma, g) => soma + g.repeticoes - 1, 0);
+          await registrarAlerta(supabase, {
+            tipo: "linhas_repetidas",
+            severidade: "info",
+            chave: `linhas_repetidas:${relatorio.id}`,
+            mensagem: `${rotulo} tem linhas totalmente idênticas em ${periodo} (${repetidas.length} grupo(s), ${extras} linha(s) a mais). Foram mantidas, com a contagem em repeticoes. Pode ser legítimo (itens iguais) ou erro do relatório — conferir.`,
+            relatorioId: relatorio.id,
+            periodo,
+            detalhes: { periodo, grupos_repetidos: repetidas.length, linhas_extras: extras },
+          });
+        }
+
+        const observadas = colunasObservadas(data);
+        const { data: existentes, error: existentesError } = await supabase
+          .from("dim_relatorio_coluna")
+          .select("coluna_key")
+          .eq("relatorio_id", relatorio.id);
+        if (existentesError) {
+          console.error(`Falha ao ler dim_relatorio_coluna: ${existentesError.message}`);
+        } else if (observadas.size > 0) {
+          const jaConhecidas = new Set((existentes ?? []).map((c) => c.coluna_key as string));
+
+          // Só compara layout quando já havia um mapa anterior; no primeiro
+          // sync todas as colunas seriam "novas" e isso é só ruído.
+          if (jaConhecidas.size > 0) {
+            for (const key of observadas.keys()) {
+              if (jaConhecidas.has(key)) continue;
+              await registrarAlerta(supabase, {
+                tipo: "coluna_nova",
+                severidade: "aviso",
+                chave: `coluna_nova:${relatorio.id}:${key}`,
+                mensagem: `${rotulo} passou a trazer a coluna ${key}, que não existia antes. O Klingo pode ter mudado o layout do relatório — conferir o mapeamento (dim_relatorio_coluna.rotulo).`,
+                relatorioId: relatorio.id,
+                periodo,
+                detalhes: { periodo, coluna: key },
+              });
+            }
+            for (const key of jaConhecidas) {
+              if (observadas.has(key)) continue;
+              await registrarAlerta(supabase, {
+                tipo: "coluna_ausente",
+                severidade: "info",
+                chave: `coluna_ausente:${relatorio.id}:${key}`,
+                mensagem: `${rotulo} não trouxe a coluna ${key} em ${periodo}, que já tinha aparecido antes. Pode ser mudança de layout ou só um dia sem esse dado — conferir se persistir.`,
+                relatorioId: relatorio.id,
+                periodo,
+                detalhes: { periodo, coluna: key },
+              });
+            }
+          }
+
+          const colunasPayload = Array.from(observadas.entries()).map(([coluna_key, tipo_observado]) => ({
             relatorio_id: relatorio.id,
             coluna_key,
             tipo_observado,
@@ -251,18 +366,14 @@ Deno.serve(async (req: Request) => {
           const { error: colunaError } = await supabase
             .from("dim_relatorio_coluna")
             .upsert(colunasPayload, { onConflict: "relatorio_id,coluna_key" });
-          // Falha ao atualizar o dicionário de colunas não derruba o sync dos
-          // dados em si — só registra no log da função.
           if (colunaError) console.error(`Falha ao atualizar dim_relatorio_coluna: ${colunaError.message}`);
         }
 
-        totalLinhas += linhas.length;
-        if (run) {
-          await supabase
-            .from("sync_relatorio_runs")
-            .update({ status: "success", finished_at: new Date().toISOString(), linhas_sincronizadas: linhas.length })
-            .eq("id", run.id);
-        }
+        const { error: sobreposicaoError } = await supabase.rpc("analisar_sobreposicao_dados", {
+          p_relatorio_id: relatorio.id,
+          p_periodo: periodo,
+        });
+        if (sobreposicaoError) console.error(`Falha na análise de sobreposição: ${sobreposicaoError.message}`);
       } catch (error) {
         const mensagem = error instanceof Error ? error.message : "Erro desconhecido";
         erros.push({ relatorio: `${relatorio.nome} (#${relatorio.klingo_id})`, periodo, mensagem });
@@ -272,6 +383,16 @@ Deno.serve(async (req: Request) => {
             .update({ status: "error", finished_at: new Date().toISOString(), error_message: mensagem })
             .eq("id", run.id);
         }
+        await registrarAlerta(supabase, {
+          tipo: "sync_erro",
+          severidade: "erro",
+          chave: `sync_erro:${relatorio.id}:${mensagem}`,
+          mensagem: `Falha ao sincronizar ${rotulo} em ${periodo}: ${mensagem}. Nenhum dado já gravado foi alterado.`,
+          relatorioId: relatorio.id,
+          periodo,
+          detalhes: { periodo, erro: mensagem },
+          reabrir: true,
+        });
       }
     }
   }
@@ -282,5 +403,6 @@ Deno.serve(async (req: Request) => {
     dias: days.length,
     linhas_sincronizadas: totalLinhas,
     erros,
+    pendencias: "consulte a view v_etl_pendencias para alertas abertos",
   });
 });
