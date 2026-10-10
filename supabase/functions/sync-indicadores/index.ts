@@ -11,6 +11,8 @@ const KLINGO_URL = "https://api-externa.klingo.app/api/info/relatorio";
 const KLINGO_REPORT_ID = "13397";
 const MAX_BACKFILL_DAYS = 31;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const RATE_LIMIT_RETRIES = 3;
+const RATE_LIMIT_DELAY_MS = 3_000;
 
 type Row = Record<string, unknown>;
 
@@ -66,17 +68,40 @@ async function fetchReport(day: string, token: string): Promise<Row[]> {
     ":periodo0-from": day,
     ":periodo0-to": day,
   });
-  const res = await fetch(`${KLINGO_URL}?${params}`, {
-    headers: { "X-APP-TOKEN": token },
-    signal: AbortSignal.timeout(30_000),
-  });
+  let res: Response;
+  for (let tentativa = 0; ; tentativa++) {
+    res = await fetch(`${KLINGO_URL}?${params}`, {
+      headers: { "X-APP-TOKEN": token },
+      signal: AbortSignal.timeout(30_000),
+    });
+    // 429 = limite de requisições do Klingo: espera e tenta de novo, sem martelar.
+    if (res.status !== 429 || tentativa >= RATE_LIMIT_RETRIES) break;
+    await res.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS * (tentativa + 1)));
+  }
   if (!res.ok) throw new Error(`Klingo retornou HTTP ${res.status}`);
 
   const payload = await res.json();
   if (payload?.error) throw new Error("Klingo retornou erro no relatório");
+  // Dia sem nenhum agendamento: o Klingo devolve result = "" (sem erro) em vez de data = [].
+  if (payload?.result === "") return [];
   const data = payload?.result?.data;
-  if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
+  if (!Array.isArray(data)) {
+    // Só a estrutura (chaves e tipos), nunca valores: a resposta pode ter dado de paciente.
+    throw new Error(`Formato inesperado na resposta do Klingo (${describeShape(payload)})`);
+  }
   return data as Row[];
+}
+
+function describeShape(payload: unknown): string {
+  const typeOf = (v: unknown) => (v === null ? "null" : Array.isArray(v) ? "array" : typeof v);
+  if (typeOf(payload) !== "object") return `payload: ${typeOf(payload)}`;
+  const p = payload as Record<string, unknown>;
+  const result = p.result as Record<string, unknown> | undefined;
+  const resultKeys = typeOf(result) === "object" ? Object.keys(result!).join(",") : typeOf(result);
+  // Quando result é texto, costuma ser a mensagem do Klingo; guarda o começo com dígitos mascarados.
+  const mensagem = typeof p.result === "string" ? `; mensagem: "${p.result.slice(0, 120).replace(/\d/g, "#")}"` : "";
+  return `chaves: ${Object.keys(p).join(",")}; result: ${resultKeys}; data: ${typeOf(result?.data)}${mensagem}`;
 }
 
 function toIndicadores(data: Row[], day: string) {
@@ -152,29 +177,33 @@ Deno.serve(async (req: Request) => {
     .single();
   if (runError || !run) return json({ error: "Falha ao registrar sync_run" }, 500);
 
-  try {
-    let synced = 0;
-    for (const day of days) {
+  // Um dia com problema não impede os demais de serem gravados: cada dia tem
+  // seu próprio try/catch e as falhas vão juntas para sync_runs.error_message.
+  let synced = 0;
+  const falhas: string[] = [];
+  for (const day of days) {
+    try {
       const rows = toIndicadores(await fetchReport(day, token), day);
       const { error } = await supabase.from("indicadores").upsert(rows, { onConflict: "codigo,periodo" });
       if (error) throw new Error(`Falha ao gravar indicadores: ${error.message}`);
       synced += rows.length;
+    } catch (error) {
+      falhas.push(`${day}: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
-
-    await supabase
-      .from("sync_runs")
-      .update({ status: "success", finished_at: new Date().toISOString(), records_synced: synced })
-      .eq("id", run.id);
-    return json({ synced, days: days.length });
-  } catch (error) {
-    await supabase
-      .from("sync_runs")
-      .update({
-        status: "error",
-        finished_at: new Date().toISOString(),
-        error_message: error instanceof Error ? error.message : "Erro desconhecido",
-      })
-      .eq("id", run.id);
-    return json({ error: "Falha na sincronização" }, 500);
   }
+
+  await supabase
+    .from("sync_runs")
+    .update({
+      status: falhas.length === 0 ? "success" : "error",
+      finished_at: new Date().toISOString(),
+      records_synced: synced,
+      error_message: falhas.length === 0 ? null : falhas.join("\n"),
+    })
+    .eq("id", run.id);
+
+  if (falhas.length > 0) {
+    return json({ error: "Falha na sincronização de alguns dias", synced, dias_com_falha: falhas.length }, 500);
+  }
+  return json({ synced, days: days.length });
 });

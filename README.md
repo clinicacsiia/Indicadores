@@ -25,7 +25,9 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `app/login/` — tela de login (email/senha via Supabase Auth).
 - `app/(app)/layout.tsx` — menu lateral (Relatórios / Configurações) das
   telas logadas; "Configurações" só aparece para quem tem `role = admin`.
-- `app/(app)/page.tsx` — aba "Relatórios": lista os indicadores sincronizados.
+- `app/(app)/page.tsx` — aba "Relatórios": filtro de período (padrão: últimos
+  30 dias, com atalhos 7/30/90 dias e "Este ano"), totais do período e tabela
+  por dia com os indicadores sincronizados.
 - `app/(app)/configuracoes/` — aba "Configurações" (admin): define quem é
   admin e quem pode ver Relatórios. Protegida tanto na página quanto por RLS.
 - `supabase/functions/sync-indicadores/` — Edge Function que busca a API
@@ -235,82 +237,45 @@ Pontos chave:
   `role = 'admin'` consegue promover outro usuário a admin ou mudar quem vê
   Relatórios — e isso é garantido por RLS (`is_admin()`), não só pela
   interface. Nenhuma senha é lida, mostrada ou guardada por essa tabela.
-- **Sincronização automática**: `pg_cron` chama a Edge Function a cada hora
-  (job `sync-indicadores-hourly`), autenticando a chamada com a chave pública
-  (anon key) — ela só serve para passar a verificação de JWT da função, não
-  dá acesso a nada sensível. A Edge Function usa a `service_role` key
-  (injetada automaticamente pelo runtime, nunca manual) para gravar no banco.
+- **Sincronização automática**: `pg_cron` chama as Edge Functions a cada hora
+  (jobs `sync-indicadores-hourly` e `sync-relatorios-dw-hourly`). As funções
+  só aceitam chamadas autenticadas como `service_role` (ver
+  `isServiceRoleCaller`) — a anon key pública, que está no bundle do site,
+  recebe 403. Os jobs leem a `service_role` key do Vault
+  (`cron_service_role_key`, criptografada) na hora da chamada; ela nunca
+  aparece em texto puro na definição do job, no repositório ou no chat
+  (migration `20261010213130_cron_sync_usa_service_role_do_vault.sql`).
 
-### Pendências de configuração (precisam ser feitas no painel do Supabase)
+## Deploy (Vercel)
 
-- [ ] Definir o secret `KLINGO_APP_TOKEN` (token `X-APP-TOKEN` do Klingo) em
-      *Edge Functions → Secrets*. Nunca commitar nem colar em chat/issue.
+- Projeto Vercel `indicadores` (time `clinicacsiia-9662`), ligado a este
+  repositório no GitHub. Cada push no branch de produção
+  (`ccr-e828f159-nn6n8o`, o branch padrão do repositório) publica em
+  produção; outros branches geram previews.
+- URL pública: **https://indicadores-virid.vercel.app** (pede login do
+  painel). As URLs de deployment/preview (`*-clinicacsiia-9662.vercel.app`)
+  ficam atrás do *Vercel Authentication*, só para quem é do time na Vercel.
+- Variáveis usadas pelo site: `NEXT_PUBLIC_SUPABASE_URL` e
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` (produção e preview). As demais variáveis
+  `POSTGRES_*`/`SUPABASE_*` foram criadas pela integração Supabase da Vercel e
+  não são usadas pelo código.
+
+### Pendências de configuração
+
+- [x] Secret `KLINGO_APP_TOKEN` definido em *Edge Functions → Secrets*.
 - [x] Usuário `csiadmin` criado direto no banco e promovido a admin (login
       pela tela inicial com usuário `csiadmin`; internamente vira o email
       `csiadmin@csi.local`). **Troque a senha após o primeiro acesso** e não
       a registre em código, commit ou chat. Novos usuários: crie em
       Authentication → Users (nascem `viewer`) e ajuste em "Configurações".
-- [ ] Aplicar `20261010205000_indicadores_remove_policy_aberta.sql` (remove a
-      policy antiga `using (true)` de `indicadores`; sem isso o botão "Vê
-      Relatórios" não bloqueia de fato).
+- [x] Policy aberta `using (true)` de `indicadores` neutralizada: agora exige
+      `can_view_relatorios()`, então "Vê Relatórios" desmarcado bloqueia de
+      fato no banco (migration `20261010212149_indicadores_restringe_policy_aberta.sql`).
+- [x] Jobs do `pg_cron` usando a `service_role` key do Vault (os dois jobs).
+- [x] Carga histórica de `indicadores` desde 01/01/2026.
 - [ ] Ativar *Leaked password protection* em Authentication → Providers →
-      Email (aviso do advisor de segurança).
-- [ ] **Trocar a chave usada pelo `pg_cron` de anon key para `service_role`.**
-      A função `sync-indicadores` agora só aceita chamadas autenticadas como
-      `service_role` (ver `isServiceRoleCaller` no código) — qualquer outra
-      chamada recebe 403. Isso impede que a anon key pública (que vai estar
-      no bundle do site) seja usada para disparar o sync manualmente. O job
-      de cron ainda está configurado com a anon key (só serve pra passar o
-      `verify_jwt` da plataforma) e vai receber 403 até isso ser corrigido.
-      Rode isto você mesmo no **SQL Editor do Supabase** (a chave nunca deve
-      passar pelo chat, por um commit ou por mim): cole a `service_role key`
-      de *Project Settings → API* no lugar indicado.
-
-      ```sql
-      -- Guarda a service_role key de forma criptografada no Vault, em vez de
-      -- deixá-la em texto puro na definição do job do pg_cron.
-      select vault.create_secret('<cole aqui a service_role key>', 'cron_service_role_key');
-
-      select cron.alter_job(
-        (select jobid from cron.job where jobname = 'sync-indicadores-hourly'),
-        command := $$
-          select net.http_post(
-            url := 'https://syhcvonwthtqalpjcmtj.supabase.co/functions/v1/sync-indicadores',
-            headers := jsonb_build_object(
-              'Content-Type', 'application/json',
-              'Authorization', 'Bearer ' || (
-                select decrypted_secret from vault.decrypted_secrets
-                where name = 'cron_service_role_key'
-              )
-            ),
-            body := '{}'::jsonb
-          );
-        $$
-      );
-      ```
-
-      O job `sync-relatorios-dw-hourly` (data warehouse de relatórios) tem o
-      mesmo problema e usa o mesmo secret do Vault — depois de criar o
-      `cron_service_role_key` acima, rode também:
-
-      ```sql
-      select cron.alter_job(
-        (select jobid from cron.job where jobname = 'sync-relatorios-dw-hourly'),
-        command := $$
-          select net.http_post(
-            url := 'https://syhcvonwthtqalpjcmtj.supabase.co/functions/v1/sync-relatorios-dw',
-            headers := jsonb_build_object(
-              'Content-Type', 'application/json',
-              'Authorization', 'Bearer ' || (
-                select decrypted_secret from vault.decrypted_secrets
-                where name = 'cron_service_role_key'
-              )
-            ),
-            body := '{}'::jsonb
-          );
-        $$
-      );
-      ```
+      Email (aviso do advisor de segurança). Só existe no painel do Supabase
+      (não há API/SQL para isso) e depende do plano da organização.
 
 ### Fonte de dados (Klingo)
 
@@ -324,7 +289,30 @@ de dados / LGPD) e nunca chegam ao banco.
 
 Por padrão sincroniza o dia atual (fuso America/Sao_Paulo). Para carga
 histórica, chame a função com `{"from":"AAAA-MM-DD","to":"AAAA-MM-DD"}` (máx.
-31 dias por chamada), autenticado como `service_role`.
+31 dias por chamada), autenticado como `service_role`. Do SQL Editor, sem
+copiar a chave para lugar nenhum:
+
+```sql
+select net.http_post(
+  url := 'https://syhcvonwthtqalpjcmtj.supabase.co/functions/v1/sync-indicadores',
+  headers := jsonb_build_object(
+    'Content-Type', 'application/json',
+    'Authorization', 'Bearer ' || (
+      select decrypted_secret from vault.decrypted_secrets
+      where name = 'cron_service_role_key'
+    )
+  ),
+  body := '{"from":"2026-01-01","to":"2026-01-31"}'::jsonb,
+  timeout_milliseconds := 150000
+);
+-- resultado: select * from net._http_response order by created desc limit 1;
+```
+
+Rode uma janela por vez: chamadas em paralelo esbarram no limite de
+requisições do Klingo (HTTP 429). A função já espera e tenta de novo quando
+recebe 429, e um dia com problema não impede os outros de serem gravados —
+as falhas ficam em `sync_runs.error_message`, por dia. Dia sem nenhum
+agendamento vem do Klingo como `result: ""` e é gravado com zeros.
 
 ### Observação sobre advisories
 
@@ -332,3 +320,8 @@ O advisor de segurança do Supabase aponta `pg_net` instalado no schema
 `public` (nível WARN). Essa extensão não suporta `SET SCHEMA`, então esse
 aviso é esperado em qualquer projeto que use `pg_cron` + `pg_net` para chamar
 Edge Functions — não expõe dados nem credenciais, é só o mecanismo de rede.
+
+Também aparece (WARN) que `is_admin()` e `can_view_relatorios()` são
+`SECURITY DEFINER` executáveis por `authenticated`. É intencional: as policies
+de RLS dependem delas, e elas só devolvem `true`/`false` sobre o próprio
+usuário logado (`auth.uid()`), sem expor dado de ninguém. `anon` não executa.

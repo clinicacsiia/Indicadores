@@ -98,6 +98,8 @@ async function fetchReportOnce(klingoId: string, day: string, token: string): Pr
 
   const payload = await res.json();
   if (payload?.error) throw new Error("Klingo retornou erro no relatório");
+  // Período sem nenhum registro: o Klingo devolve result = "" (sem erro) em vez de data = [].
+  if (payload?.result === "") return [];
   const data = payload?.result?.data;
   if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
   return data;
