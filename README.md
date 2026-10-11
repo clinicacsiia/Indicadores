@@ -22,17 +22,29 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `lib/supabase/profile.ts` — lê o perfil (`profiles`) do usuário logado.
 - `lib/supabase/middleware.ts` + `proxy.ts` — exige sessão válida em toda
   rota (exceto `/login`); redireciona para login quem não está autenticado.
-- `app/login/` — tela de login (email/senha via Supabase Auth).
+- `app/globals.css` — identidade visual da Clínica CSI: tokens de cor
+  (tema claro e escuro automáticos), tipografia (Bricolage Grotesque nos
+  títulos, Figtree no texto) e todos os estilos. Marca: "Clínica CSI";
+  nome do sistema: "Indicadores". As cores das séries dos gráficos
+  (`--s-agendados`, `--s-realizados`) foram validadas para daltonismo e
+  contraste nos dois temas.
+- `app/components/` — marca (`Brand`), ícones, navegação com item ativo
+  (`NavLinks`), `Sparkline` (cards) e `TendenciaChart` (gráfico interativo
+  de agendados × realizados, com tooltip e navegação por setas do teclado).
+- `app/login/` — tela de login (usuário/senha via Supabase Auth).
 - `app/(app)/layout.tsx` — menu lateral (Relatórios / Configurações) das
-  telas logadas; "Configurações" só aparece para quem tem `role = admin`.
+  telas logadas; vira barra no topo no celular. "Configurações" só aparece
+  para quem tem `role = admin`.
 - `app/(app)/page.tsx` — aba "Relatórios": filtro de período (padrão: últimos
-  30 dias, com atalhos 7/30/90 dias e "Este ano"), totais do período e tabela
-  por dia com os indicadores sincronizados.
+  30 dias, com atalhos 7/30/90 dias e "Este ano"), cards de totais com
+  tendência, gráfico agendados × realizados e tabela por dia (com total).
+- `app/(app)/loading.tsx` — esqueleto exibido enquanto a página carrega.
 - `app/(app)/atualizar-form.tsx` + `atualizar-actions.ts` — botão "Atualizar"
   (só admin): escolhe o relatório do catálogo `dim_relatorio` e o período.
   O relatório `13397` também atualiza os totais mostrados na tela.
 - `app/(app)/configuracoes/` — aba "Configurações" (admin): define quem é
-  admin e quem pode ver Relatórios. Protegida tanto na página quanto por RLS.
+  admin e quem pode ver Relatórios, com um "Salvar" por usuário e aviso de
+  sucesso/erro. Protegida tanto na página quanto por RLS.
 - `supabase/functions/sync-indicadores/` — Edge Function que busca a API
   externa e grava os dados no banco.
 - `supabase/functions/sync-relatorios-dw/` — Edge Function genérica que
