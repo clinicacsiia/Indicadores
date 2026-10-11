@@ -28,6 +28,9 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `app/(app)/page.tsx` — aba "Relatórios": filtro de período (padrão: últimos
   30 dias, com atalhos 7/30/90 dias e "Este ano"), totais do período e tabela
   por dia com os indicadores sincronizados.
+- `app/(app)/atualizar-form.tsx` + `atualizar-actions.ts` — botão "Atualizar"
+  (só admin): escolhe o relatório do catálogo `dim_relatorio` e o período.
+  O relatório `13397` também atualiza os totais mostrados na tela.
 - `app/(app)/configuracoes/` — aba "Configurações" (admin): define quem é
   admin e quem pode ver Relatórios. Protegida tanto na página quanto por RLS.
 - `supabase/functions/sync-indicadores/` — Edge Function que busca a API
@@ -61,7 +64,8 @@ relatório:
 - **`etl_alertas`** / **`v_etl_pendencias`** — pendências para revisão humana
   (possíveis duplicatas, erros, mudança de layout). Ver "Duplicatas e erros".
 
-A função `sync-relatorios-dw` varre os relatórios ativos e, pra cada um,
+A função `sync-relatorios-dw` varre os relatórios ativos (ou só os escolhidos
+no botão "Atualizar", via `klingo_ids`, mesmo que inativos) e, pra cada um,
 chama o Klingo um dia por vez (mesmo parâmetro `:periodo0` do
 `sync-indicadores`), com 1 retry automático em falha transitória de rede.
 Aceita o mesmo corpo `{"from":"AAAA-MM-DD","to":"AAAA-MM-DD"}`
@@ -209,9 +213,13 @@ atual, avalie RLS adicional ou mascaramento.
 O site **nunca** fala diretamente com a API externa. O fluxo é:
 
 ```
-API externa → Edge Function (sync-indicadores) → tabela indicadores (Supabase)
-                                                        ↑
-                                              site Next.js (só leitura, logado)
+botão "Atualizar" (admin logado, site Next.js)
+        │  JWT do admin
+        ▼
+Edge Function (sync-indicadores / sync-relatorios-dw) ← API externa (Klingo)
+        │  service_role (só dentro da função)
+        ▼
+tabelas no Supabase  →  site Next.js (leitura, logado)
 ```
 
 Pontos chave:
@@ -237,14 +245,17 @@ Pontos chave:
   `role = 'admin'` consegue promover outro usuário a admin ou mudar quem vê
   Relatórios — e isso é garantido por RLS (`is_admin()`), não só pela
   interface. Nenhuma senha é lida, mostrada ou guardada por essa tabela.
-- **Sincronização automática**: `pg_cron` chama as Edge Functions a cada hora
-  (jobs `sync-indicadores-hourly` e `sync-relatorios-dw-hourly`). As funções
-  só aceitam chamadas autenticadas como `service_role` (ver
-  `isServiceRoleCaller`) — a anon key pública, que está no bundle do site,
-  recebe 403. Os jobs leem a `service_role` key do Vault
-  (`cron_service_role_key`, criptografada) na hora da chamada; ela nunca
-  aparece em texto puro na definição do job, no repositório ou no chat
-  (migration `20261010213130_cron_sync_usa_service_role_do_vault.sql`).
+- **Sincronização manual (sem agendamento)**: não há mais atualização
+  automática. Antes, o `pg_cron` do Supabase chamava as Edge Functions a cada
+  hora (era a única origem dos disparos: o projeto não usa Vercel Cron nem
+  GitHub Actions). Os jobs foram removidos
+  (migration `20261011170000_remove_cron_sync_automatico.sql`). Agora um
+  **admin** clica em **Atualizar** na aba Relatórios, escolhe o relatório e o
+  período (máx. 31 dias) e o site chama as Edge Functions com o JWT do próprio
+  admin. As funções aceitam apenas `service_role` (SQL/carga histórica) ou um
+  usuário logado com `is_admin()`; a anon key pública recebe 403. Nenhuma
+  chave privilegiada existe no site/Vercel. O secret `cron_service_role_key`
+  do Vault continua disponível só para cargas históricas via SQL.
 
 ## Deploy (Vercel)
 

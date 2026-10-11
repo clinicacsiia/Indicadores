@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
+import { AtualizarForm } from "./atualizar-form";
+
+// A atualização (server action desta página) espera as Edge Functions falarem com o Klingo.
+export const maxDuration = 300;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_LINHAS = 5000;
@@ -89,7 +93,9 @@ export default async function RelatoriosPage({
     return { data: linhas, error: null };
   }
 
-  const [{ data, error }, { data: ultimaSync }] = await Promise.all([
+  const isAdmin = profile?.role === "admin";
+
+  const [{ data, error }, { data: ultimaSync }, { data: catalogo }] = await Promise.all([
     carregarIndicadores(),
     supabase
       .from("sync_runs")
@@ -98,7 +104,19 @@ export default async function RelatoriosPage({
       .order("finished_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Só admin escolhe o relatório a atualizar; os demais nem consultam o catálogo.
+    isAdmin
+      ? supabase
+          .from("dim_relatorio")
+          .select("klingo_id, nome, ativo")
+          .is("supersedido_por", null)
+          .order("ativo", { ascending: false })
+          .order("nome")
+      : Promise.resolve({ data: null }),
   ]);
+
+  // Período sugerido para atualizar: o do filtro, limitado aos últimos 31 dias dele.
+  const deAtualizar = de < somarDias(ate, -30) ? somarDias(ate, -30) : de;
 
   // Nunca mostrar error.message na tela: pode conter detalhes internos do Postgres.
   if (error) {
@@ -170,6 +188,10 @@ export default async function RelatoriosPage({
           ))}
         </span>
       </form>
+
+      {isAdmin && catalogo && catalogo.length > 0 && (
+        <AtualizarForm relatorios={catalogo} de={deAtualizar} ate={ate} max={hoje} />
+      )}
 
       {error && <p style={{ color: "crimson" }}>Não foi possível carregar os indicadores agora.</p>}
 
