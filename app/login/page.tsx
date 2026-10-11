@@ -10,8 +10,8 @@ function ArteIndicadores() {
     <svg className="login-art" viewBox="0 0 600 300" preserveAspectRatio="none" fill="none" aria-hidden="true">
       <defs>
         <linearGradient id="arte-fundo" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#4fd1c0" stopOpacity="0.22" />
-          <stop offset="1" stopColor="#4fd1c0" stopOpacity="0" />
+          <stop offset="0" stopColor="#6aa8ff" stopOpacity="0.22" />
+          <stop offset="1" stopColor="#6aa8ff" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path
@@ -20,7 +20,7 @@ function ArteIndicadores() {
       />
       <path
         d="M0 210 C60 190 90 150 150 160 S240 215 300 170 S410 80 470 110 S560 70 600 50"
-        stroke="#4fd1c0"
+        stroke="#6aa8ff"
         strokeWidth="2.5"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
