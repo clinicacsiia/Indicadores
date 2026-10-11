@@ -1,6 +1,8 @@
-import Link from "next/link";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { signOut } from "@/app/actions";
+import { Brand } from "@/app/components/Brand";
+import { NavLinks } from "@/app/components/NavLinks";
+import { IconSair } from "@/app/components/icons";
 
 export default async function AppLayout({
   children,
@@ -9,39 +11,42 @@ export default async function AppLayout({
 }) {
   const profile = await getCurrentProfile();
   const isAdmin = profile?.role === "admin";
+  const email = profile?.email ?? "";
+  // "csiadmin@csi.local" é exibido como "csiadmin".
+  const nome = email.endsWith("@csi.local") ? email.replace("@csi.local", "") : email;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}>
-      <nav
-        style={{
-          width: 220,
-          borderRight: "1px solid #ddd",
-          padding: 24,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
-        <strong style={{ marginBottom: 16 }}>Indicadores</strong>
+    <div className="shell">
+      <a href="#conteudo" className="skip-link">
+        Ir para o conteúdo
+      </a>
 
-        <Link href="/" style={{ padding: "8px 12px", borderRadius: 6 }}>
-          Relatórios
-        </Link>
+      <aside className="sidebar">
+        <Brand href="/" />
 
-        {isAdmin && (
-          <Link href="/configuracoes" style={{ padding: "8px 12px", borderRadius: 6 }}>
-            Configurações
-          </Link>
-        )}
+        <NavLinks isAdmin={isAdmin} />
 
-        <form action={signOut} style={{ marginTop: "auto" }}>
-          <button type="submit" style={{ width: "100%" }}>
-            Sair
-          </button>
-        </form>
-      </nav>
+        <div className="sidebar-user">
+          <span className="avatar" aria-hidden="true">
+            {(nome || "?").charAt(0)}
+          </span>
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-name" title={email}>
+              {nome || "Usuário"}
+            </div>
+            <div className="sidebar-user-role">{isAdmin ? "Administrador" : "Visualizador"}</div>
+          </div>
+          <form action={signOut}>
+            <button type="submit" className="icon-btn" aria-label="Sair" title="Sair">
+              <IconSair />
+            </button>
+          </form>
+        </div>
+      </aside>
 
-      <main style={{ flex: 1, padding: 32 }}>{children}</main>
+      <main id="conteudo" className="main">
+        <div className="main-inner">{children}</div>
+      </main>
     </div>
   );
 }

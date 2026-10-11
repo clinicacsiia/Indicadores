@@ -19,6 +19,8 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 //   retry em falha transitória e só relatórios com ativo=true. A função nunca
 //   descobre relatórios testando IDs; novos relatórios entram pelo cadastro
 //   manual em dim_relatorio.
+// - Quem dispara: o botão "Atualizar" do site (admin logado, com `klingo_ids`) ou SQL com
+//   service_role. Não há mais agendamento automático.
 // - Relatórios com `supersedido_por` preenchido (decisão humana) são pulados.
 //
 // ATENÇÃO LGPD: ao contrário de sync-indicadores, esta função NÃO agrega nem
@@ -48,6 +50,24 @@ function isServiceRoleCaller(req: Request): boolean {
   }
 }
 
+// Quem pode chamar: service_role (SQL Editor / carga histórica) ou um admin logado
+// no site (botão "Atualizar"). A anon key pública NÃO passa: ela não tem usuário.
+// O admin é validado aqui com o JWT dele (nunca com service_role), via is_admin().
+async function isAuthorizedCaller(req: Request): Promise<boolean> {
+  if (isServiceRoleCaller(req)) return true;
+  const authorization = req.headers.get("Authorization");
+  if (!authorization) return false;
+  const userClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authorization } }, auth: { persistSession: false } },
+  );
+  const { data: auth } = await userClient.auth.getUser();
+  if (!auth.user) return false;
+  const { data: isAdmin } = await userClient.rpc("is_admin");
+  return isAdmin === true;
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -68,15 +88,24 @@ function daysBetween(from: string, to: string): string[] {
   return days;
 }
 
-async function resolveDays(req: Request): Promise<string[] | null> {
-  const body = await req.json().catch(() => ({}));
-  const from = body?.from;
-  const to = body?.to;
+function resolveDays(body: Record<string, unknown>): string[] | null {
+  const from = body.from;
+  const to = body.to;
   if (from === undefined && to === undefined) return [todaySaoPaulo()];
   if (!DATE_RE.test(String(from)) || !DATE_RE.test(String(to))) return null;
-  const days = daysBetween(from, to);
+  const days = daysBetween(String(from), String(to));
   if (days.length === 0 || days.length > MAX_BACKFILL_DAYS) return null;
   return days;
+}
+
+// `klingo_ids` opcional: atualiza só os relatórios escolhidos (botão "Atualizar"). Sem ele,
+// varre todos os ativos. Retorna null se vier num formato inválido.
+function resolveKlingoIds(body: Record<string, unknown>): string[] | undefined | null {
+  const ids = body.klingo_ids;
+  if (ids === undefined) return undefined;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 20) return null;
+  if (!ids.every((id) => typeof id === "string" && /^\d{1,10}$/.test(id))) return null;
+  return ids as string[];
 }
 
 function sleep(ms: number): Promise<void> {
@@ -213,28 +242,32 @@ async function registrarAlerta(supabase: SupabaseClient, alerta: Alerta): Promis
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  if (!isServiceRoleCaller(req)) return json({ error: "Forbidden" }, 403);
+  if (!(await isAuthorizedCaller(req))) return json({ error: "Forbidden" }, 403);
 
   const token = Deno.env.get("KLINGO_APP_TOKEN");
   if (!token) return json({ error: "KLINGO_APP_TOKEN não configurado nos secrets da função" }, 500);
 
-  const days = await resolveDays(req);
+  const body = await req.json().catch(() => ({}));
+  const days = resolveDays(isPlainObject(body) ? body : {});
   if (!days) {
     return json({ error: `Informe {from,to} em AAAA-MM-DD, no máximo ${MAX_BACKFILL_DAYS} dias` }, 400);
   }
+  const klingoIds = resolveKlingoIds(isPlainObject(body) ? body : {});
+  if (klingoIds === null) return json({ error: "klingo_ids deve ser uma lista de 1 a 20 IDs numéricos" }, 400);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const { data: todosAtivos, error: relatoriosError } = await supabase
-    .from("dim_relatorio")
-    .select("id, klingo_id, nome, supersedido_por")
-    .eq("ativo", true);
+  // Com klingo_ids, quem escolheu foi uma pessoa: vale mesmo que o relatório esteja com
+  // ativo=false (a flag só decide quem entra numa varredura geral). Sem klingo_ids, só ativos.
+  let consulta = supabase.from("dim_relatorio").select("id, klingo_id, nome, supersedido_por");
+  consulta = klingoIds ? consulta.in("klingo_id", klingoIds) : consulta.eq("ativo", true);
+  const { data: todosAtivos, error: relatoriosError } = await consulta;
   if (relatoriosError) return json({ error: `Falha ao ler dim_relatorio: ${relatoriosError.message}` }, 500);
   if (!todosAtivos || todosAtivos.length === 0) {
-    return json({ error: "Nenhum relatório ativo em dim_relatorio" }, 400);
+    return json({ error: klingoIds ? "Relatório não encontrado em dim_relatorio" : "Nenhum relatório ativo em dim_relatorio" }, 400);
   }
 
   // supersedido_por só é preenchido por uma pessoa; se ela marcou, respeita.

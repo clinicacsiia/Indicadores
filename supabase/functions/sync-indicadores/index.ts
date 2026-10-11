@@ -1,8 +1,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Sincroniza indicadores a partir do relatório "AGENDADOS X REALIZADOS" do Klingo.
-// Só roda via pg_cron / painel do Supabase, nunca pelo navegador. O token do Klingo
-// (KLINGO_APP_TOKEN) fica apenas nos secrets desta função.
+// Não roda mais sozinha (o pg_cron foi removido): é disparada pelo botão "Atualizar" do
+// site (admin logado) ou via SQL com service_role. O navegador nunca vê o token do Klingo
+// (KLINGO_APP_TOKEN), que fica apenas nos secrets desta função.
 //
 // Minimização de dados (LGPD): o relatório vem por paciente, mas aqui ele é agregado
 // em totais por dia. Nome de paciente e demais campos linha-a-linha NUNCA são gravados.
@@ -16,8 +17,8 @@ const RATE_LIMIT_DELAY_MS = 3_000;
 
 type Row = Record<string, unknown>;
 
-// Só aceitamos o service_role: a verificação padrão de JWT também deixa passar a anon key,
-// que é pública. Esta função consome a API externa e escreve com privilégio total.
+// A verificação padrão de JWT também deixa passar a anon key, que é pública. Esta função
+// consome a API externa e escreve com privilégio total, então checamos o papel à mão.
 function isServiceRoleCaller(req: Request): boolean {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer /i, "");
   const payloadSegment = token.split(".")[1];
@@ -28,6 +29,24 @@ function isServiceRoleCaller(req: Request): boolean {
   } catch {
     return false;
   }
+}
+
+// Quem pode chamar: service_role (SQL Editor / carga histórica) ou um admin logado
+// no site (botão "Atualizar"). A anon key pública NÃO passa: ela não tem usuário.
+// O admin é validado aqui com o JWT dele (nunca com service_role), via is_admin().
+async function isAuthorizedCaller(req: Request): Promise<boolean> {
+  if (isServiceRoleCaller(req)) return true;
+  const authorization = req.headers.get("Authorization");
+  if (!authorization) return false;
+  const userClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authorization } }, auth: { persistSession: false } },
+  );
+  const { data: auth } = await userClient.auth.getUser();
+  if (!auth.user) return false;
+  const { data: isAdmin } = await userClient.rpc("is_admin");
+  return isAdmin === true;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -153,7 +172,7 @@ function toIndicadores(data: Row[], day: string) {
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  if (!isServiceRoleCaller(req)) return json({ error: "Forbidden" }, 403);
+  if (!(await isAuthorizedCaller(req))) return json({ error: "Forbidden" }, 403);
 
   const token = Deno.env.get("KLINGO_APP_TOKEN");
   if (!token) return json({ error: "KLINGO_APP_TOKEN não configurado nos secrets da função" }, 500);
