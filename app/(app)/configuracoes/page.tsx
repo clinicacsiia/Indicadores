@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, type Profile } from "@/lib/supabase/profile";
-import { updateProfileRole, updateProfileRelatoriosAccess } from "./actions";
+import { IconAlerta } from "@/app/components/icons";
+import { UsuarioForm } from "./UsuarioForm";
+
+export const metadata: Metadata = { title: "Configurações" };
 
 export default async function ConfiguracoesPage() {
   const profile = await getCurrentProfile();
@@ -22,63 +26,59 @@ export default async function ConfiguracoesPage() {
     console.error("Falha ao carregar perfis:", error.message);
   }
 
+  const usuarios = (perfis ?? []) as Profile[];
+
   return (
     <>
-      <h1>Configurações</h1>
-      <p>Controle quem tem acesso de administrador e quem pode ver os Relatórios.</p>
+      <header className="page-head">
+        <div className="page-head-text">
+          <span className="eyebrow">Clínica CSI</span>
+          <h1 className="page-title">Configurações</h1>
+          <p className="page-lede">
+            Defina quem é administrador e quem pode ver os Relatórios. Cada usuário é salvo separadamente.
+          </p>
+        </div>
+      </header>
 
-      {error && <p style={{ color: "crimson" }}>Não foi possível carregar os usuários agora.</p>}
+      {error && (
+        <div className="notice" role="alert">
+          <IconAlerta />
+          Não foi possível carregar os usuários agora. Tente novamente em instantes.
+        </div>
+      )}
 
-      {perfis && perfis.length > 0 && (
-        <table cellPadding={8} style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th align="left">Usuário</th>
-              <th align="left">Permissão</th>
-              <th align="left">Vê Relatórios</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(perfis as Profile[]).map((usuario) => (
-              <tr key={usuario.id}>
-                <td>{usuario.email}</td>
-                <td>
-                  <form
-                    action={async (formData) => {
-                      "use server";
-                      const role = formData.get("role") as "admin" | "viewer";
-                      await updateProfileRole(usuario.id, role);
-                    }}
-                    style={{ display: "flex", gap: 8 }}
-                  >
-                    <select name="role" defaultValue={usuario.role}>
-                      <option value="admin">Admin</option>
-                      <option value="viewer">Viewer</option>
-                    </select>
-                    <button type="submit">Salvar</button>
-                  </form>
-                </td>
-                <td>
-                  <form
-                    action={async (formData) => {
-                      "use server";
-                      const canView = formData.get("relatorios") === "on";
-                      await updateProfileRelatoriosAccess(usuario.id, canView);
-                    }}
-                    style={{ display: "flex", gap: 8, alignItems: "center" }}
-                  >
-                    <input
-                      type="checkbox"
-                      name="relatorios"
-                      defaultChecked={usuario.permissions?.relatorios !== false}
-                    />
-                    <button type="submit">Salvar</button>
-                  </form>
-                </td>
-              </tr>
+      {!error && usuarios.length === 0 && (
+        <section className="panel empty">
+          <h2>Nenhum usuário cadastrado</h2>
+          <p>Os usuários aparecem aqui assim que fizerem o primeiro acesso.</p>
+        </section>
+      )}
+
+      {usuarios.length > 0 && (
+        <section className="panel" aria-labelledby="titulo-usuarios">
+          <div className="panel-head" style={{ paddingBottom: 12 }}>
+            <div>
+              <h2 className="panel-title" id="titulo-usuarios">
+                Usuários
+              </h2>
+              <p className="panel-sub">
+                {usuarios.length} {usuarios.length === 1 ? "usuário" : "usuários"}
+              </p>
+            </div>
+          </div>
+          <ul className="user-list" style={{ borderTop: "1px solid var(--line)" }}>
+            {usuarios.map((usuario) => (
+              <UsuarioForm
+                key={usuario.id}
+                id={usuario.id}
+                email={usuario.email ?? ""}
+                role={usuario.role}
+                veRelatorios={usuario.permissions?.relatorios !== false}
+                ehVoce={usuario.id === profile.id}
+              />
             ))}
-          </tbody>
-        </table>
+          </ul>
+        </section>
       )}
     </>
   );

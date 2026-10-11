@@ -29,6 +29,32 @@ export async function updateProfileRole(userId: string, role: string) {
   return {};
 }
 
+export type SalvarUsuarioState = { ok?: boolean; error?: string };
+
+// Salva permissão e acesso aos Relatórios de uma vez, com retorno para a tela.
+// Se o campo "role" não vier (select desabilitado para o próprio usuário),
+// só o acesso aos Relatórios é atualizado.
+export async function salvarUsuario(
+  _prev: SalvarUsuarioState,
+  formData: FormData
+): Promise<SalvarUsuarioState> {
+  const userId = String(formData.get("userId") ?? "");
+  const role = formData.get("role");
+  const canView = formData.get("relatorios") === "on";
+
+  if (!userId) return { error: "Usuário inválido." };
+
+  if (typeof role === "string") {
+    const result = await updateProfileRole(userId, role);
+    if (result.error) return { error: result.error };
+  }
+
+  const result = await updateProfileRelatoriosAccess(userId, canView);
+  if (result.error) return { error: result.error };
+
+  return { ok: true };
+}
+
 export async function updateProfileRelatoriosAccess(userId: string, canView: boolean) {
   const supabase = await createClient();
   const { data: current, error: fetchError } = await supabase
