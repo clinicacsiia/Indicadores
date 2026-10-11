@@ -1,26 +1,26 @@
 /*
   Clínica CSI · Indicadores
-  Direção: painel clínico sóbrio. Menu lateral em petróleo escuro, conteúdo em
-  neutros esverdeados, um único acento (teal) e uma cor de apoio (laranja) usada
+  Direção: painel clínico sóbrio. Menu lateral em azul-marinho escuro, conteúdo em
+  neutros azulados, um único acento (azul) e uma cor de apoio (laranja) usada
   só para "agendados" nos gráficos. Tema claro e escuro seguem o sistema.
 */
 
 :root {
-  --bg: #f2f6f5;
+  --bg: #f2f5fa;
   --surface: #ffffff;
-  --surface-2: #ebf1ef;
-  --surface-3: #e1eae7;
-  --ink: #0e2420;
-  --ink-2: #455a55;
-  --ink-3: #62756f;
-  --line: #dae4e1;
-  --line-strong: #c3d1cd;
+  --surface-2: #e9eef6;
+  --surface-3: #dde6f2;
+  --ink: #0e1c2e;
+  --ink-2: #465670;
+  --ink-3: #617189;
+  --line: #dae2ee;
+  --line-strong: #c2cfe0;
 
-  --brand: #0a6b62;
-  --brand-hover: #07554e;
-  --brand-soft: #ddf0ed;
+  --brand: #1553b8;
+  --brand-hover: #0f4296;
+  --brand-soft: #dfeafb;
   --on-brand: #ffffff;
-  --focus: #0a9486;
+  --focus: #2f7be0;
 
   --danger: #b3261e;
   --danger-soft: #fbe9e7;
@@ -30,20 +30,20 @@
   --warn-soft: #fbf0d9;
 
   /* séries dos gráficos (validadas contra a superfície) */
-  --s-realizados: #0a9486;
+  --s-realizados: #2f7be0;
   --s-agendados: #c46a12;
-  --s-neutra: #8da09b;
+  --s-neutra: #8d9db5;
 
-  --side-bg: #0b2623;
-  --side-ink: #b9cdc8;
+  --side-bg: #0b1e3a;
+  --side-ink: #bccbe3;
   --side-ink-strong: #ffffff;
   --side-line: rgba(255, 255, 255, 0.09);
   --side-hover: rgba(255, 255, 255, 0.06);
-  --side-active: #14403b;
-  --side-accent: #4fd1c0;
+  --side-active: #17325e;
+  --side-accent: #6aa8ff;
 
-  --shadow-sm: 0 1px 2px rgba(14, 36, 32, 0.06);
-  --shadow-md: 0 1px 2px rgba(14, 36, 32, 0.05), 0 8px 24px rgba(14, 36, 32, 0.06);
+  --shadow-sm: 0 1px 2px rgba(14, 28, 46, 0.06);
+  --shadow-md: 0 1px 2px rgba(14, 28, 46, 0.05), 0 8px 24px rgba(14, 28, 46, 0.06);
 
   --radius-sm: 8px;
   --radius: 12px;
@@ -57,21 +57,21 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0a1513;
-    --surface: #0f1e1b;
-    --surface-2: #142724;
-    --surface-3: #1a302c;
-    --ink: #e7f0ee;
-    --ink-2: #a8bdb8;
-    --ink-3: #88a19b;
-    --line: #1e3430;
-    --line-strong: #2b4943;
+    --bg: #0a1220;
+    --surface: #0f1a2d;
+    --surface-2: #142238;
+    --surface-3: #1a2c47;
+    --ink: #e7eef8;
+    --ink-2: #a8b9d3;
+    --ink-3: #8aa0c0;
+    --line: #1e3050;
+    --line-strong: #2b4570;
 
-    --brand: #37bdae;
-    --brand-hover: #5fd0c3;
-    --brand-soft: #123833;
-    --on-brand: #04201c;
-    --focus: #5fd0c3;
+    --brand: #5b9bf5;
+    --brand-hover: #8ab8fa;
+    --brand-soft: #12294d;
+    --on-brand: #06142b;
+    --focus: #8ab8fa;
 
     --danger: #ff8a80;
     --danger-soft: #3a1a18;
@@ -80,12 +80,12 @@
     --warn: #f0bf6a;
     --warn-soft: #33270f;
 
-    --s-realizados: #17a597;
+    --s-realizados: #3b86ee;
     --s-agendados: #cc7326;
-    --s-neutra: #5f7b75;
+    --s-neutra: #5f7799;
 
-    --side-bg: #07110f;
-    --side-active: #12302c;
+    --side-bg: #070d1a;
+    --side-active: #142a4d;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);

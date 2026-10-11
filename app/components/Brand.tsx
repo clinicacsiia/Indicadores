@@ -10,7 +10,7 @@ export function BrandMark({ size = 36 }: { size?: number }) {
       fill="none"
       aria-hidden="true"
     >
-      <rect width="32" height="32" rx="9" fill="#0a6b62" />
+      <rect width="32" height="32" rx="9" fill="#1553b8" />
       <rect x="7" y="16" width="4.5" height="9" rx="1.6" fill="#fff" fillOpacity="0.55" />
       <rect x="13.75" y="11" width="4.5" height="14" rx="1.6" fill="#fff" fillOpacity="0.8" />
       <rect x="20.5" y="6" width="4.5" height="19" rx="1.6" fill="#fff" />
