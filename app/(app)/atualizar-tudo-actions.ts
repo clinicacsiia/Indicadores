@@ -4,14 +4,29 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { chamarEdgeFunction } from "@/lib/klingo/chamarEdgeFunction";
 
-// Qualquer usuário logado pode disparar (não só admin) — a Edge Function
-// também aceita qualquer JWT autenticado, ver sync-relatorios-dw/index.ts.
+// "Atualizar tudo" percorre TODOS os relatórios do catálogo (dim_relatorio, exceto
+// os marcados como supersedidos por uma pessoa), ativos ou não. Quem conduz é o
+// cliente (atualizar-tudo-form.tsx): primeiro pede o plano, depois executa um
+// passo por vez, e assim consegue mostrar o progresso de verdade. Cada passo é
+// um relatório em poucos dias, para caber folgado no tempo de uma chamada.
+// Qualquer usuário logado pode disparar (não só admin) — a Edge Function também
+// aceita qualquer JWT autenticado, ver sync-relatorios-dw/index.ts.
 const MAX_DIAS = 31;
+const DIAS_POR_PASSO = 5;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const KLINGO_ID_RE = /^\d{1,10}$/;
 
-export type AtualizarTudoEstado = { ok: boolean; mensagem: string } | null;
+export type Passo = { de: string; ate: string };
+export type PlanoRelatorio = { klingoId: string; nome: string; passos: Passo[] };
+export type Plano = { ok: true; relatorios: PlanoRelatorio[] } | { ok: false; mensagem: string };
+export type ResultadoPasso = { ok: boolean; linhas: number; dias: number; falhas: number };
 
 function hojeSaoPaulo() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
+function diaSaoPaulo(instante: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(instante));
 }
 
 function somarDias(iso: string, dias: number) {
@@ -20,84 +35,120 @@ function somarDias(iso: string, dias: number) {
   return d.toISOString().slice(0, 10);
 }
 
-// Para cada relatório liberado para visualização, busca só o que falta: do dia
-// seguinte ao último sync bem-sucedido até hoje, limitado aos últimos 31 dias
-// (o máximo que a Edge Function aceita numa chamada). Relatório sem nenhum
-// sync ainda usa esse mesmo limite de 31 dias como ponto de partida.
-export async function atualizarTudo(
-  _prev: AtualizarTudoEstado,
-  _formData: FormData
-): Promise<AtualizarTudoEstado> {
+// Mesma janela que a tela Início usa para medir "em dia" (status_sincronizacao_relatorios):
+// mensal -> do dia 1 do mês até hoje; os demais -> últimos 30 dias.
+function inicioDaJanela(periodicidade: string | null, hoje: string) {
+  return periodicidade === "mensal" ? `${hoje.slice(0, 8)}01` : somarDias(hoje, -29);
+}
+
+function dividirEmPassos(de: string, ate: string): Passo[] {
+  const passos: Passo[] = [];
+  for (let inicio = de; inicio <= ate; inicio = somarDias(inicio, DIAS_POR_PASSO)) {
+    const fim = somarDias(inicio, DIAS_POR_PASSO - 1);
+    passos.push({ de: inicio, ate: fim < ate ? fim : ate });
+  }
+  return passos;
+}
+
+// Para cada relatório, só o que falta dentro da janela medida no Início: do primeiro
+// dia ainda sem sync completo até hoje. Um dia só conta como completo se o sync
+// terminou depois da meia-noite dele — sincronizar o dia de hoje (ou um dia
+// sincronizado antes de acabar) pega só parte dos registros, então ele é buscado de
+// novo. Relatório "pontual" não se repete: só entra se nunca foi sincronizado.
+export async function planejarAtualizacao(): Promise<Plano> {
   const supabase = await createClient();
   const { data: sessao } = await supabase.auth.getSession();
   if (!sessao.session) return { ok: false, mensagem: "Sessão expirada. Entre novamente." };
-  const token = sessao.session.access_token;
 
-  const { data: ativos, error } = await supabase
+  const { data: catalogo, error } = await supabase
     .from("dim_relatorio")
-    .select("id, klingo_id")
-    .eq("ativo", true)
-    .is("supersedido_por", null);
+    .select("id, klingo_id, nome, categoria, periodicidade")
+    .is("supersedido_por", null)
+    .order("categoria")
+    .order("nome");
 
   if (error) {
-    console.error("Falha ao listar relatórios ativos:", error.message);
+    console.error("Falha ao listar relatórios:", error.message);
     return { ok: false, mensagem: "Não foi possível listar os relatórios agora." };
   }
-  if (!ativos || ativos.length === 0) {
-    return { ok: false, mensagem: "Nenhum relatório liberado para atualizar." };
+  if (!catalogo || catalogo.length === 0) {
+    return { ok: false, mensagem: "Nenhum relatório cadastrado para atualizar." };
   }
 
   const hoje = hojeSaoPaulo();
-  const inicioMaximo = somarDias(hoje, -(MAX_DIAS - 1));
-  let totalLinhas = 0;
-  let comErro = 0;
-  let algumExecutado = false;
 
-  for (const relatorio of ativos) {
-    const { data: ultimo } = await supabase
-      .from("sync_relatorio_runs")
-      .select("periodo")
-      .eq("relatorio_id", relatorio.id)
-      .eq("status", "success")
-      .order("periodo", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const planos = await Promise.all(
+    catalogo.map(async (relatorio): Promise<PlanoRelatorio | null> => {
+      const pontual = relatorio.periodicidade === "pontual";
+      const inicioJanela = pontual ? somarDias(hoje, -(MAX_DIAS - 1)) : inicioDaJanela(relatorio.periodicidade, hoje);
 
-    const de = ultimo?.periodo
-      ? (somarDias(ultimo.periodo, 1) > inicioMaximo ? somarDias(ultimo.periodo, 1) : inicioMaximo)
-      : inicioMaximo;
+      const { data: sucessos, error: sucessosError } = await supabase
+        .from("sync_relatorio_runs")
+        .select("periodo, finished_at")
+        .eq("relatorio_id", relatorio.id)
+        .eq("status", "success")
+        .gte("periodo", pontual ? "0001-01-01" : inicioJanela)
+        .lte("periodo", hoje)
+        .limit(1000);
 
-    if (de > hoje) continue; // já está em dia
-
-    algumExecutado = true;
-    try {
-      const dw = await chamarEdgeFunction("sync-relatorios-dw", token, {
-        from: de,
-        to: hoje,
-        klingo_ids: [relatorio.klingo_id],
-      });
-      if (!dw.ok) {
-        comErro++;
-        console.error("sync-relatorios-dw falhou:", dw.status, JSON.stringify(dw.payload));
-        continue;
+      if (sucessosError) {
+        // Sem o histórico não dá para saber o que falta: busca a janela inteira.
+        console.error("Falha ao ler histórico de sync:", sucessosError.message);
+      } else if (pontual && (sucessos?.length ?? 0) > 0) {
+        return null;
       }
-      totalLinhas += dw.payload?.linhas_sincronizadas ?? 0;
-      if (Array.isArray(dw.payload?.erros) && dw.payload.erros.length > 0) comErro++;
-    } catch (err) {
-      comErro++;
-      console.error("Falha ao atualizar relatório:", err instanceof Error ? err.message : err);
+
+      const completos = new Set(
+        (sucessos ?? [])
+          .filter((s) => s.finished_at && diaSaoPaulo(s.finished_at) > s.periodo)
+          .map((s) => s.periodo as string)
+      );
+      let de = hoje;
+      for (let dia = inicioJanela; dia < hoje; dia = somarDias(dia, 1)) {
+        if (!completos.has(dia)) {
+          de = dia;
+          break;
+        }
+      }
+
+      return { klingoId: relatorio.klingo_id, nome: relatorio.nome, passos: dividirEmPassos(de, hoje) };
+    })
+  );
+
+  return { ok: true, relatorios: planos.filter((p): p is PlanoRelatorio => p !== null) };
+}
+
+// Executa um passo do plano: um relatório num intervalo curto. `fim` = último passo
+// do relatório, quando a tela é revalidada para o card dele já aparecer atualizado.
+export async function atualizarPasso(klingoId: string, de: string, ate: string, fim: boolean): Promise<ResultadoPasso> {
+  const falha: ResultadoPasso = { ok: false, linhas: 0, dias: 0, falhas: 0 };
+
+  if (!KLINGO_ID_RE.test(klingoId) || !DATE_RE.test(de) || !DATE_RE.test(ate) || de > ate) return falha;
+  const dias = (Date.parse(`${ate}T00:00:00Z`) - Date.parse(`${de}T00:00:00Z`)) / 86_400_000 + 1;
+  if (dias > MAX_DIAS) return falha;
+
+  const supabase = await createClient();
+  const { data: sessao } = await supabase.auth.getSession();
+  if (!sessao.session) return falha;
+
+  try {
+    const dw = await chamarEdgeFunction("sync-relatorios-dw", sessao.session.access_token, {
+      from: de,
+      to: ate,
+      klingo_ids: [klingoId],
+    });
+    if (!dw.ok) {
+      console.error("sync-relatorios-dw falhou:", dw.status, JSON.stringify(dw.payload));
+      return { ...falha, dias, falhas: dias };
     }
+    const falhas = Array.isArray(dw.payload?.erros) ? dw.payload.erros.length : 0;
+    if (fim) {
+      revalidatePath("/");
+      revalidatePath("/metas");
+    }
+    return { ok: falhas === 0, linhas: dw.payload?.linhas_sincronizadas ?? 0, dias, falhas };
+  } catch (err) {
+    console.error("Falha ao atualizar relatório:", err instanceof Error ? err.message : err);
+    return { ...falha, dias, falhas: dias };
   }
-
-  revalidatePath("/");
-  revalidatePath("/metas");
-
-  if (!algumExecutado) return { ok: true, mensagem: "Tudo já estava em dia." };
-  if (comErro > 0) {
-    return {
-      ok: false,
-      mensagem: `Atualização concluída com falhas em ${comErro} relatório(s). Veja os alertas de sincronização.`,
-    };
-  }
-  return { ok: true, mensagem: `Tudo atualizado (${totalLinhas} linhas lidas).` };
 }

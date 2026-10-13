@@ -60,7 +60,7 @@ export default async function Home() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Início</h1>
           <p className="page-lede">
-            Status da sincronização dos relatórios liberados para visualização, vindos do Klingo.
+            Status da sincronização de todos os relatórios do Klingo.
           </p>
         </div>
       </header>
@@ -83,8 +83,8 @@ export default async function Home() {
           <span className="empty-icon">
             <IconCalendario size={26} />
           </span>
-          <h2>Nenhum relatório liberado para visualização</h2>
-          <p>Libere um relatório em Configurações (dim_relatorio.ativo) para ele aparecer aqui.</p>
+          <h2>Nenhum relatório cadastrado</h2>
+          <p>Cadastre os relatórios do Klingo em dim_relatorio para eles aparecerem aqui.</p>
         </section>
       )}
 
