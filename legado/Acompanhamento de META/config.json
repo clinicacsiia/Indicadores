@@ -1,0 +1,6 @@
+{
+  "banco_dados": "portal_csi.db",
+  "intervalo_minimo_minutos": 30,
+  "verificacao_automatica_minutos": 30,
+  "_ajuda": "intervalo_minimo_minutos: se a planilha foi atualizada há menos que isso, o extrator não consulta o Klingo de novo (só regenera o dashboard); o botão 'Atualizar agora' e 'python extrair_laudo.py --forcar' ignoram isso. verificacao_automatica_minutos: de quanto em quanto tempo o painel (servidor_painel.py) confere sozinho; 0 desliga. A verificação automática consulta direto a API do Klingo e nunca abre o navegador; se o token da API faltar ou for recusado, o painel avisa na tela."
+}

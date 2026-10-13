@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indicadores</title>
+<style>
+__CSS__
+  .bloco { margin-top: 32px; }
+  .bloco h2 small { font-size: 13px; font-weight: 400; color: var(--ink2); margin-left: 8px; }
+  .inds { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 22px 28px; margin-top: 12px; }
+  .ind { border-top: 1px solid var(--grid); padding-top: 12px; display: flex; flex-direction: column; min-width: 0; }
+  .ind.semfonte { border-top-style: dashed; }
+  .ind-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .ind-nome { font-size: 14px; font-weight: 650; }
+  .tag { font-size: 11px; font-weight: 600; color: var(--ink2); white-space: nowrap; letter-spacing: .02em; }
+  .tag.semfonte { color: var(--muted); font-style: italic; }
+  .ind .kpi-num { font-size: 28px; }
+  .ind.semfonte .kpi-num { color: var(--muted); }
+  .ind-base { margin-top: auto; padding-top: 10px; font-size: 12px; color: var(--muted); }
+  .ind-ajuda { font-size: 12px; color: var(--ink2); margin-top: 6px; border-left: 2px solid var(--neutro-2); padding-left: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Indicadores</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick">Competência <select id="mes"></select></label>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Etiqueta de cada indicador:</b> <b>Direto</b> = o Klingo entrega o dado pronto · <b>Derivado</b> = cálculo sobre dados que o Klingo entrega · <b>Aproximação</b> = o dado mais próximo que existe, mas não é exatamente o conceito pedido · <b>Sem fonte</b> = nenhum relatório traz o dado (o cartão diz o que falta; não mostro zero para não parecer que está tudo certo).</li>
+        <li><b>Competência</b> escolhida no topo vale para os indicadores marcados “Competência” (mês de execução das guias e do período das faturas). Os marcados “Posição de hoje” não mudam com o mês; os de glosa são acumulados desde set/2026, porque a glosa chega semanas depois do atendimento.</li>
+        <li><b>Comparação em cada cartão:</b> “% do produzido” ou “% do faturado” mostra quanto do valor anterior do ciclo já chegou àquela etapa. A variação contra o mês anterior só aparece com os dois meses completos (mês em andamento contra mês cheio seria uma comparação injusta).</li>
+        <li><b>Guias:</b> o relatório de Guias repete a guia uma vez por procedimento; aqui conto cada guia uma vez.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (os 16 indicadores e o caminho do dinheiro), <b>Análise</b> (guias, pendências e convênios em gráficos) e <b>Detalhes</b> (tabelas, recolhidas: clique para abrir).</li>
+        <li><b>Atualização:</b> o botão consulta os relatórios de Guias, Glosas e Recursos e Baixas e também os de Faturamento e Financeiro que os indicadores usam. Os dados ficam em <b>Indicadores.xlsx</b>.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const ORDEM_NIVEL = { critico: 0, atencao: 1, ok: 2, info: 3 };
+const CHAVES = chavesMeses(D);
+const BLOCOS = { 1: ['Produção e faturamento', 'Do que foi produzido ao que já foi transmitido para o convênio.'],
+                 2: ['Financeiro', 'O que está faturado, o que vence, o que entrou e o que falta entrar.'],
+                 3: ['Glosas', 'O que as operadoras rejeitaram e o que aconteceu depois.'] };
+// indicadores da mesma competencia comparados com o produzido do mesmo mes: [id da referencia, texto]
+// (recebido, saldo e glosa ficam de fora: misturam particular, convenio e meses diferentes, e a razao enganaria)
+const REFERENCIA = { pre_fatura: ['produzido', 'do produzido'], faturado: ['produzido', 'do produzido'], fatura_mes: ['produzido', 'do produzido'] };
+
+$('sub').textContent = `Relatórios de Guias, Glosas e Recursos e Baixas mais os de Faturamento e Financeiro · dados de ${D.dados_em}`;
+
+const ehCompetencia = c => String(c.base || '').startsWith('Compet');
+function valorHtml(c) {
+  if (c.valor == null) return '—';
+  return c.formato === 'qtd' ? `${num(c.valor)} guia${c.valor === 1 ? '' : 's'}` : brlc(c.valor);
+}
+function comparacao(c, m, prev, mesFechado) {
+  if (c.valor == null) return '';
+  const partes = [];
+  const r = REFERENCIA[c.id];
+  if (r && ehCompetencia(c)) {
+    const ref = m.cards.find(x => x.id === r[0]);
+    if (ref && ref.valor) partes.push(`<b>${pct(c.valor / ref.valor * 100, 0)}</b> ${r[1]}`);
+  }
+  if (prev && mesFechado && ehCompetencia(c)) {
+    const pc = prev.cards.find(x => x.id === c.id);
+    const v = pc && pc.valor ? varPct(c.valor, pc.valor) : null;
+    if (v != null) partes.push(comp(v, 'contra ' + prev.rotulo));
+  }
+  return partes.join(' · ');
+}
+function cartao(c, m, prev, mesFechado) {
+  const t = c.valor != null && c.formato === 'brl' ? ` title="${esc(brl(c.valor))}"` : '';
+  const cmp = comparacao(c, m, prev, mesFechado);
+  return `<div class="ind ${c.classe}">
+    <div class="ind-top"><span class="ind-nome">${esc(c.nome)}</span><span class="tag ${c.classe}">${esc(c.classe_rotulo)}</span></div>
+    <div class="kpi-num"${t}>${valorHtml(c)}</div>
+    ${cmp ? `<div class="kpi-comp">${cmp}</div>` : ''}
+    <div class="kpi-sub">${c.sub}</div>
+    ${c.ajuda ? `<div class="ind-ajuda">${esc(c.ajuda)}</div>` : ''}
+    <div class="ind-base" title="${esc(c.fonte)}">${esc(c.base)}</div>
+  </div>`;
+}
+
+// ====================== RESUMO ======================
+function blocosHtml(m, prev, mesFechado) {
+  return [1, 2, 3].map(b => {
+    const cs = m.cards.filter(c => c.bloco === b);
+    return `<section class="bloco"><h2>${BLOCOS[b][0]}<small>${BLOCOS[b][1]}</small></h2><div class="inds">${cs.map(c => cartao(c, m, prev, mesFechado)).join('')}</div></section>`;
+  }).join('');
+}
+function caminhoGraf(m) {   // o caminho do dinheiro: produzido -> faturado -> recebido (os mesmos cartoes, lado a lado)
+  const get = id => (m.cards.find(c => c.id === id) || {}).valor;
+  const base = get('produzido');
+  const etapas = [['Produzido', 'produzido'], ['Pré-fatura (a enviar)', 'pre_fatura'], ['Faturado (enviado)', 'faturado'], ['Recebido', 'recebido'], ['A receber / saldo', 'saldo']]
+    .map(([r, id]) => ({ rotulo: r, valor: get(id), id })).filter(e => e.valor != null);
+  if (!base || etapas.length < 2) return '';
+  return `<section><h2>O caminho do dinheiro em ${esc(m.rotulo)}</h2><p class="nota">Do produzido até o que já entrou, em reais, com o percentual sobre o produzido.</p>
+    ${barras(etapas.map(e => ({ rotulo: e.rotulo, valor: e.valor, texto: brlc(e.valor), extra: pct(e.valor / base * 100, 0), tip: `${e.rotulo}\n${brl(e.valor)} (${pct(e.valor / base * 100, 1)} do produzido)` })), '', '30%', { destaque: 0 })}</section>`;
+}
+
+// ====================== ANALISE ======================
+function situacaoGraf(m) {
+  if (!m.por_situacao.length) return '';
+  return `<div><h2>Guias por situação</h2><p class="nota">Guias com data em ${esc(m.rotulo)}, contadas uma vez cada (relatório de Guias).</p>
+    ${barras(m.por_situacao.map(s => ({ rotulo: s.nome, valor: s.qtd, texto: num(s.qtd), cor: s.cor, tip: `${s.nome}\n${num(s.qtd)} guia(s)` })), '', '40%')}</div>`;
+}
+function pendentesGraf(m) {
+  if (!m.pendentes_motivos.length) return '';
+  return `<div><h2>Guias pendentes: o motivo</h2><p class="nota">Guias “Pendente recepção” de ${esc(m.rotulo)} e o motivo registrado no Klingo.</p>
+    ${barras(m.pendentes_motivos.map(x => ({ rotulo: x.nome, valor: x.qtd, texto: num(x.qtd), cor: 'var(--crit)', tip: `${x.nome}\n${num(x.qtd)} guia(s)` })), '', '48%')}</div>`;
+}
+function conveniosGraf(m) {
+  if (!m.convenios.length) return '';
+  const top = m.convenios.filter(x => x.produzido > 0);
+  if (!top.length) return '';
+  return `<section><h2>Convênios que mais produziram em ${esc(m.rotulo)}</h2><p class="nota">Produzido por convênio, com quanto já foi faturado (relatórios de Produção por Convênio e Faturas Emitidas).</p>
+    ${barras(top.map(x => ({ rotulo: x.nome, valor: x.produzido, texto: brlc(x.produzido), extra: x.produzido ? pct(x.faturado / x.produzido * 100, 0) + ' faturado' : '',
+      tip: `${x.nome}\nProduzido ${brl(x.produzido)}\nFaturado ${brl(x.faturado)}\nRecebido ${brl(x.recebido)}\nSaldo ${brl(x.saldo)}` })), '', '30%')}</section>`;
+}
+
+// ====================== DETALHES ======================
+function detalhes(m) {
+  const it = [];
+  if (m.convenios.length) {
+    const tot = k => m.convenios.reduce((s, x) => s + x[k], 0);
+    it.push(acordeao(`Convênios em ${esc(m.rotulo)}`, `<p class="nota">Produzido, pré-fatura e faturado, recebido. Saldo = faturado − recebido − glosa acatada.</p>` +
+      tabela([{ t: 'Convênio' }, { t: 'Produzido', n: 1 }, { t: 'Pré-fatura', n: 1 }, { t: 'Faturado', n: 1 }, { t: 'Recebido', n: 1 }, { t: 'Saldo', n: 1 }],
+        m.convenios.map(x => [esc(x.nome), brl(x.produzido), brl(x.pre_fatura), brl(x.faturado), brl(x.recebido), brl(x.saldo)]),
+        ['Total', brl(tot('produzido')), brl(tot('pre_fatura')), brl(tot('faturado')), brl(tot('recebido')), brl(tot('saldo'))]), { dica: `${m.convenios.length} convênios` }));
+  }
+  if (m.pendentes_lista.length) {
+    it.push(acordeao(`Guias pendentes: as ${m.pendentes_lista.length} mais antigas`, tabela([{ t: 'Data' }, { t: 'Operadora' }, { t: 'Guia' }, { t: 'Paciente', txt: 1 }, { t: 'Motivo', txt: 1 }],
+      m.pendentes_lista.map(x => [dataBR(x.data), esc(x.operadora), esc(x.guia), esc(x.paciente || ''), esc(x.motivo || '—')])), { dica: `${m.pendentes_lista.length} guias` }));
+  }
+  if (D.conciliacao.length) {
+    it.push(acordeao('Conciliação das baixas', `<p class="nota">Relatório de Baixas, todas as baixas (pagamentos e recebimentos), por conta.</p>` + tabela([{ t: 'Conta' }, { t: 'Baixas', n: 1 }, { t: 'Conciliadas', n: 1 }, { t: 'Valor', n: 1 }],
+      D.conciliacao.map(x => [esc(x.conta), num(x.baixas), num(x.conciliadas), brl(x.valor)])), { dica: `${D.conciliacao.length} contas` }));
+  }
+  it.push(acordeao('De onde vem cada indicador', `<p class="nota">A regra de cálculo de cada cartão e quanto confiar nele.</p>` + tabela([{ t: 'Indicador' }, { t: 'Classe' }, { t: 'Fonte e regra', txt: 1 }, { t: 'Observação', txt: 1 }],
+    m.cards.map(c => [esc(c.nome), `<span class="tag ${c.classe}">${esc(c.classe_rotulo)}</span>`, esc(c.fonte), esc(c.ajuda || '')])), { dica: `${m.cards.length} indicadores` }));
+  return it.join('');
+}
+
+function render(ym) {
+  const m = D.meses[ym], prev = anteriorDe(D, CHAVES, ym);
+  const hojeYm = new Date().toISOString().slice(0, 7), mesFechado = (m.periodo ? m.meses_do_periodo[m.meses_do_periodo.length - 1] : ym) < hojeYm;   // periodo: vale o ultimo mes dele
+  const alertas = [...D.alertas].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
+  const grafAnalise = [situacaoGraf(m), pendentesGraf(m)].filter(Boolean);
+  $('conteudo').innerHTML =
+    tier('Resumo', 'Os 16 indicadores e o caminho do dinheiro',
+      blocosHtml(m, prev, mesFechado) + caminhoGraf(m) + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente.</p>${alertasTopo(alertas, ym)}</section>`) +
+    tier('Análise', 'Guias, pendências e convênios',
+      (grafAnalise.length ? `<section class="grid2">${grafAnalise.join('')}</section>` : '') + conveniosGraf(m)) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+}
+
+if (!CHAVES.length || !D.tem_dados) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar os relatórios no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

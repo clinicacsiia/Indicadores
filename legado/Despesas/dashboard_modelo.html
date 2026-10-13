@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Despesas</title>
+<style>
+__CSS__
+.multiplos { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 6px 22px; }
+.multiplos .graf-tit { margin: 10px 0 0; }
+.calor { display: block; padding: 2px 6px; margin: -2px -6px; border-radius: 4px; }
+.pre td.n b, .linha-hist td { white-space: nowrap; }
+.tag-parcial { font-size: 11px; color: var(--muted); border: 1px solid var(--line, #ddd); border-radius: 10px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Despesas</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick">Mês de competência <select id="mes"></select></label>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Fontes:</b> três relatórios do Klingo. O de <b>Evolução das Despesas por Categoria e Mês</b> (nº 13505) dá o valor <b>bruto</b>; o de <b>Despesas Detalhadas por Lançamento (Valor Líquido)</b> (nº 13509) dá o <b>líquido</b> e o número do lançamento. O painel cruza os dois linha a linha. O terceiro, de <b>Receita Produzida</b> (nº 26, o mesmo do painel Faturamento), só alimenta o bloco de Repasse médico.</li>
+        <li><b>Mês de competência:</b> os números do mês somam o que foi lançado <b>com competência</b> naquele mês, e não o que vence ou foi pago nele. Por isso os totais podem diferir do painel Financeiro, que olha o vencimento.</li>
+        <li><b>Bruto e líquido:</b> o líquido é o bruto menos as retenções (imposto retido do prestador). A diferença aparece como <b>retenções</b>. Se o Klingo não tiver o desconto lançado, líquido e bruto saem iguais.</li>
+        <li><b>Só despesas:</b> o relatório também traz os créditos (receitas); eles ficam de fora<span id="txt-creditos"></span>.</li>
+        <li><b>Compras de estoque:</b> as compras feitas pelo módulo de Suprimentos (descrição “Compra de Estoque: …”) entram aqui<span id="txt-estoque"></span>. O painel Financeiro não as enxerga.</li>
+        <li><b>Histórico:</b> o painel mostra desde <span id="txt-primeiro"></span>, mas só trata como confiável o que vem de <b id="txt-inicio"></b> em diante (início do uso do Klingo). Meses anteriores aparecem marcados como <i>histórico</i>, ficam fora das médias, das comparações e da previsão, e podem estar incompletos.</li>
+        <li><b>Mês fechado, em andamento e futuro:</b> um mês <b>fechado</b> já tem tudo lançado, então a comparação com o mês anterior e com a média vale. O mês <b>em andamento</b> ainda recebe lançamentos: só o aumento é apontado. Os meses <b>futuros</b> mostram só o que já está lançado (contratos e parcelas recorrentes).</li>
+        <li><b>Recorrente e avulsa:</b> uma categoria é <b>recorrente</b> quando aparece lançada em 2 meses ou mais, e <b>avulsa</b> quando aparece em um só. É uma regra automática, não uma classificação da clínica.</li>
+        <li><b>Previsão:</b> <b>já lançado</b> é o piso (certo). <b>Esperado</b> completa cada categoria recorrente até o seu valor típico (a mediana dos meses confiáveis já lançados). <b>Com avulsos</b> soma ainda a média de despesas avulsas dos meses fechados. Com poucos meses de história é um ponto de partida, não uma garantia, e melhora a cada mês que fecha.</li>
+        <li><b>Lançamentos repetidos:</b> duas linhas idênticas com números de lançamento diferentes podem ser parcelas ou um lançamento em duplicidade; o painel só avisa para conferir. As compras de estoque ficam fora dessa conferência.</li>
+        <li><b>Repasse médico:</b> é a categoria <b>Honorário Médico</b> das despesas, vista por médico e por empresa (o nome do médico vem da descrição do lançamento). A <b>produção</b> é a receita produzida (faturada, não necessariamente recebida) de cada médico. Os dois lados são ligados pelo nome: vale quando 2 palavras do nome coincidem. Quando um mês só tem um dos lados, o painel mostra esse lado e não calcula o percentual de repasse. Linhas de equipamento ou setor (RM, RX, TC, densitometria...) ficam fora do ranking de médicos.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e alertas do mês), <b>Análise</b> (comparações do mês escolhido), <b>Histórico</b> e <b>Previsão</b> (valem para todos os meses), <b>Repasse médico</b> (com seletor de mês próprio) e <b>Detalhes</b> (tabelas recolhidas: clique para abrir).</li>
+        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz os meses e grava na planilha <b>Despesas.xlsx</b>: o que foi corrigido ou excluído no Klingo muda aqui também.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const ORDEM_NIVEL = { critico: 0, atencao: 1, ok: 2, info: 3 };
+const CHAVES = chavesMeses(D);
+const curto = (rotulo, ym) => `${rotulo.split('/')[0].slice(0, 3)}/${ym.slice(2, 4)}`;
+const SITUACAO = { fechado: 'Mês fechado', em_curso: 'Mês em andamento: ainda recebe lançamentos', previsto: 'Mês futuro: só o que já está lançado' };
+const SITUACAO_PERIODO = { fechado: 'Período fechado', em_curso: 'Período em andamento: o último mês ainda recebe lançamentos', previsto: 'Período futuro: só o que já está lançado' };
+const sitTxt = m => (m.periodo ? SITUACAO_PERIODO : SITUACAO)[m.situacao];
+const ROT_SIT = { fechado: 'Fechado', em_curso: 'Em andamento', previsto: 'Futuro' };
+const estreito = () => window.matchMedia && matchMedia('(max-width: 640px)').matches;   // no celular, o valor em cada ponto se sobrepoe
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const brlOu = v => v == null ? VAZIO : brl(v);
+const sinal = v => (v >= 0 ? '+' : '−') + brlc(Math.abs(v));
+
+$('sub').textContent = `Fonte: relatórios de Despesas por Categoria (bruto), de Despesas Detalhadas (líquido) e de Receita Produzida (repasse médico) do Klingo · competência · dados de ${D.dados_em}`;
+if (D.creditos_ignorados && D.creditos_ignorados.qtd) $('txt-creditos').textContent = ` (${num(D.creditos_ignorados.qtd)} lançamentos, ${brl(D.creditos_ignorados.valor)})`;
+if (D.compras_estoque && D.compras_estoque.qtd) $('txt-estoque').textContent = ` (${num(D.compras_estoque.qtd)} lançamentos, ${brl(D.compras_estoque.valor)} no período)`;
+if (D.evolucao && D.evolucao.length) $('txt-primeiro').textContent = D.evolucao[0].rotulo;
+$('txt-inicio').textContent = D.inicio_confiavel || '';
+
+// ====================== RESUMO ======================
+function kpisHtml(ym, m, prev) {
+  const fechado = m.situacao === 'fechado', c = m.categorias[0], f = m.fornecedores[0], a = D.acumulado, p = D.previsao;
+  const comparavel = fechado && !m.parcial && m.mes_anterior;
+  const contra = comparavel ? 'contra ' + m.mes_anterior : '';
+  const comparacao = comparavel ? comp(varPct(m.total, prev.total), contra, { inverso: true }) : '';
+  const mediaTxt = fechado && m.media_total ? `<br>Média dos ${m.n_ref} outro(s) mês(es) fechado(s): <b>${brlc(m.media_total)}</b> (${comp(varPct(m.total, m.media_total), '', { inverso: true })})` : '';
+  const referencia = !fechado && prev && prev.situacao === 'fechado' && !prev.parcial ? `<br>${esc(prev.rotulo)} fechou em <b>${brlc(prev.total)}</b>; não comparo porque este mês não está completo.` : '';
+  const aviso = m.parcial ? '<br><i>Histórico de antes do uso do Klingo: pode estar incompleto.</i>' : '';
+  const semNada = VAZIO;
+  const temLiq = D.conferencia && D.conferencia.liquido;
+  const kLiq = kpi('Líquido (após retenções)', temLiq ? brlc(m.liquido) : semNada, { titulo: temLiq ? brl(m.liquido) : '',
+    sub: !temLiq ? 'O relatório de líquido ainda não foi baixado: use <b>Atualizar agora</b>.' : m.retido > 0.005 ? `Retenções de <b>${brlc(m.retido)}</b> (${pct(m.retido_pct, 1)} do bruto)` : 'Sem retenção registrada neste mês: líquido igual ao bruto.' });
+  let k5;
+  const pm = !fechado && p && p.ok ? p.meses.find(x => x.ym === ym) : null;
+  if (pm) k5 = kpi(`Previsão de ${esc(m.rotulo)}`, brlc(pm.esperado), { titulo: brl(pm.esperado), sub: `Já lançado <b>${brlc(pm.piso)}</b> · com avulsos até <b>${pm.teto != null ? brlc(pm.teto) : '—'}</b>. Ver Previsão.` });
+  else if (a) k5 = kpi(`Lançado desde ${esc(a.desde.split('/')[0].slice(0, 3).toLowerCase())}/${a.desde.split('/')[1]}`, brlc(a.total), { titulo: brl(a.total),
+    sub: `${num(a.meses)} mês(es) até hoje · média de <b>${brlc(a.media)}</b> por mês (o mês em andamento ainda está incompleto)` });
+  else k5 = '';
+  return `<div class="kpis">
+    ${kpi(`Despesas de ${esc(m.rotulo)}`, brlc(m.total), { destaque: 1, titulo: brl(m.total), comp: comparacao,
+      sub: `${sitTxt(m)} · <b>${num(m.qtd)}</b> lançamento(s) em ${num(m.n_categorias)} categoria(s) e ${num(m.n_fornecedores)} fornecedor(es)${mediaTxt}${referencia}${aviso}` })}
+    ${kLiq}
+    ${kpi('Maior categoria', c ? brlc(c.valor) : semNada, { titulo: c ? brl(c.valor) : '', sub: c ? `<b>${esc(c.nome)}</b> · ${pct(c.pct, 0)} do mês. As 5 maiores somam <b>${pct(m.top5_pct, 0)}</b>.` : 'Nenhuma despesa neste mês.' })}
+    ${kpi('Maior fornecedor', f ? brlc(f.valor) : semNada, { titulo: f ? brl(f.valor) : '', sub: f ? `<b>${esc(f.nome)}</b> · ${pct(f.pct, 0)} do mês` : 'Nenhuma despesa neste mês.' })}
+    ${k5}
+  </div>`;
+}
+
+// evolucao: total por mes; historico anterior ao Klingo, meses fechados (linha cheia) e mes em andamento + futuros (tracejado)
+function evolucaoHtml() {
+  const e = D.evolucao; if (!e || !e.length) return '';
+  const tipX = i => { const x = e[i];
+    return `${x.rotulo} · ${ROT_SIT[x.situacao]}${x.parcial ? ' (histórico)' : ''}\nBruto: ${brl(x.total)} em ${num(x.qtd)} lançamento(s)\n${D.conferencia && D.conferencia.liquido ? 'Líquido: ' + brl(x.liquido) + '\n' : ''}${x.maior ? 'Maior categoria: ' + x.maior : ''}`; };
+  const idx = f => e.map((x, i) => f(x) ? i : -1).filter(i => i >= 0);
+  const hist = idx(x => x.parcial && x.situacao === 'fechado'), fechados = idx(x => x.situacao === 'fechado' && !x.parcial), abertos = idx(x => x.situacao !== 'fechado');
+  const pt = lista => lista.map(i => ({ x: i, y: e[i].total }));
+  const ult = l => l.length ? [l[l.length - 1]] : [];
+  const series = [], curto_ = estreito();
+  if (hist.length) series.push({ nome: curto_ ? 'Histórico' : 'Antes do Klingo', cor: 'var(--neutro-3)', larg: 1.6, pontos: pt(hist) });
+  if (fechados.length) series.push({ nome: 'Fechado', cor: 'var(--accent)', principal: true, pontos: pt(fechados) });   // sem ligar ao historico: a diferenca entre antes e depois do Klingo e de cobertura dos dados, nao de gasto
+  if (abertos.length) series.push({ nome: curto_ ? 'Em aberto' : 'Em aberto e futuro', cor: 'var(--neutro)', traco: true, rotuloFim: true, pontos: pt([...ult(fechados.length ? fechados : hist), ...abertos]) });
+  const g = linhas({ W: e.length > 9 ? 980 : 760, mr: curto_ ? 170 : 118, fmt: brlc, rotulosEm: e.length <= 12 && !curto_ ? 'todos' : undefined, aria: 'Despesas por mês de competência', tipX,
+    xRot: e.map((x, i) => ({ x: i, t: curto(x.rotulo, x.ym) })).filter((t, i) => !curto_ || i % 2 === 0), series });
+  return `<section><h2>Evolução mês a mês</h2>
+    <p class="nota">Total de despesas (bruto) por mês de competência. ${hist.length ? 'A linha cinza clara é o histórico de antes do Klingo, que pode estar incompleto. ' : ''}A linha cheia são os meses fechados. A tracejada é o mês em andamento e os que vêm: mostra só o que já foi lançado (contratos e parcelas recorrentes), então fica abaixo do que esses meses devem chegar a ter (veja a Previsão).</p>${g}</section>`;
+}
+
+// ====================== ANALISE ======================
+function categoriasGraf(m) {
+  const temRef = m.n_ref > 0;
+  const mk = lista => lista.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 0), marca: temRef && i.media != null ? i.media : undefined,
+    tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)})\n${num(i.qtd)} lançamento(s)` + (temRef && i.media != null ? `\nMédia dos outros meses fechados: ${brl(i.media)}` : '') }));
+  return `<section class="grid2">
+    <div><h2>Para onde vai o dinheiro</h2><p class="nota">Despesas de ${esc(m.rotulo)} por categoria${m.categorias.length > 10 ? ' (as dez maiores; o resto está em “Demais”)' : ''}.${temRef ? ' A <b>marca vertical</b> é a média mensal dos outros meses fechados: barra além da marca = gastou mais que o normal.' : ''}</p>
+      ${barras(mk(m.categorias), 'Nenhuma despesa lançada neste mês.', '44%')}</div>
+    <div><h2>Quem recebe</h2><p class="nota">Despesas de ${esc(m.rotulo)} por fornecedor.</p>
+      ${barras(m.fornecedores.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 0), tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)})\n${num(i.qtd)} lançamento(s)` })), 'Nenhuma despesa lançada neste mês.', '44%')}</div></section>`;
+}
+
+function mudancaItens(lista, m, anteriorRot) {
+  return lista.map(t => ({ rotulo: t.nome, valor: Math.abs(t.dif), texto: sinal(t.dif), extra: t.nova ? 'novo' : t.sumiu ? 'zerou' : pct(t.pct, 0),
+    tip: `${t.nome}\n${anteriorRot}: ${brl(t.anterior)}\n${m.rotulo}: ${brl(t.valor)}\nDiferença: ${sinal(t.dif)}` }));
+}
+function mudancasGraf(m) {
+  if (m.situacao === 'previsto') return `<section><h2>O que mudou</h2><p class="vazio">Mês futuro: só há o que já foi lançado, então não comparo com o mês anterior.</p></section>`;
+  if (m.parcial) return `<section><h2>O que mudou</h2><p class="vazio">Este mês é histórico de antes do Klingo: não comparo.</p></section>`;
+  if (!m.mudancas) return `<section><h2>O que mudou</h2><p class="vazio">${m.anterior_parcial ? 'O mês anterior é histórico de antes do Klingo e pode estar incompleto: não comparo.' : (m.periodo ? 'Não há período anterior confiável (de mesmo tamanho) para comparar.' : 'Este é o primeiro mês confiável do painel: não há mês anterior para comparar.')}</p></section>`;
+  const md = m.mudancas, mf = m.mudancas_forn, aberto = m.situacao === 'em_curso', ant = m.mes_anterior;
+  const caiu = `<div><h2>O que mais caiu</h2>${aberto
+    ? '<p class="nota">Não aponto quedas em mês em andamento: o que parece queda pode ser lançamento que ainda não entrou.</p>'
+    : `<p class="nota">Diferença por categoria entre ${esc(ant)} e ${esc(m.rotulo)}.</p>${barras(mudancaItens(md.cairam, m, ant), 'Nenhuma categoria caiu.', '44%')}`}</div>`;
+  const novos = mf.novos.map(t => ({ rotulo: t.nome, valor: t.valor, texto: brlc(t.valor), extra: 'novo', tip: `${t.nome}\nNão tinha despesa em ${ant}\n${m.rotulo}: ${brl(t.valor)}` }));
+  return `<section class="grid2">
+    <div><h2>O que mais subiu</h2><p class="nota">Diferença por categoria entre ${esc(ant)} e ${esc(m.rotulo)}.${aberto ? ' O mês ainda recebe lançamentos: o aumento pode ser maior.' : ''}</p>
+      ${barras(mudancaItens(md.subiram, m, ant), 'Nenhuma categoria subiu.', '44%')}</div>${caiu}</section>
+    <section class="grid2">
+    <div><h2>Fornecedores que mais subiram</h2><p class="nota">Diferença por fornecedor entre ${esc(ant)} e ${esc(m.rotulo)}.</p>
+      ${barras(mudancaItens(mf.subiram, m, ant), 'Nenhum fornecedor subiu.', '44%')}</div>
+    <div><h2>Fornecedores novos no mês</h2><p class="nota">Sem nenhuma despesa em ${esc(ant)}. ${aberto ? '' : (mf.sumiram.length ? `E ${mf.sumiram.length} fornecedor(es) que tinham despesa e zeraram.` : '')}</p>
+      ${barras(novos, 'Nenhum fornecedor novo.', '44%')}</div></section>`;
+}
+
+function composicaoGraf(m) {
+  const r = m.recorrente;
+  const avulsas = r.avulsas.length ? `<p class="nota" style="margin-top:12px">Categorias avulsas de ${esc(m.rotulo)} (só aparecem em um mês): ${r.avulsas.map(a => `<b>${esc(a.nome)}</b> ${brlc(a.valor)}`).join('; ')}.</p>` : '';
+  const ret = m.retencoes || [];
+  const temLiq = D.conferencia && D.conferencia.liquido;
+  const retMes = D.evolucao.map(x => ({ rotulo: curto(x.rotulo, x.ym) + (x.parcial ? ' (histórico)' : ''), valor: x.retido, texto: brlc(x.retido), extra: x.retido > 0.005 ? pct(x.retido_pct, 1) : '', tip: `${x.rotulo}\nBruto: ${brl(x.total)}\nLíquido: ${brl(x.liquido)}\nRetenções: ${brl(x.retido)} (${pct(x.retido_pct, 2)})` }));
+  return `<section class="grid2">
+    <div><h2>Recorrente ou avulsa</h2><p class="nota">Quanto de ${esc(m.rotulo)} vem de categorias que se repetem em outros meses e quanto vem de categorias avulsas.</p>
+      ${donut([{ rotulo: 'Recorrentes', valor: r.valor }, { rotulo: 'Avulsas', valor: r.avulso }], { fmt: brlc, vazio: 'Nenhuma despesa neste mês.', centro: { num: rotEixo(m.total), rot: 'R$ no mês' } })}${avulsas}</div>
+    <div><h2>Bruto e líquido</h2><p class="nota">${temLiq ? `Retenções por categoria em ${esc(m.rotulo)} (bruto menos líquido).` : 'O relatório de líquido ainda não foi baixado.'}</p>
+      ${temLiq ? barras(ret.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 1), tip: `${i.nome}\nRetenção: ${brl(i.valor)} (${pct(i.pct, 2)} do bruto da categoria)` })), 'Nenhuma retenção registrada neste mês.', '44%') : ''}
+      ${temLiq ? `<h3 style="margin:16px 0 4px;font-size:14px">Retenções mês a mês</h3>` + barras(retMes, '', '34%', { porPagina: 12 }) : ''}</div></section>`;
+}
+
+// ====================== HISTORICO ======================
+function chaveHist(valores, ev) {   // uma serie por categoria: meses fechados cheios, mes atual e futuros tracejados
+  const fech = [], aberto = [];
+  ev.forEach((x, i) => (x.situacao === 'fechado' ? fech : aberto).push({ x: i, y: valores[i] }));
+  const series = [];
+  if (fech.length) series.push({ cor: 'var(--accent)', principal: !aberto.length, pontos: fech });
+  if (aberto.length) series.push({ cor: 'var(--neutro)', traco: true, rotuloFim: true, pontos: [...(fech.length ? [fech[fech.length - 1]] : []), ...aberto] });
+  return series;
+}
+function historicoHtml() {
+  const ev = D.evolucao, mx = D.matriz;
+  if (!ev || ev.length < 2 || !mx || !mx.length) return '<section><p class="vazio">Ainda não há meses suficientes para um histórico.</p></section>';
+  // os mini-graficos usam so os meses confiaveis: antes do Klingo muitas categorias nem existiam e o zero pareceria crescimento
+  const idxC = ev.map((x, i) => x.parcial ? -1 : i).filter(i => i >= 0), evC = idxC.map(i => ev[i]);
+  const xRot = evC.map((x, i) => ({ x: i, t: i % 3 === 0 ? curto(x.rotulo, x.ym) : '' })).filter(t => t.t);
+  const top = mx.map(r => ({ r, v: idxC.map(i => r.valores[i]) })).map(o => ({ ...o, t: soma(o.v) })).sort((a, b) => b.t - a.t).slice(0, 6);
+  const mini = evC.length < 2 ? '<p class="vazio">Poucos meses confiáveis para desenhar a evolução.</p>' : top.map(({ r, v }) => {
+    const tipX = i => `${r.nome}\n${evC[i].rotulo} · ${ROT_SIT[evC[i].situacao]}\n${brl(v[i])}`;
+    return `<div><p class="graf-tit">${esc(r.nome)} <span class="tag-parcial">${r.recorrente ? 'recorrente' : 'avulsa'}</span></p>` +
+      linhas({ W: 420, H: 130, ml: 22, mr: 76, mt: 22, mb: 22, fmt: brlc, xRot, tipX, aria: 'Evolução de ' + r.nome, series: chaveHist(v, evC) }) + '</div>';
+  }).join('');
+  const linhasMes = ev.map((x, i) => [esc(x.rotulo) + (x.parcial ? '<span class="tag-parcial">histórico</span>' : ''), ROT_SIT[x.situacao], brl(x.total), brl(x.liquido), x.retido > 0.005 ? brl(x.retido) : VAZIO,
+    num(x.qtd), num(x.n_categorias), x.var_pct == null ? VAZIO : comp(x.var_pct, '', { inverso: true, d: 0 })]);
+  const totais = ev.filter(x => !x.parcial && x.situacao !== 'previsto');
+  const tabMes = tabela([{ t: 'Mês' }, { t: 'Situação' }, { t: 'Bruto', n: 1 }, { t: 'Líquido', n: 1 }, { t: 'Retenções', n: 1 }, { t: 'Lançamentos', n: 1 }, { t: 'Categorias', n: 1 }, { t: 'Variação', n: 1 }], linhasMes);
+  const maximo = Math.max(...mx.flatMap(r => r.valores), 1);
+  const cabM = [{ t: 'Categoria' }, ...ev.map(x => ({ t: curto(x.rotulo, x.ym) + (x.situacao === 'previsto' ? '*' : ''), n: 1 })), { t: 'Total', n: 1 }];
+  const calor = v => v ? `<span class="calor" style="background:color-mix(in srgb, var(--accent) ${Math.max(5, Math.round(Math.sqrt(v / maximo) * 55))}%, transparent)">${brl(v)}</span>` : VAZIO;
+  const somaMes = ev.map((_, i) => soma(mx, r => r.valores[i]));
+  const tabMx = tabela(cabM, mx.map(r => [esc(r.nome), ...r.valores.map(calor), `<b>${brl(r.total)}</b>`]), ['Total', ...somaMes.map(v => `<b>${brl(v)}</b>`), `<b>${brl(soma(somaMes))}</b>`]);
+  return `<section><h2>As maiores categorias ao longo do tempo</h2>
+    <p class="nota">As seis categorias com maior soma desde ${esc(D.inicio_confiavel)} (o que veio antes está nas tabelas abaixo), mês a mês. Linha cheia: meses fechados; tracejada: mês em andamento e futuros (só o já lançado). A etiqueta diz se a categoria é recorrente (aparece em 2 meses ou mais) ou avulsa.</p>
+    <div class="multiplos">${mini}</div></section>
+    <section>${acordeao('Mês a mês: bruto, líquido, retenções e variação', `<p class="nota">A variação compara com o mês anterior só quando os dois estão fechados e depois do início confiável (${esc(D.inicio_confiavel)}). Verde = gastou menos.</p>` + tabMes, { aberto: true, dica: `${ev.length} meses` })}
+    ${acordeao('Categoria por mês', `<p class="nota">Competência de cada mês, do mais claro (menor) ao mais escuro (maior valor da tabela; a escala é suavizada para os valores pequenos também aparecerem). * Mês futuro: só o que já foi lançado. Categorias da maior para a menor soma.</p>` + tabMx, { dica: `${mx.length} categorias · ${ev.length} meses` })}</section>`;
+}
+
+// ====================== PREVISAO ======================
+function previsaoHtml() {
+  const p = D.previsao, ev = D.evolucao;
+  if (!p || !p.ok) return `<section><h2>Previsão</h2><p class="vazio">Ainda não há meses confiáveis suficientes para prever. A previsão começa a aparecer quando houver um mês fechado a partir de ${esc(D.inicio_confiavel)} e despesas já lançadas para os meses seguintes.</p></section>`;
+  const atual = p.meses[0], futuros = p.meses.slice(1);
+  const soFut = futuros.length ? { esp: soma(futuros, x => x.esperado), piso: soma(futuros, x => x.piso), teto: futuros.every(x => x.teto != null) ? soma(futuros, x => x.teto) : null } : null;
+  const ehAtual = atual.situacao === 'em_curso';
+  const t = p.tendencia;
+  const kp = `<div class="kpis">
+    ${ehAtual ? kpi(`Fechamento previsto de ${esc(atual.rotulo)}`, brlc(atual.esperado), { destaque: 1, titulo: brl(atual.esperado),
+      sub: `Já lançado <b>${brlc(atual.piso)}</b>; faltam <b>${brlc(atual.esperado - atual.piso)}</b> de despesas recorrentes. Com avulsos como nos meses fechados: até <b>${atual.teto != null ? brlc(atual.teto) : '—'}</b>.` }) : ''}
+    ${soFut ? kpi(futuros.length === 1 ? 'Próximo mês' : `Próximos ${futuros.length} meses`, brlc(soFut.esp), { titulo: brl(soFut.esp), sub: `Média de <b>${brlc(soFut.esp / futuros.length)}</b> por mês. Já lançado: <b>${brlc(soFut.piso)}</b>${soFut.teto != null ? `; com avulsos: <b>${brlc(soFut.teto)}</b>` : ''}.` }) : ''}
+    ${kpi('Despesas avulsas', p.avulso_medio != null ? brlc(p.avulso_medio) : VAZIO, { titulo: p.avulso_medio != null ? brl(p.avulso_medio) : '', sub: p.avulso_medio != null ? `Média por mês fechado do que aparece em um mês só (${num(p.avulsas.length)} categoria(s)). É o que a previsão “com avulsos” soma.` : 'Sem mês fechado para medir.' })}
+    ${kpi('Tendência', t ? (t.por_mes >= 0 ? '▲ ' : '▼ ') + pct(Math.abs(t.pct_mes), 1) + ' ao mês' : VAZIO, { sub: t ? `Reta ajustada aos ${t.meses} meses fechados (${sinal(t.por_mes)} por mês).` : `Com ${p.fechados} mês(es) fechado(s) ainda não dá para falar em tendência (preciso de 3).` })}
+  </div>`;
+  // grafico: fechados, esperado, ja lancado, com avulsos
+  const fechIdx = ev.map((x, i) => x.situacao === 'fechado' && !x.parcial ? i : -1).filter(i => i >= 0);
+  const porYm = Object.fromEntries(p.meses.map(x => [x.ym, x]));
+  const futIdx = ev.map((x, i) => porYm[x.ym] ? i : -1).filter(i => i >= 0);
+  const ult = fechIdx.length ? fechIdx[fechIdx.length - 1] : null;
+  const pts = (lista, f) => lista.map(i => ({ x: i, y: f(ev[i], porYm[ev[i].ym]) }));
+  const series = [];
+  if (fechIdx.length) series.push({ nome: 'Fechado', cor: 'var(--accent)', principal: true, pontos: pts(fechIdx, x => x.total) });
+  series.push({ nome: 'Esperado', cor: 'var(--accent)', traco: true, larg: 2.4, rotuloFim: true, pontos: [...(ult != null ? [{ x: ult, y: ev[ult].total }] : []), ...pts(futIdx, (x, q) => q.esperado)] });
+  if (p.avulso_medio != null) series.push({ nome: 'Com avulsos', cor: 'var(--neutro-3)', traco: true, rotuloFim: true, pontos: pts(futIdx, (x, q) => q.teto) });
+  series.push({ nome: 'Já lançado', cor: 'var(--neutro)', traco: true, rotuloFim: true, pontos: pts(futIdx, (x, q) => q.piso) });
+  const tipX = i => { const q = porYm[ev[i].ym]; const x = ev[i];
+    return q ? `${x.rotulo} · ${ROT_SIT[x.situacao]}\nJá lançado: ${brl(q.piso)}\nEsperado: ${brl(q.esperado)}\n${q.teto != null ? 'Com avulsos: ' + brl(q.teto) : ''}` : `${x.rotulo}${x.parcial ? ' (histórico)' : ''}\nBruto: ${brl(x.total)}`; };
+  const xi = ev.map((x, i) => ({ x: i, y: 0 })).filter(q => (porYm[ev[q.x].ym] || (!ev[q.x].parcial && ev[q.x].situacao === 'fechado')));
+  const graf = linhas({ W: 980, H: 280, mr: estreito() ? 170 : 130, fmt: brlc, aria: 'Previsão das despesas', tipX,
+    xRot: xi.map(q => ({ x: q.x, t: curto(ev[q.x].rotulo, ev[q.x].ym) })).filter((t, i) => !estreito() || i % 2 === 0), series });
+  // o que falta lancar no mes atual
+  const faltas = ehAtual ? p.faltas.filter(f => f.falta >= 100) : [];
+  const falta = faltas.length ? `<section><h2>O que ainda falta lançar em ${esc(atual.rotulo)}</h2>
+    <p class="nota">Categorias recorrentes cujo valor lançado no mês está abaixo do valor típico. A barra é o que falta para chegar ao valor típico (o texto ao lado diz quanto já foi lançado). Quando o lançamento entrar, a previsão acompanha.</p>
+    ${barras(faltas.map(f => ({ rotulo: f.nome, valor: f.falta, texto: brlc(f.falta), extra: f.lancado ? 'lançado ' + brlc(f.lancado) : 'nada lançado', tip: `${f.nome}\nValor típico: ${brl(f.tipico)}\nLançado em ${atual.rotulo}: ${brl(f.lancado)}\nFalta: ${brl(f.falta)}` })), '', '44%')}</section>` : '';
+  const temRet = p.retencao_pct > 0.05;
+  const premissas = `<section><h2>Como a previsão é feita</h2><ul class="motivos">
+    <li><b>Já lançado</b> é certo: o que o Klingo já tem com competência em cada mês.</li>
+    <li><b>Esperado</b> completa cada categoria recorrente (${num(p.recorrentes)} no momento) até o seu valor típico, a mediana dos meses confiáveis já lançados, fechados e futuros. Categorias avulsas não entram.</li>
+    <li><b>Com avulsos</b> soma ao esperado a média mensal de despesas avulsas dos meses fechados (${p.avulso_medio != null ? brlc(p.avulso_medio) : 'sem base'}). Pode sobrar ou faltar: uma despesa avulsa grande pesa muito numa média de poucos meses.</li>
+    <li><b>Base:</b> ${num(p.fechados)} mês(es) fechado(s) confiável(is) (${p.fechados_rotulos.length ? esc(p.fechados_rotulos.join(', ')) : 'nenhum'}), desde ${esc(p.inicio)}. ${p.fechados < 3 ? 'É pouco: trate os números como ordem de grandeza.' : ''}</li>
+    <li><b>Líquido:</b> ${temRet ? `a retenção média dos meses fechados é ${pct(p.retencao_pct, 1)}; o desembolso líquido esperado é cerca de ${pct(100 - p.retencao_pct, 1)} do bruto.` : 'nenhuma retenção registrada nos meses fechados, então o líquido previsto é igual ao bruto.'}</li>
+  </ul></section>`;
+  const tabPrev = tabela([{ t: 'Mês' }, { t: 'Situação' }, { t: 'Já lançado', n: 1 }, { t: 'Esperado', n: 1 }, { t: 'Com avulsos', n: 1 }, ...(temRet ? [{ t: 'Líquido esperado', n: 1 }] : [])],
+    p.meses.map(x => [esc(x.rotulo), ROT_SIT[x.situacao], brl(x.piso), `<b>${brl(x.esperado)}</b>`, x.teto != null ? brl(x.teto) : VAZIO, ...(temRet ? [brl(x.esperado * (1 - p.retencao_pct / 100))] : [])]));
+  const tabAvulsas = p.avulsas.length ? tabela([{ t: 'Categoria' }, { t: 'Total lançado', n: 1 }], p.avulsas.map(a => [esc(a.nome), brl(a.valor)])) : '<p class="vazio">Nenhuma categoria avulsa.</p>';
+  return `<section><h2>Previsão</h2><p class="nota">O que já está lançado, o que deve chegar a ser lançado e a faixa possível, mês a mês. Vale para todos os meses (não muda com o mês escolhido).</p>${kp}${graf}</section>${falta}${premissas}
+    <section>${acordeao('Previsão mês a mês', tabPrev, { aberto: true, dica: `${p.meses.length} meses` })}${acordeao('Categorias avulsas (só aparecem em um mês)', tabAvulsas, { dica: `${p.avulsas.length} categorias` })}</section>`;
+}
+
+// ====================== REPASSE MEDICO ======================
+const R = D.repasse && D.repasse.ok ? D.repasse : null;
+let repMes = R ? R.mes_padrao : null;
+const pmRep = ym => R.por_mes[ym] || (R.por_periodo || {})[ym];   // um mes, ou o periodo do filtro De/Ate (guardado a parte para nao somar nos meses)
+const evRep = ym => R.evolucao.find(e => e.ym === ym) || (pmRep(ym) && pmRep(ym).ev);
+const mesAntRep = ym => { const [a, m] = ym.split('-').map(Number), t = a * 12 + m - 2; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`; };
+const rotulosRep = lista => lista.length ? lista.join(', ') : 'nenhum mês';
+
+function repKpis(ym) {
+  const pm = pmRep(ym), ev = evRep(ym), rep = pm.repasse, pro = pm.producao, ant = pm.periodo ? null : evRep(mesAntRep(ym)), temLiq = D.conferencia && D.conferencia.liquido;
+  const comparacao = rep && pm.mudancas && ant ? comp(varPct(rep.bruto, ant.bruto), 'contra ' + ant.rotulo, { inverso: true }) : '';
+  const historico = pm.parcial ? '<br><i>Mês de antes do Klingo: pode estar incompleto.</i>' : '';
+  const k1 = kpi(`Repasse de ${esc(pm.rotulo)}`, rep ? brlc(rep.bruto) : VAZIO, { destaque: 1, titulo: rep ? brl(rep.bruto) : '', comp: comparacao,
+    sub: rep ? `<b>${num(rep.n_medicos)}</b> médico(s) em <b>${num(rep.qtd)}</b> lançamento(s) · média de <b>${brlc(rep.ticket)}</b> por médico${historico}`
+      : `Nenhum lançamento de <b>Honorário Médico</b> com competência neste mês.${pro ? ` A produção do mês foi de <b>${brlc(pro.total)}</b>.` : ''}` });
+  const k2 = kpi('Líquido (após retenções)', rep && temLiq ? brlc(rep.liquido) : VAZIO, { titulo: rep && temLiq ? brl(rep.liquido) : '',
+    sub: !rep ? 'Sem repasse neste mês.' : !temLiq ? 'O relatório de líquido ainda não foi baixado.' : rep.retido > 0.005 ? `Retenções de <b>${brlc(rep.retido)}</b> (${pct(rep.retido_pct, 1)} do bruto)` : 'Sem retenção registrada: líquido igual ao bruto.' });
+  const k3 = kpi('Repasse sobre as despesas', rep && ev.pct_despesas != null ? pct(ev.pct_despesas, 0) : VAZIO,
+    { sub: `Despesas do mês: <b>${brlc(ev.despesas)}</b>${rep ? '' : ' (sem repasse).'}${rep && pm.parcial ? '. Em mês de histórico as outras despesas podem estar incompletas, o que infla este percentual.' : ''}` });
+  const k4 = pro ? kpi(`Produzido em ${esc(pm.rotulo)}`, brlc(pro.total), { titulo: brl(pro.total),
+    sub: `<b>${num(pro.n_medicos)}</b> médico(s) · <b>${num(pro.qtd)}</b> procedimento(s) · ${pct(pro.particular / pro.total * 100, 0)} particular.${rep && ev.taxa != null ? ` O repasse equivale a <b>${pct(ev.taxa, 1)}</b> da produção.` : rep ? '' : ' Sem repasse lançado para comparar.'}` })
+    : kpi('Produzido no mês', VAZIO, { sub: `O relatório de produção só cobre ${esc(R.producao_desde || 'os meses mais recentes')} em diante.` });
+  const m1 = rep && rep.medicos[0];
+  const k5 = kpi('Maior repasse', m1 ? brlc(m1.bruto) : VAZIO, { titulo: m1 ? brl(m1.bruto) : '',
+    sub: m1 ? `<b>${esc(m1.nome)}</b> · ${pct(m1.pct, 0)} do mês. Os 3 maiores levam <b>${pct(rep.conc.top3, 0)}</b>; ${num(rep.conc.n80)} médico(s) somam 80%.` : 'Sem repasse neste mês.' });
+  return `<div class="kpis">${k1}${k2}${k3}${k4}${k5}</div>`;
+}
+
+// repasse bruto por mes (linha) e produzido x repasse (barras): o buraco depois de jul e o achado principal
+function repEvolucaoHtml() {
+  const e = R.evolucao;
+  const idx = f => e.map((x, i) => f(x) ? i : -1).filter(i => i >= 0);
+  const hist = idx(x => x.parcial), conf = idx(x => !x.parcial);
+  const pt = l => l.map(i => ({ x: i, y: e[i].bruto }));
+  const tipX = i => { const x = e[i];
+    return `${x.rotulo}${x.parcial ? ' (antes do Klingo)' : ''}\nRepasse bruto: ${brl(x.bruto)}${D.conferencia && D.conferencia.liquido ? '\nLíquido: ' + brl(x.liquido) : ''}\n${num(x.n_medicos)} médico(s) · ${num(x.qtd)} lançamento(s)${x.producao != null ? '\nProduzido: ' + brl(x.producao) : ''}`; };
+  const series = [], c = estreito();
+  if (hist.length) series.push({ nome: c ? '' : 'Antes do Klingo', cor: 'var(--neutro-3)', larg: 2, rotuloFim: !conf.length, pontos: pt(hist) });
+  if (conf.length) series.push({ nome: c ? '' : 'Com Klingo', cor: 'var(--accent)', principal: true, pontos: pt(conf) });
+  const g = linhas({ W: c ? 400 : e.length > 9 ? 980 : 760, H: c ? 190 : 230, mr: c ? 50 : 118, ml: c ? 50 : 38, fmt: brlc, rotulosEm: e.length <= 12 ? 'todos' : undefined, aria: 'Repasse médico por mês', tipX,
+    xRot: e.map((x, i) => ({ x: i, t: curto(x.rotulo, x.ym) })).filter((t, i) => !c || e.length <= 6 || i % 2 === 0), series });
+  const comProd = e.filter(x => x.tem_producao);
+  const pxr = comProd.length ? barras(comProd.map(x => ({ rotulo: x.rotulo, valor: x.producao, texto: brlc(x.producao), extra: x.bruto ? `repasse ${brlc(x.bruto)} · ${pct(x.taxa, 0)}` : 'sem repasse lançado',
+    tip: `${x.rotulo}\nProduzido: ${brl(x.producao)}\nRepasse lançado: ${brl(x.bruto)}${x.taxa != null ? ' (' + pct(x.taxa, 1) + ' da produção)' : ''}` })), '', '24%') : '<p class="vazio">Sem produção para comparar.</p>';
+  return `<section><h2>Repasse pago por mês</h2><p class="nota">Honorário Médico (bruto) por mês de competência. Os meses sem repasse aparecem em zero: nada foi lançado nessa categoria.${hist.length ? ' A linha cinza é o que veio antes do Klingo (pode estar incompleto); a azul, os meses com o Klingo.' : ''}</p>${g}</section>
+    <section><h2>Produzido × repasse lançado</h2><p class="nota">Produção de cada mês (receita produzida, o que foi faturado, não necessariamente recebido) e quanto de repasse foi lançado nele.</p>${pxr}</section>`;
+}
+
+function repMedicos(pm) {
+  const rep = pm.repasse;
+  if (!rep) return `<section><h2>Para quem vai o repasse</h2><p class="vazio">Nenhum Honorário Médico lançado em ${esc(pm.rotulo)}.</p></section>`;
+  const itens = rep.medicos.map(m => ({ rotulo: m.nome, valor: m.bruto, texto: brlc(m.bruto), extra: pct(m.pct, 0),
+    tip: `${m.nome}\nBruto: ${brl(m.bruto)} (${pct(m.pct)} do repasse)\nLíquido: ${brl(m.liq)}${m.ret > 0.005 ? ` (retenção ${brl(m.ret)})` : ''}\n${num(m.qtd)} lançamento(s)\nEmpresa: ${m.empresas.join(', ')}` +
+      (m.produzido != null ? `\nProduzido no mês: ${brl(m.produzido)}${m.taxa != null ? ` (repasse de ${pct(m.taxa, 1)})` : ''}` : '') }));
+  const t3 = soma(rep.medicos.slice(0, 3), m => m.bruto), t10 = soma(rep.medicos.slice(3, 10), m => m.bruto), resto = Math.max(rep.bruto - t3 - t10, 0), nd = Math.max(rep.n_medicos - 10, 0);
+  const conc = empilhada([{ rotulo: '3 maiores', valor: t3, cor: 'var(--accent)' }, { rotulo: '4º ao 10º', valor: t10, cor: 'var(--neutro)' }, { rotulo: `Demais (${nd})`, valor: resto, cor: 'var(--neutro-3)' }], brlc);
+  const faixas = barras(rep.faixas.map(f => ({ rotulo: f.faixa, valor: f.valor, texto: brlc(f.valor), extra: `${num(f.medicos)} médico(s)`, tip: `${f.faixa}\n${num(f.medicos)} médico(s) · ${brl(f.valor)}` })), '', '34%');
+  return `<section class="grid2">
+    <div><h2>Para quem vai o repasse</h2><p class="nota">Honorário Médico de ${esc(pm.rotulo)} por médico (bruto). ${rep.com_producao ? 'Passe o mouse para ver quanto o médico produziu no mês.' : 'O mês não tem relatório de produção para comparar.'}</p>
+      ${barras(itens, 'Nenhum repasse lançado.', '44%', { porPagina: 12 })}</div>
+    <div><h2>Concentração</h2><p class="nota">Quanto os maiores levam do repasse do mês.</p>${conc}
+      <h3 style="margin:16px 0 4px;font-size:14px">Perfil dos valores</h3><p class="nota">Médicos agrupados pelo valor recebido no mês.</p>${faixas}</div></section>`;
+}
+
+function repMudancas(pm) {
+  if (!pm.repasse || pm.periodo) return '';
+  const md = pm.mudancas;
+  if (!md) return `<section><h2>O que mudou</h2><p class="vazio">Não há repasse lançado no mês anterior para comparar.</p></section>`;
+  const mm = { rotulo: pm.rotulo };
+  return `<section class="grid2">
+    <div><h2>Quem recebeu mais</h2><p class="nota">Diferença por médico entre ${esc(md.anterior)} e ${esc(pm.rotulo)}.${md.parcial ? ' São meses de antes do Klingo: o anterior pode estar incompleto.' : ''}</p>${barras(mudancaItens(md.subiram, mm, md.anterior), 'Ninguém recebeu mais.', '44%')}</div>
+    <div><h2>Quem recebeu menos</h2><p class="nota">${md.sumiram.length ? `${num(md.sumiram.length)} médico(s) recebiam em ${esc(md.anterior)} e não têm repasse em ${esc(pm.rotulo)}. ` : ''}${md.novos.length ? `${num(md.novos.length)} médico(s) entraram no repasse. ` : ''}</p>${barras(mudancaItens(md.cairam, mm, md.anterior), 'Ninguém recebeu menos.', '44%')}</div></section>`;
+}
+
+function repProducao(pm) {
+  const pro = pm.producao;
+  if (!pro) return `<section><h2>Produção dos médicos</h2><p class="vazio">Não há relatório de produção para ${esc(pm.rotulo)}${R.producao_desde ? ` (ele começa em ${esc(R.producao_desde)})` : ''}.</p></section>`;
+  const meds = pro.medicos.map(m => ({ rotulo: m.nome, valor: m.valor, texto: brlc(m.valor), extra: pct(m.pct, 0),
+    tip: `${m.nome}\nProduzido: ${brl(m.valor)} (${pct(m.pct)} do mês)\n${num(m.qtd)} procedimento(s) · ticket ${brl(m.ticket)}\n${pct(m.particular_pct, 0)} particular · ${num(m.convenios)} operadora(s)\nPrincipal: ${m.centro}` +
+      (m.repasse != null ? `\nRepasse lançado no mês: ${brl(m.repasse)}${m.taxa != null ? ` (${pct(m.taxa, 1)})` : ''}` : '') }));
+  const ops = pro.operadoras.map(o => ({ rotulo: o.nome, valor: o.valor, texto: brlc(o.valor), extra: pct(o.pct, 0), tip: `${o.nome}\n${brl(o.valor)} (${pct(o.pct)})\n${num(o.qtd)} linha(s)` }));
+  const cts = pro.centros.map(o => ({ rotulo: o.nome, valor: o.valor, texto: brlc(o.valor), extra: pct(o.pct, 0), tip: `${o.nome}\n${brl(o.valor)} (${pct(o.pct)})` }));
+  const sem = pro.sem_medico > 0 ? `<p class="nota">Mais <b>${brlc(pro.sem_medico)}</b> (${pct(pro.sem_medico / pro.total * 100, 0)}) foram produzidos em equipamentos ou setores sem médico informado (RM, RX, TC, densitometria, mamografia...) e não entram no ranking.</p>` : '';
+  return `<section class="grid2">
+    <div><h2>Quem mais produz</h2><p class="nota">Produzido em ${esc(pm.rotulo)} por médico. Os 3 maiores fazem <b>${pct(pro.conc.top3, 0)}</b> da produção com médico; ${num(pro.conc.n80)} médico(s) somam 80%.</p>
+      ${barras(meds, 'Sem produção neste mês.', '44%', { porPagina: 12 })}${sem}</div>
+    <div><h2>De onde vem a produção</h2><p class="nota">Por operadora (as maiores) e por centro de resultado em ${esc(pm.rotulo)}.</p>
+      ${barras(ops, '', '38%', { porPagina: 8 })}<h3 style="margin:16px 0 4px;font-size:14px">Por centro de resultado</h3>${barras(cts, '', '38%', { porPagina: 8 })}</div></section>`;
+}
+
+// quem produz x quem recebe, no periodo todo: os meses de repasse e os de producao nao coincidem, entao so se compara o que cada lado tem
+function repCobertura() {
+  if (!R.tem_producao) return '';
+  const prod = {};
+  Object.values(R.por_mes).forEach(pm => pm.producao && pm.producao.medicos.forEach(m => { prod[m.nome] = (prod[m.nome] || 0) + m.valor; }));
+  const pagos = Object.fromEntries(R.acumulado.map(a => [a.nome, a]));
+  const lista = Object.entries(prod).map(([nome, v]) => ({ nome, v, a: pagos[nome] })).sort((x, y) => y.v - x.v);
+  if (!lista.length) return '';
+  const mesesProd = Object.keys(R.por_mes).filter(k => R.por_mes[k].producao).map(k => R.por_mes[k].rotulo), mesesRep = Object.keys(R.por_mes).filter(k => R.por_mes[k].repasse).map(k => R.por_mes[k].rotulo);
+  const semRep = lista.filter(x => !x.a), totProd = soma(lista, x => x.v), vSem = soma(semRep, x => x.v);
+  const semProd = R.acumulado.filter(a => !prod[a.nome]);
+  const itens = lista.map(x => ({ rotulo: x.nome, valor: x.v, texto: brlc(x.v), extra: x.a ? `repasse ${brlc(x.a.bruto)}` : 'sem repasse',
+    tip: `${x.nome}\nProduzido (${rotulosRep(mesesProd)}): ${brl(x.v)}\n${x.a ? `Honorário lançado (${rotulosRep(x.a.meses)}): ${brl(x.a.bruto)}` : 'Nenhum Honorário Médico lançado'}` }));
+  return `<section><h2>Quem produz × quem recebe repasse</h2>
+    <p class="nota">Produção de ${esc(rotulosRep(mesesProd))} e Honorário Médico lançado em ${esc(rotulosRep(mesesRep))}. <b>Os períodos são diferentes</b>, então não dá para calcular o percentual de repasse de cada médico: o que a comparação mostra é quem aparece em cada lado.</p>
+    <p class="nota"><b>${num(semRep.length)} de ${num(lista.length)}</b> médico(s) que produziram não têm nenhum Honorário Médico lançado${semRep.length ? `, e respondem por <b>${brlc(vSem)}</b> (${pct(vSem / totProd * 100, 0)}) da produção com médico` : ''}.
+      ${semProd.length ? `Por outro lado, <b>${num(semProd.length)}</b> médico(s) com repasse lançado não aparecem na produção de ${esc(rotulosRep(mesesProd))}: ${esc(semProd.slice(0, 6).map(a => a.nome).join(', '))}${semProd.length > 6 ? '…' : ''}.` : ''}</p>
+    ${barras(itens, '', '44%', { porPagina: 12 })}</section>`;
+}
+
+// "e se o repasse fosse X% da producao?": so uma conta, para o gestor ter ordem de grandeza enquanto o repasse nao esta lancado
+function simuladorHtml() {
+  const meses = R.evolucao.filter(x => x.producao != null);
+  if (!meses.length) return '';
+  return `<section><h2>Simulador</h2><p class="nota">Digite um percentual de repasse sobre a produção para ver quanto seria em cada mês e como ficariam as despesas. É só uma conta: o painel não sabe qual é o percentual combinado com cada médico.</p>
+    <label class="mes-pick">Repasse sobre a produção (%) <input type="number" id="sim-taxa" min="0" max="100" step="0.5" placeholder="ex.: 40" style="width:90px"></label>
+    <div id="sim-saida" style="margin-top:12px"></div></section>`;
+}
+function simuladorSaida() {
+  const el = $('sim-taxa'), saida = $('sim-saida'); if (!el || !saida) return;
+  const t = parseFloat(String(el.value).replace(',', '.')); const meses = R.evolucao.filter(x => x.producao != null);
+  if (!(t >= 0)) { saida.innerHTML = '<p class="vazio">Informe um percentual.</p>'; return; }
+  saida.innerHTML = tabela([{ t: 'Mês' }, { t: 'Produzido', n: 1 }, { t: `Repasse a ${num(t, 1)}%`, n: 1 }, { t: 'Repasse lançado', n: 1 }, { t: 'Despesas lançadas', n: 1 }, { t: 'Despesas com o repasse estimado', n: 1 }],
+    meses.map(x => { const est = x.producao * t / 100, fal = Math.max(est - x.bruto, 0); return [esc(x.rotulo), brl(x.producao), `<b>${brl(est)}</b>`, x.bruto ? brl(x.bruto) : VAZIO, brl(x.despesas), brl(x.despesas + fal)]; }));
+}
+document.addEventListener('input', e => { if (e.target && e.target.id === 'sim-taxa') simuladorSaida(); });
+
+function repAtencao() {
+  const it = [];
+  R.sem_repasse.forEach(s => it.push(`<b>${esc(s.rotulo)}</b>: produção de ${brl(s.producao)} e nenhum Honorário Médico lançado${s.em_curso ? ' (o mês ainda não terminou)' : ''}.`));
+  R.repetidos.forEach(r => it.push(`<b>${esc(r.nome)}</b> tem ${num(r.qtd)} lançamentos em ${esc(r.mes)} (${brl(r.valor)} no total): pode ser parcela, complemento ou lançamento em duplicidade.`));
+  R.mais_de_uma_empresa.forEach(r => it.push(`<b>${esc(r.nome)}</b> recebeu por mais de uma empresa: ${esc(r.empresas.join('; '))}.`));
+  const ret = R.evolucao.filter(x => x.parcial && x.retido > 0.005).reduce((s, x) => s + x.retido, 0), depois = R.evolucao.filter(x => !x.parcial && x.bruto > 0);
+  if (ret > 0) it.push(`Houve <b>${brl(ret)}</b> de retenção nos repasses de antes do Klingo${depois.length && depois.every(x => x.retido <= 0.005) ? ', e nenhuma nos de depois' : ''}. Quando o repasse voltar a ser lançado, confirme se o imposto retido dos médicos pessoa jurídica também é lançado no Klingo.`);
+  return it.length ? `<section><h2>Pontos de atenção do repasse</h2><ul class="motivos">${it.map(x => `<li>${x}</li>`).join('')}</ul></section>` : '';
+}
+
+function repDetalhes(pm) {
+  const it = [], rep = pm.repasse, pro = pm.producao;
+  if (rep) it.push(acordeao(`Lançamentos de Honorário Médico de ${esc(pm.rotulo)}`, tabela([{ t: 'Lanç.' }, { t: 'Médico' }, { t: 'Empresa' }, { t: 'Descrição', txt: 1 }, { t: 'Bruto', n: 1 }, { t: 'Líquido', n: 1 }, { t: 'Retenção', n: 1 }],
+    rep.medicos.flatMap(m => m.lanc.map(l => [l.id == null ? '—' : String(l.id), esc(m.nome), esc(l.empresa), esc(l.descricao || '—'), brl(l.valor), brl(l.liquido), l.valor - l.liquido > 0.005 ? pct((l.valor - l.liquido) / l.valor * 100, 1) : VAZIO]))), { dica: `${num(rep.qtd)} lançamentos · ${brlc(rep.bruto)}` }));
+  if (pro) it.push(acordeao(`Produção por médico em ${esc(pm.rotulo)}`, tabela([{ t: 'Médico' }, { t: 'Produzido', n: 1 }, { t: 'Procedimentos', n: 1 }, { t: 'Ticket', n: 1 }, { t: '% particular', n: 1 }, { t: 'Principal' }, { t: 'Repasse', n: 1 }, { t: 'Repasse ÷ produção', n: 1 }],
+    pro.medicos.map(m => [esc(m.nome), brl(m.valor), num(m.qtd), brl(m.ticket), pct(m.particular_pct, 0), esc(m.centro), m.repasse == null ? VAZIO : brl(m.repasse), m.taxa == null ? VAZIO : pct(m.taxa, 1)])), { dica: `${num(pro.n_medicos)} médicos · ${brlc(pro.total)}` }));
+  it.push(acordeao('Cada médico no período todo', tabela([{ t: 'Médico' }, { t: 'Repasse bruto', n: 1 }, { t: 'Líquido', n: 1 }, { t: 'Lançamentos', n: 1 }, { t: 'Meses' }, { t: 'Empresa' }, { t: 'Produzido' + (R.producao_desde ? ' (desde ' + R.producao_desde.split('/')[0].slice(0, 3).toLowerCase() + ')' : ''), n: 1 }],
+    R.acumulado.map(a => [esc(a.nome), brl(a.bruto), brl(a.liq), num(a.qtd), esc(a.meses.map(m => m.split('/')[0].slice(0, 3)).join(', ')), esc(a.empresas.join('; ')), a.produzido == null ? VAZIO : brl(a.produzido)]),
+    ['Total', `<b>${brl(R.total.bruto)}</b>`, `<b>${brl(R.total.liquido)}</b>`, `<b>${num(R.total.qtd)}</b>`, '', '', '']), { dica: `${num(R.acumulado.length)} médicos` }));
+  it.push(acordeao('Empresas que recebem o repasse', tabela([{ t: 'Empresa' }, { t: 'Médico(s)' }, { t: 'Lançamentos', n: 1 }, { t: 'Bruto', n: 1 }],
+    R.empresas.map(e => [esc(e.nome), esc(e.medicos.join('; ')), num(e.qtd), brl(e.bruto)])), { dica: `${num(R.empresas.length)} empresas` }));
+  return `<section>${it.join('')}</section>`;
+}
+
+function repasseMes(ym) {
+  const pm = pmRep(ym);
+  return `${repKpis(ym)}${repMedicos(pm)}${repMudancas(pm)}${repProducao(pm)}${repDetalhes(pm)}`;
+}
+function repasseTier() {
+  const sub = 'Quanto a clínica repassa aos médicos, para quem, e quanto cada um produz';
+  if (!R) return tier('Repasse médico', sub, '<section><p class="vazio">Ainda não há Honorário Médico lançado nem produção por médico. Clique em <b>Atualizar agora</b> para buscar os relatórios.</p></section>');
+  const uma = (m, pm) => { const nota = !pm.repasse ? ' · sem repasse lançado' : !pm.producao ? '' : ''; return `<option value="${m}"${m === repMes ? ' selected' : ''}>${esc(pm.rotulo)}${pm.periodo ? ' (período)' : ''}${nota}</option>`; };
+  const opcoes = Object.entries(R.por_periodo || {}).map(([m, pm]) => uma(m, pm)).join('') + [...R.meses].reverse().map(m => uma(m, R.por_mes[m])).join('');
+  return tier('Repasse médico', sub,
+    `<section><p class="nota">O <b>repasse</b> aqui é a categoria <b>Honorário Médico</b> das despesas. A <b>produção</b> vem da receita produzida por médico (a mesma do painel Faturamento). O detalhe abaixo acompanha o período escolhido no alto (quando há repasse ou produção nele); dá para ver outro mês no seletor dele.</p></section>` +
+    repEvolucaoHtml() + repAtencao() + repCobertura() + simuladorHtml() +
+    `<section><h2>Um mês em detalhe</h2><label class="mes-pick">Mês do repasse <select id="mes-rep">${opcoes}</select></label></section><div id="rep-corpo">${repasseMes(repMes)}</div>`);
+}
+document.addEventListener('change', e => { if (e.target && e.target.id === 'mes-rep') { repMes = e.target.value; $('rep-corpo').innerHTML = repasseMes(repMes); } });
+
+// ====================== DETALHES ======================
+function listaLancamentos(lista) {
+  const temLiq = D.conferencia && D.conferencia.liquido;
+  return tabela([{ t: 'Lanç.' }, { t: 'Competência' }, { t: 'Categoria' }, { t: 'Fornecedor' }, { t: 'Descrição', txt: 1 }, { t: 'Bruto', n: 1 }, ...(temLiq ? [{ t: 'Líquido', n: 1 }] : [])],
+    lista.map(l => [l.id == null ? '—' : String(l.id), dataBR(l.competencia), esc(l.categoria), esc(l.fornecedor || '—'), esc(l.descricao || '—'), brl(l.valor), ...(temLiq ? [brl(l.liquido)] : [])]));
+}
+function detalhes(m) {
+  const it = [];
+  if (m.fornecedores_todos.length) it.push(acordeao(`Fornecedores de ${esc(m.rotulo)}`, tabela([{ t: 'Fornecedor' }, { t: 'Lançamentos', n: 1 }, { t: '% do mês', n: 1 }, { t: 'Bruto', n: 1 }, { t: 'Líquido', n: 1 }],
+    m.fornecedores_todos.map(f => [esc(f.nome), num(f.qtd), pct(f.pct, 1), brl(f.valor), brl(f.liq)])), { dica: `${m.fornecedores_todos.length} fornecedores` }));
+  if (m.maiores.length) it.push(acordeao(`Maiores lançamentos de ${esc(m.rotulo)}`, listaLancamentos(m.maiores), { dica: `${m.maiores.length} lançamentos` }));
+  if (m.lancamentos.length) {
+    const corte = m.lancamentos_total > m.lancamentos.length ? `<p class="nota">Mostrando os ${num(m.lancamentos.length)} maiores de ${num(m.lancamentos_total)}.</p>` : '';
+    it.push(acordeao(`Todos os lançamentos de ${esc(m.rotulo)}`, corte + listaLancamentos(m.lancamentos), { dica: `${num(m.lancamentos_total)} lançamentos · ${brlc(m.total)}` }));
+  }
+  return it.join('') || '<p class="vazio">Nenhum lançamento neste mês.</p>';
+}
+
+function render(ym) {
+  const m = D.meses[ym], prev = anteriorDe(D, CHAVES, ym);
+  if (R && pmRep(ym)) repMes = ym;   // o detalhe do repasse acompanha o periodo do alto, quando ha repasse ou producao nele
+  const alertas = [...(D.atencao || []), ...m.alertas].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período, a evolução e o que merece atenção' : 'Os números do mês, a evolução e o que merece atenção',
+      kpisHtml(ym, m, prev) + evolucaoHtml() + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente, para o mês escolhido.</p>${alertasTopo(alertas, ym)}</section>`) +
+    tier('Análise', `Comparações de ${m.rotulo}`, categoriasGraf(m) + mudancasGraf(m) + composicaoGraf(m)) +
+    tier('Histórico', 'O que já se passou, mês a mês e categoria a categoria', historicoHtml()) +
+    tier('Previsão', 'O que deve acontecer nos próximos meses', previsaoHtml()) +
+    repasseTier() +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+  if (R) simuladorSaida();
+}
+
+if (!CHAVES.length) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar os relatórios de despesas no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>
