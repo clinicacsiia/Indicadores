@@ -25,5 +25,5 @@ export async function signIn(_prevState: unknown, formData: FormData) {
     return { error: "Credenciais inválidas.", usuario };
   }
 
-  redirect("/");
+  redirect("/metas");
 }

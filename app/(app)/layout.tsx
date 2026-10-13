@@ -24,7 +24,7 @@ export default async function AppLayout({
       </a>
 
       <aside className="sidebar">
-        <Brand href="/" />
+        <Brand href="/metas" />
 
         <NavLinks isAdmin={isAdmin} paineis={paineis} />
 

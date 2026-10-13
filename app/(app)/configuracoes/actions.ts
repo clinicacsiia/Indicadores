@@ -44,7 +44,6 @@ export async function salvarUsuario(
   const userId = String(formData.get("userId") ?? "");
   const role = formData.get("role");
   const acesso: Record<string, boolean> = {
-    relatorios: formData.get("relatorios") === "on",
     metas: formData.get("metas") === "on",
     // Painéis em Python: cada um é uma chave em profiles.permissions (o id do painel).
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),

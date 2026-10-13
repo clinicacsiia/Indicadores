@@ -37,7 +37,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isLoginRoute) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/metas", request.url));
   }
 
   return response;

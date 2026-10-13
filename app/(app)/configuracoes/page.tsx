@@ -15,7 +15,7 @@ export default async function ConfiguracoesPage() {
   // RLS (policy "profiles_select_admin") também bloqueia a leitura abaixo
   // para quem não é admin; isso aqui só evita renderizar a tela à toa.
   if (profile?.role !== "admin") {
-    redirect("/");
+    redirect("/metas");
   }
 
   const supabase = await createClient();
@@ -37,7 +37,7 @@ export default async function ConfiguracoesPage() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Configurações</h1>
           <p className="page-lede">
-            Adicione usuários, redefina senhas e escolha quais telas cada um pode ver (Relatórios, Metas e painéis). Cada usuário é salvo separadamente; os painéis começam bloqueados para quem não é administrador.
+            Adicione usuários, redefina senhas e escolha quais telas cada um pode ver (Metas e painéis). Cada usuário é salvo separadamente; os painéis começam bloqueados para quem não é administrador.
           </p>
         </div>
       </header>
@@ -78,7 +78,6 @@ export default async function ConfiguracoesPage() {
                 id={usuario.id}
                 email={usuario.email ?? ""}
                 role={usuario.role}
-                veRelatorios={usuario.permissions?.relatorios !== false}
                 veMetas={usuario.permissions?.metas !== false}
                 paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome, liberado: usuario.permissions?.[p.id] === true }))}
                 ehVoce={usuario.id === profile.id}

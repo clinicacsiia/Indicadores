@@ -18,15 +18,6 @@ function Icon({ size = 20, children }: IconProps & { children: React.ReactNode }
   );
 }
 
-export const IconRelatorios = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M4 20V10" />
-    <path d="M10 20V4" />
-    <path d="M16 20v-7" />
-    <path d="M22 20H2" />
-  </Icon>
-);
-
 export const IconMetas = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="9" />

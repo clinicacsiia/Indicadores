@@ -73,7 +73,6 @@ export async function atualizarRelatorio(_: AtualizarEstado, formData: FormData)
       if (!ind.ok) console.error("sync-indicadores falhou:", ind.status, JSON.stringify(ind.payload));
     }
 
-    revalidatePath("/");
     revalidatePath("/metas");
 
     if (erros > 0 || !indicadoresOk) {
