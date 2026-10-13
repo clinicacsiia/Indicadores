@@ -15,6 +15,7 @@ import base64
 import gzip
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -59,14 +60,15 @@ def versao_dados(menu: str) -> float | None:
             return None
         return float(json.loads(f.read_text(encoding="utf-8")).get("versao") or f.stat().st_mtime)
     chave = ("versao", menu)
-    if chave in _CACHE:
-        return _CACHE[chave]
+    agora = time.time()
+    if chave in _CACHE and agora - _CACHE[chave][0] < 10:   # vale so durante uma geracao de pagina (uma funcao "quente" nao pode guardar para sempre)
+        return _CACHE[chave][1]
     linhas = _rest("dados_versao", {"select": "atualizado_em", "menu": f"eq.{menu}"})
     v = None
     if linhas:
         from datetime import datetime
         v = datetime.fromisoformat(linhas[0]["atualizado_em"].replace("Z", "+00:00")).timestamp()
-    _CACHE[chave] = v
+    _CACHE[chave] = (agora, v)
     return v
 
 
@@ -84,15 +86,15 @@ def blocos(menu: str) -> list[dict]:
     if d:
         f = d / f"{menu}.json"
         return json.loads(f.read_text(encoding="utf-8")).get("blocos", []) if f.exists() else []
-    chave = ("blocos", menu, contador_versao(menu))
-    if chave in _CACHE:
-        return _CACHE[chave]
+    contador = contador_versao(menu)
+    guardado = _CACHE.get(("blocos", menu))
+    if guardado and guardado[0] == contador:   # um bloco por menu na memoria; troca quando o contador muda
+        return guardado[1]
     out = []
     for r in _rest("dados_blocos", {"select": "aba,mes,colunas,conteudo", "menu": f"eq.{menu}", "order": "aba,mes"}) or []:
         linhas = json.loads(gzip.decompress(base64.b64decode(r["conteudo"]))) if r.get("conteudo") else []
         out.append({"aba": r["aba"], "mes": r["mes"], "colunas": r["colunas"], "linhas": linhas})
-    _CACHE.clear()
-    _CACHE[chave] = out
+    _CACHE[("blocos", menu)] = (contador, out)
     return out
 
 

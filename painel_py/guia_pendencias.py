@@ -77,8 +77,9 @@ def anotar(painel: str, alertas: list[dict], escopo: str = "geral") -> list[dict
         a["painel"] = painel
         a["chave"] = f"{escopo}|{slug(a.get('titulo', ''))}"
         regra = guia_regras.regra(painel, a.get("titulo", ""))
-        if regra is None:
+        if regra is None or regra.get("generica"):   # alerta de problema sem regra própria: segue com guia genérico e avisa no log
             log.warning("Alerta de problema sem regra de guia: %s / %s", painel, a.get("titulo"))
+        if regra is None:
             a["guia"] = None
             continue
         a["guia"] = {"relatorio": regra["relatorio"], "url": URL_RELATORIO.format(id=regra["id"]) if regra.get("id") else None,

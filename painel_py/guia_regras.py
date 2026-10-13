@@ -112,5 +112,7 @@ def regra(painel: str, titulo: str) -> dict | None:
             return r
     g = GENERICAS.get(painel)
     if g:   # sem texto proprio: guia generico (o log avisa em guia_pendencias.anotar)
-        return _r(g, [_LISTA_DO_ALERTA + "Procure os mesmos casos no relatório indicado e corrija no Klingo."], "o caso deixa de aparecer no painel após a próxima atualização.")
+        r = _r(g, [_LISTA_DO_ALERTA + "Procure os mesmos casos no relatório indicado e corrija no Klingo."], "o caso deixa de aparecer no painel após a próxima atualização.")
+        r["generica"] = True
+        return r
     return None
