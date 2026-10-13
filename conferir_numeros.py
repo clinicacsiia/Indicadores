@@ -37,7 +37,7 @@ def regerar():
     for pasta, script, args in PAINEIS:
         r = subprocess.run([sys.executable, script, *args], cwd=R / pasta, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=300)
         if r.returncode != 0:
-            print(f"Nao consegui gerar o painel {pasta}:\n{(r.stdout + r.stderr)[-600:]}")
+            print(f"Não consegui gerar o painel {pasta}:\n{(r.stdout + r.stderr)[-600:]}")
             sys.exit(2)
 
 

@@ -53,15 +53,15 @@ def ativo() -> bool:
 def _url_base() -> str:
     url = (os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or "").strip().rstrip("/")
     if not url:
-        raise ErroArmazenamento("Falta a variavel SUPABASE_URL (a integracao Supabase da Vercel ja a cria).")
+        raise ErroArmazenamento("Falta a variável SUPABASE_URL (a integração Supabase da Vercel já a cria).")
     return url
 
 
 def _chave_servico() -> str:
     chave = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     if not chave:
-        raise ErroArmazenamento("Falta a variavel SUPABASE_SERVICE_ROLE_KEY nesta Vercel (Settings > Environment Variables; "
-                                "a integracao Supabase cria so em Production: marque Preview se for testar num preview).")
+        raise ErroArmazenamento("Falta a variável SUPABASE_SERVICE_ROLE_KEY nesta Vercel (Settings > Environment Variables; "
+                                "a integração Supabase cria só em Production: marque Preview se for testar num preview).")
     return chave
 
 
@@ -98,7 +98,7 @@ def _pedir(metodo: str, caminho: str, params: dict | None = None, corpo=None, ca
             if tentativa < TENTATIVAS:
                 time.sleep(tentativa)
                 continue
-    raise ErroArmazenamento(f"Nao consegui falar com o Supabase ({metodo} {caminho}): {ultimo}")
+    raise ErroArmazenamento(f"Não consegui falar com o Supabase ({metodo} {caminho}): {ultimo}")
 
 
 def _json_padrao(o):
@@ -268,7 +268,7 @@ def registrar_atualizacao(painel: str, status: str, mensagem: str, duracao_segun
                                                              "duracao_segundos": round(duracao_segundos, 1)}],
                cabecalhos={"Prefer": "return=minimal"})
     except ErroArmazenamento as e:   # o historico nunca derruba uma atualizacao que deu certo
-        print(f">>> AVISO: nao consegui registrar a atualizacao no historico ({e})", flush=True)
+        print(f">>> AVISO: não consegui registrar a atualização no histórico ({e})", flush=True)
 
 
 def custos_informados() -> dict[str, float]:
@@ -276,7 +276,7 @@ def custos_informados() -> dict[str, float]:
     try:
         res = _paginado("/rest/v1/painel_custo_item", {"select": "item,custo", "custo": "gt.0", "order": "item.asc"}, 500)
     except ErroArmazenamento as e:
-        print(f">>> AVISO: nao consegui ler os custos informados ({e})", flush=True)
+        print(f">>> AVISO: não consegui ler os custos informados ({e})", flush=True)
         return {}
     return {r["item"]: float(r["custo"]) for r in res}
 

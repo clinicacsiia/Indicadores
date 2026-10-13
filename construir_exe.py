@@ -95,14 +95,14 @@ PASTA_DADOS = SAIDA / "Dados do Indicadores CSI"   # onde o servidor guarda tudo
 PASTA_COMPARTILHAR = SAIDA / "Compartilhar"
 LEIA_ME_CLIENTE = """Indicadores CSI - como abrir
 
-1. De dois cliques em "Indicadores CSI.exe" (nesta pasta). Uma janela preta abre e, em seguida, o navegador.
-2. Entre com o seu usuario e senha do portal. Se ainda nao tem, use "Solicitar cadastro" na tela de entrada e avise o administrador.
-3. Pode minimizar a janela preta, mas NAO a feche: fechar a janela encerra o acesso. Para sair do portal, feche a janela.
+1. Dê dois cliques em "Indicadores CSI.exe" (nesta pasta). Uma janela preta abre e, em seguida, o navegador.
+2. Entre com o seu usuário e senha do portal. Se ainda não tem, use "Solicitar cadastro" na tela de entrada e avise o administrador.
+3. Pode minimizar a janela preta, mas NÃO a feche: fechar a janela encerra o acesso. Para sair do portal, feche a janela.
 
 Importante
-- Os dados ficam no computador do servidor, nao no seu. Se aparecer "O servidor do portal nao respondeu", o computador dele esta
-  desligado ou o programa do servidor nao esta aberto: avise quem cuida do portal. A pagina tenta de novo sozinha.
-- Nao mexa em "servidor.json": ele diz onde esta o servidor e qual e o certificado dele. Se o servidor for trocado ou reinstalado,
+- Os dados ficam no computador do servidor, não no seu. Se aparecer "O servidor do portal não respondeu", o computador dele está
+  desligado ou o programa do servidor não está aberto: avise quem cuida do portal. A página tenta de novo sozinha.
+- Não mexa em "servidor.json": ele diz onde está o servidor e qual é o certificado dele. Se o servidor for trocado ou reinstalado,
   quem cuida do portal atualiza esta pasta.
 - "Indicadores CSI.exe --testar" mostra, passo a passo, se o seu computador consegue falar com o servidor.
 """

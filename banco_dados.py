@@ -284,7 +284,7 @@ def sincronizar_dados_iniciais():
                             (m["id"], m["nome"], m.get("descricao", ""), m["pasta"], m["tipo"], m.get("codigo"))
                         )
                 except Exception as e:
-                    print(f">>> AVISO (banco): não consegui sincronizar modulos: {e}")
+                    print(f">>> AVISO (banco): não consegui sincronizar módulos: {e}")
 
             # 3. Usuarios: o BANCO manda (ele e o mesmo para todos os computadores). O usuarios.json so e copiado
             #    para dentro do banco quando o banco ainda esta vazio; senao um usuarios.json velho, de outro
@@ -311,7 +311,7 @@ def sincronizar_dados_iniciais():
                             )
                         )
                 except Exception as e:
-                    print(f">>> AVISO (banco): não consegui sincronizar usuarios: {e}")
+                    print(f">>> AVISO (banco): não consegui sincronizar usuários: {e}")
 
             conn.commit()
 
@@ -337,7 +337,7 @@ def registrar_atualizacao(modulo_id: str, status: str, mensagem: str, duracao_se
                     (LIMITE_HISTORICO,)
                 )
     except Exception as e:
-        print(f">>> AVISO (banco): falha ao registrar atualizacao: {e}")
+        print(f">>> AVISO (banco): falha ao registrar atualização: {e}")
 
 
 def listar_historico(limite: int = 50) -> list[dict]:
@@ -467,9 +467,9 @@ if __name__ == "__main__":
     s = situacao()
     print(f"Banco de dados: {s['caminho']} ({'em outro computador' if s['em_rede'] else 'neste computador'})")
     if not s["ok"]:
-        print(f"NAO ACESSIVEL: {s['erro']}")
+        print(f"NÃO ACESSÍVEL: {s['erro']}")
         raise SystemExit(1)
     inicializar_banco()
     caminho = obter_caminho_banco()
     print(f"Tamanho do arquivo: {caminho.stat().st_size} bytes")
-    print(f"Usuarios no banco: {len(carregar_usuarios())}")
+    print(f"Usuários no banco: {len(carregar_usuarios())}")

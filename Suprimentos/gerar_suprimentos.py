@@ -571,7 +571,7 @@ def gravar_modelo_custos(itens: list[dict]) -> None:
             c.alignment = Alignment(wrap_text=True, vertical="top")
         ws.freeze_panes = "B2"
         ws2 = wb.create_sheet("Como preencher")
-        for linha in ("Preencha só a coluna G (Custo informado), em R$, e apague nada mais.",
+        for linha in ("Preencha só a coluna G (Custo informado), em R$, e não apague nada mais.",
                       "O valor é o preço de UMA unidade do estoque do item, na unidade da coluna C: se a unidade é CX, o preço da caixa; se é UND, o preço de cada unidade; se é ML, o preço de cada mL.",
                       "Exemplo: GRAMPO 26/6 (CX. C/ 5000), unidade CX, caixa a R$ 18,00: escreva 18. O painel divide por 5.000 e mostra quanto custa cada grampo.",
                       "A coluna F mostra o custo que já existe no Klingo (só em itens comprados com valor). Se a G estiver preenchida, ela vale no lugar da F.",

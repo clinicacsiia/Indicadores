@@ -684,9 +684,9 @@ def alertas_do_mes(m: pd.DataFrame, rot: str, p: dict, hoje: date, ctx: dict) ->
                            [[i["grupo"], i["nome"], i["meta"], i["realizado"], f"{i['pct']:.0f}%", i["faltam"], i["por_dia"] if i["por_dia"] else "—"] for i in abaixo], numericas=(2, 3, 4, 5, 6)))
         rev = [i for i in mt["itens"] if i["leitura"]]
         if rev:
-            ref_txt = "realizado do mês" if mt["fechado"] else "projeção do mês"
+            ref_txt = "pelo realizado do mês" if mt["fechado"] else "pela projeção do mês"
             novo("info", "Metas que parecem desalinhadas com o volume",
-                 f"<b>{len(rev)}</b> meta(s) merecem revisão pelo {ref_txt}: "
+                 f"<b>{len(rev)}</b> meta(s) merecem revisão {ref_txt}: "
                  + ", ".join(f"{esc(i['nome'])} ({i['ratio']:.0f}% da meta, {'meta baixa' if i['leitura'] == 'baixa' else 'meta alta ou pouca demanda'})" for i in rev[:4])
                  + ". Não alterei o metas.json: a decisão é sua.", len(rev),
                  gp.tabela(["Setor", "Meta", "Meta (qtd)", "Referência", "% da meta", "Leitura"],

@@ -173,7 +173,7 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
     pend = gm[gm["_st"] == "Pendente Recepção"] if len(gm) else gm
     pend_total = int((g["_st"] == "Pendente Recepção").sum()) if len(g) else 0
     cards.append(card("pendente", 1, "Pendente", DIRETO if len(g) else SEM_FONTE, float(len(pend)) if len(g) else None, "qtd",
-                      (f"guia(s) “Pendente recepção” em {rot}; <b>{pend_total}</b> no total, de todos os meses. O relatório não traz o valor da guia."
+                      (f"guia(s) “Pendente Recepção” em {rot}; <b>{pend_total}</b> no total, de todos os meses. O relatório não traz o valor da guia."
                        if len(g) else "O relatório de Guias ainda não tem dados."),
                       "Guias: situação Pendente Recepção e “Pendência / Motivo”", f"Competência: {rot}",
                       "Falta a coluna de valor da guia no relatório de Guias para somar em reais."))
@@ -319,7 +319,7 @@ def alertas_gerais(d: dict, glosas: dict, hoje: date) -> list[dict]:
                         "itens": gp.tabela(["Guia (Id)", "Nº da guia (prestador)", "Data", "Convênio", "Paciente", "Pendência / motivo"],
                                            [[r["Guia - Id"], r["Guia - Número da Guia do Prestador"], gp.dbr(r["Guia - Data"]), r["Operadora - Nome"], r["Paciente - Nome"],
                                              r["Guia - Pendência / Motivo Glosa"]] for _, r in pend.sort_values("Guia - Data").iterrows()], total=len(pend), numericas=(0,)),
-                        "texto": f"<b>{len(pend)}</b> guia(s) estão “Pendente recepção” (todas as competências). Motivos mais comuns: {top}. Mais guias nas operadoras: {ops}."})
+                        "texto": f"<b>{len(pend)}</b> guia(s) estão “Pendente Recepção” (todas as competências). Motivos mais comuns: {top}. Mais guias nas operadoras: {ops}."})
     if len(f):
         enviadas = f[f["_st"].isin(ENVIADAS)]
         sp = enviadas[enviadas["Fatura - Envio - Protocolo"].isna()]

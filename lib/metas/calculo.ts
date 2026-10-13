@@ -316,7 +316,7 @@ export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendime
   if (emMaisDeUma.length) {
     const qtd = emMaisDeUma.reduce((s, l) => s + l.original.qtd, 0);
     avisos.push(
-      `${qtd} atendimento(s) contam em mais de uma meta (ex.: ${emMaisDeUma[0].original.procedimento ?? "—"}). Ajuste as regras no metas.json.`
+      `${qtd} atendimento${qtd === 1 ? "" : "s"} conta${qtd === 1 ? "" : "m"} em mais de uma meta (ex.: ${emMaisDeUma[0].original.procedimento ?? "—"}). Ajuste as regras no metas.json.`
     );
   }
 
