@@ -163,7 +163,7 @@ def garantir_pagina(painel: str, periodo: tuple[str, str] | None = None, guardar
             if not periodo:
                 arm.limpar_paginas(painel, versao, hoje)
         except arm.ErroArmazenamento as e:   # sem guardar so fica mais lento; a pagina sai do mesmo jeito
-            print(f">>> AVISO: nao consegui guardar a pagina de {painel} ({e})", flush=True)
+            print(f">>> AVISO: não consegui guardar a página de {painel} ({e})", flush=True)
     return html
 
 
@@ -209,7 +209,7 @@ def _preparar_paginas(painel: str, inicio: float) -> None:
         try:
             garantir_pagina(p)
         except Exception as e:   # o painel dependente que falhar mostra o erro quando alguem abri-lo; a atualizacao em si deu certo
-            print(f">>> AVISO: nao consegui preparar a pagina de {p}: {type(e).__name__}: {e}", flush=True)
+            print(f">>> AVISO: não consegui preparar a página de {p}: {type(e).__name__}: {e}", flush=True)
 
 
 # ---------------------------------------------------------------- HTTP

@@ -503,7 +503,7 @@ class Portal(sp.Painel):
         pasta = (RAIZ / modulo["pasta"]).resolve()
         alvo = (pasta / (unquote(resto).lstrip("/") or "index.html")).resolve()
         if not alvo.is_relative_to(pasta) or not alvo.is_file():  # barra "../" para fora da pasta do modulo
-            return self._enviar(404, b"Nao encontrado", "text/plain")
+            return self._enviar(404, "Não encontrado".encode("utf-8"), "text/plain; charset=utf-8")
         tipo = mimetypes.guess_type(alvo.name)[0] or "application/octet-stream"
         if tipo.startswith("text/"):
             tipo += "; charset=utf-8"
@@ -543,7 +543,7 @@ class Portal(sp.Painel):
             arq = codigo.arquivo_dados()
             return self._json(200, {"versao": int(arq.stat().st_mtime) if arq.exists() else 0,
                                     "atualizando": est["atualizando"], "aviso": est["aviso"]})
-        self._enviar(404, b"Nao encontrado", "text/plain")
+        self._enviar(404, "Não encontrado".encode("utf-8"), "text/plain; charset=utf-8")
 
     def _gerar_pdf(self):
         usuario = self._usuario()
@@ -628,7 +628,7 @@ class Portal(sp.Painel):
             ico = RAIZ / "portal_csi.ico"
             if ico.exists():
                 return self._enviar(200, ico.read_bytes(), "image/x-icon")
-            return self._enviar(404, b"Nao encontrado", "text/plain")
+            return self._enviar(404, "Não encontrado".encode("utf-8"), "text/plain; charset=utf-8")
 
         # 3. Pagina de login
         if caminho == "/login":
@@ -651,7 +651,7 @@ class Portal(sp.Painel):
         if not usuario:
             if caminho in ("/", "/index.html") or not ("." in caminho.split("/")[-1] and not caminho.endswith(".html")):
                 return self._redirecionar("/login")
-            return self._enviar(401, b"Nao autorizado", "text/plain")
+            return self._enviar(401, "Não autorizado".encode("utf-8"), "text/plain; charset=utf-8")
 
         # 6. Portal principal autenticado
         if caminho in ("/", "/index.html"):
@@ -705,9 +705,9 @@ class Portal(sp.Painel):
         # 9. Modulos do portal com validacao de permissao
         modulo, resto = self._modulo(caminho)
         if modulo is None:
-            return self._enviar(404, b"Nao encontrado", "text/plain")
+            return self._enviar(404, "Não encontrado".encode("utf-8"), "text/plain; charset=utf-8")
         if not auth.tem_permissao(usuario, modulo["id"]):
-            return self._enviar(403, b"Acesso restrito: voce nao tem permissao para visualizar este relatorio.", "text/plain; charset=utf-8")
+            return self._enviar(403, "Acesso restrito: você não tem permissão para visualizar este relatório.".encode("utf-8"), "text/plain; charset=utf-8")
         if resto is None:
             return self._redirecionar(f"/{modulo['id']}/")
         if modulo["tipo"] == "metas":
@@ -886,7 +886,7 @@ class Portal(sp.Painel):
         # Atualizar modulo
         modulo, resto = self._modulo(caminho)
         if modulo is None or resto != "/atualizar" or modulo["tipo"] not in ("metas", "relatorios"):
-            return self._enviar(404, b"Nao encontrado", "text/plain")
+            return self._enviar(404, "Não encontrado".encode("utf-8"), "text/plain; charset=utf-8")
         if not auth.tem_permissao(usuario, modulo["id"]):
             return self._json(403, {"ok": False, "mensagem": "Você não tem permissão para este relatório."})
         self._auditar(f"{_limpo(usuario)} clicou em Atualizar agora ({modulo['nome']}).")

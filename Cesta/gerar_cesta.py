@@ -544,7 +544,7 @@ def qualidade(a_completo: pd.DataFrame) -> list[dict]:
     sus = a_completo[a_completo["Operadora"].str.upper() == "SUS CURSO"]
     if len(sus):
         q.append({"nivel": "info", "titulo": "Convênio SUS CURSO está incluído",
-                  "texto": f"São {br(len(sus))} linhas e {brl(sus['ValorT'].sum())} no total. Na análise anterior (pasta “Relatorio Visão atendimento 13280 a 13285”) esse convênio era retirado dos números; aqui ele entra, porque também entra na receita do Faturamento."})
+                  "texto": f"São {br(len(sus))} linhas e {brl(sus['ValorT'].sum())} no total. Na análise anterior (pasta “Relatório Visão atendimento 13280 a 13285”) esse convênio era retirado dos números; aqui ele entra, porque também entra na receita do Faturamento."})
     return q
 
 

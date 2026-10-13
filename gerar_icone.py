@@ -24,4 +24,4 @@ def desenhar(n: int) -> Image.Image:
 if __name__ == "__main__":
     destino = Path(__file__).parent / "portal_csi.ico"
     desenhar(256).save(destino, format="ICO", sizes=[(n, n) for n in TAMANHOS], append_images=[desenhar(n) for n in TAMANHOS if n != 256])
-    print("Icone gerado:", destino)
+    print("Ícone gerado:", destino)
