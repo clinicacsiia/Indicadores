@@ -85,6 +85,22 @@ export const IconCalendario = (p: IconProps) => (
   </Icon>
 );
 
+export const IconEstrela = ({ size = 20, preenchida = false }: IconProps & { preenchida?: boolean }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={preenchida ? "currentColor" : "none"}
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3.5l2.6 5.6 6 .7-4.5 4.1 1.2 6-5.3-3.1-5.3 3.1 1.2-6-4.5-4.1 6-.7Z" />
+  </svg>
+);
+
 export const IconPainel = (p: IconProps) => (
   <Icon {...p}>
     <rect x="3" y="3" width="7" height="9" rx="1.5" />
