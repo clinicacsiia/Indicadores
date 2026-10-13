@@ -1,0 +1,36 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/painel.py": {
+      "maxDuration": 300,
+      "includeFiles": "{*.py,modulos.json,config.json,painel_base.js,painel_base.css,Acompanhamento de META/**,Faturamento/**,Financeiro/**,Despesas/**,Indicadores/**,Cesta/**,Suprimentos/**,Atendimento/**}",
+      "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
+    },
+    "api/atualizar.py": {
+      "maxDuration": 300,
+      "includeFiles": "{*.py,modulos.json,config.json,painel_base.js,painel_base.css,Acompanhamento de META/**,Faturamento/**,Financeiro/**,Despesas/**,Indicadores/**,Cesta/**,Suprimentos/**,Atendimento/**}",
+      "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
+    },
+    "api/preaquecer.py": {
+      "maxDuration": 300,
+      "includeFiles": "{*.py,modulos.json,config.json,painel_base.js,painel_base.css,Acompanhamento de META/**,Faturamento/**,Financeiro/**,Despesas/**,Indicadores/**,Cesta/**,Suprimentos/**,Atendimento/**}",
+      "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
+    },
+    "api/estado.py": {
+      "maxDuration": 30,
+      "includeFiles": "{portal_nuvem.py,armazenamento.py,modulos.json}",
+      "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
+    },
+    "api/pendencias.py": {
+      "maxDuration": 30,
+      "includeFiles": "{portal_nuvem.py,armazenamento.py,modulos.json}",
+      "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/preaquecer",
+      "schedule": "30 9 * * *"
+    }
+  ]
+}

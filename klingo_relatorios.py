@@ -22,13 +22,16 @@ from calendar import monthrange
 from datetime import date, datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 RAIZ = Path(__file__).parent
+sys.path.insert(0, str(RAIZ))
 sys.path.insert(0, str(RAIZ / "Acompanhamento de META"))
+import armazenamento as arm  # noqa: E402  (Supabase no lugar do Excel, quando o portal roda na Vercel)
 import extrair_laudo as ex  # noqa: E402  (cliente da API do Klingo, token e config compartilhados com as Metas)
 
 COL_MES = "Mês (filtro)"
@@ -43,7 +46,9 @@ def ler_definicao(pasta: Path) -> dict:
     return json.loads((pasta / "relatorios.json").read_text(encoding="utf-8"))
 
 
-def planilha_de(pasta: Path) -> Path:
+def planilha_de(pasta: Path):
+    if arm.ativo():   # na nuvem nao ha arquivo: o "arquivo" e o conjunto de dados do painel no Supabase
+        return arm.PlanilhaVirtual(arm.painel_de_pasta(pasta))
     return pasta / ler_definicao(pasta)["arquivo"]
 
 
@@ -148,7 +153,28 @@ def converter(rel: dict, brutas: list[dict], ym: str, agora: datetime) -> list[d
 
 
 # ---------------------------------------------------------------- leitura e gravacao do Excel
+def ler_abas_nuvem(pasta: Path) -> dict[str, pd.DataFrame]:
+    """As abas do painel lidas do Supabase, com a mesma cara do Excel: um mes baixado de novo substitui o anterior, e quando o
+    mesmo registro (`chave` do relatorios.json) aparece em dois meses vale o mais recentemente baixado."""
+    defn, painel, abas = ler_definicao(pasta), arm.painel_de_pasta(pasta), {}
+    for rel in defn["relatorios"]:
+        linhas = arm.ler_aba(painel, rel["aba"])
+        if not linhas:
+            continue
+        df = pd.DataFrame(linhas)
+        for c in df.columns[df.dtypes == object]:   # None -> NaN, como o Excel entrega celula vazia
+            df[c] = df[c].where(df[c].notna(), np.nan)
+        if rel.get("chave") and COL_EM in df:
+            df = df.assign(_em=pd.to_datetime(df[COL_EM], errors="coerce")).sort_values("_em", kind="stable").drop(columns="_em")
+            df = df.drop_duplicates(subset=rel["chave"], keep="last")
+        ordem = [COL_MES] + [c for c in rel.get("ordenar", []) if c in df]
+        abas[rel["aba"]] = df.sort_values(ordem, kind="stable").reset_index(drop=True) if len(df) else df
+    return abas
+
+
 def ler_abas(pasta: Path) -> dict[str, pd.DataFrame]:
+    if arm.ativo():
+        return ler_abas_nuvem(pasta)
     caminho = planilha_de(pasta)
     if not caminho.exists():
         return {}
@@ -235,11 +261,74 @@ def dados_estao_recentes(pasta: Path, intervalo_min: float) -> float | None:
     return idade if idade < intervalo_min else None
 
 
+ORCAMENTO_S = float(os.environ.get("PAINEL_ORCAMENTO_S", "190"))   # a funcao da Vercel tem tempo limitado: para de baixar antes e deixa o resto para o proximo clique
+PRAZO_FINAL: float | None = None   # instante (time.time) em que a atualizacao tem de parar de baixar; quem chama (portal_nuvem) fixa um so para varias atualizacoes em sequencia
+
+
+def atualizar_nuvem(pasta: Path, forcar: bool = False, historico: bool = False, orcamento_s: float | None = None) -> dict:
+    """Mesma regra da `atualizar` abaixo, gravando no Supabase. Cada (relatorio, mes) e gravado assim que baixa, entao um corte por
+    tempo nao perde nada: o que ficou para tras entra no proximo clique. Ordem: o que nunca foi baixado, os 3 meses mais recentes, e
+    depois os meses antigos do mais desatualizado para o mais novo (o Klingo pode corrigir mes antigo, e assim todos acabam revistos)."""
+    inicio, orcamento_s = time.time(), ORCAMENTO_S if orcamento_s is None else orcamento_s
+    limite = PRAZO_FINAL or inicio + orcamento_s
+    defn, painel = ler_definicao(pasta), arm.painel_de_pasta(pasta)
+    minimo = ex.ler_config()["intervalo_minimo_minutos"]
+    recente = None if (forcar or historico) else dados_estao_recentes(pasta, minimo)
+    if recente is not None:
+        msg = f"Dados atualizados há {recente:.0f} min (mínimo entre consultas: {minimo} min). Não consultei o Klingo."
+        print(">>>", msg, flush=True)
+        return {"atualizou": False, "mensagem": msg}
+
+    guardados = arm.meses_gravados(painel)
+    hoje, agora = date.today(), datetime.now()
+    recentes = {mes_mais(hoje.strftime("%Y-%m"), -i) for i in range(3)}
+    tarefas = []   # (prioridade, ordem, relatorio, mes)
+    for rel in defn["relatorios"]:
+        tem = {m for (a, m) in guardados if a == rel["aba"]}
+        planejados = meses_a_baixar(rel, defn, pd.DataFrame({COL_MES: sorted(tem)}), hoje, historico)
+        for ym in planejados:
+            if ym not in tem:
+                tarefas.append((0, -int(ym.replace("-", "")), rel, ym))
+            elif ym in recentes:
+                tarefas.append((1, -int(ym.replace("-", "")), rel, ym))
+            else:
+                quando = guardados.get((rel["aba"], ym))
+                tarefas.append((2, quando.timestamp() if quando else 0.0, rel, ym))
+    tarefas.sort(key=lambda t: (t[0], t[1]))
+
+    resumo: dict[str, dict] = {}
+    avisos, pendentes = [], 0
+    for _, _, rel, ym in tarefas:
+        if time.time() > limite:
+            pendentes += 1
+            continue
+        de, ate = f"{ym}-01", f"{ym}-{monthrange(int(ym[:4]), int(ym[5:]))[1]:02d}"
+        try:
+            linhas = converter(rel, baixar_faixa(rel, de, ate), ym, agora)
+            arm.gravar_mes(painel, rel["aba"], ym, linhas, exclusivo=bool(rel.get("sem_periodo")))
+        except RelatorioComErro as e:
+            avisos.append(f"{rel['aba']} {ym}: {e}; mantive o que já estava guardado.")
+            continue
+        r = resumo.setdefault(rel["aba"], {"aba": rel["aba"], "linhas": 0, "meses": []})
+        r["linhas"] += len(linhas)
+        r["meses"].append(ym)
+        print(f">>> {rel['aba']} {ym}: {len(linhas)} linhas", flush=True)
+    if pendentes:
+        avisos.append(f"Parei antes de acabar por causa do tempo limite: {pendentes} mês(es) ficaram para o próximo clique em Atualizar.")
+    partes = " · ".join(f"{r['aba']} {r['linhas']:,} linhas em {len(r['meses'])} mês(es)".replace(",", ".") for r in resumo.values())
+    msg = f"Atualizado: {partes or 'nada novo'}."
+    if avisos:
+        msg += " Atenção: " + " ".join(avisos)
+    return {"atualizou": bool(resumo), "resumo": list(resumo.values()), "avisos": avisos, "parcial": bool(pendentes), "mensagem": msg}
+
+
 def atualizar(pasta: Path, forcar: bool = False, historico: bool = False) -> dict:
     """Baixa os relatorios, substitui os meses consultados e grava o Excel. Devolve {"atualizou", "mensagem", ...}.
 
     Erro do Klingo ou resposta fora do formato num relatorio/mes: aquele mes fica como estava e entra em "avisos".
     Token ausente ou recusado e rede fora do ar: levanta (ex.TokenInvalido, ex.FalhaDeRede) e nada e gravado."""
+    if arm.ativo():
+        return atualizar_nuvem(pasta, forcar=forcar, historico=historico)
     defn = ler_definicao(pasta)
     minimo = ex.ler_config()["intervalo_minimo_minutos"]
     recente = None if (forcar or historico) else dados_estao_recentes(pasta, minimo)

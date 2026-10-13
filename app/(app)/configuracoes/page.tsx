@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, type Profile } from "@/lib/supabase/profile";
 import { IconAlerta } from "@/app/components/icons";
+import { PAINEIS } from "@/lib/paineis";
 import { UsuarioForm } from "./UsuarioForm";
 
 export const metadata: Metadata = { title: "Configurações" };
@@ -35,7 +36,7 @@ export default async function ConfiguracoesPage() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Configurações</h1>
           <p className="page-lede">
-            Defina quem é administrador e quem pode ver os Relatórios e as Metas. Cada usuário é salvo separadamente.
+            Defina quem é administrador e quem pode ver cada tela: Relatórios, Metas e os painéis (Faturamento, Financeiro...). Cada usuário é salvo separadamente. Os painéis começam bloqueados para quem não é administrador.
           </p>
         </div>
       </header>
@@ -75,6 +76,7 @@ export default async function ConfiguracoesPage() {
                 role={usuario.role}
                 veRelatorios={usuario.permissions?.relatorios !== false}
                 veMetas={usuario.permissions?.metas !== false}
+                paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome, liberado: usuario.permissions?.[p.id] === true }))}
                 ehVoce={usuario.id === profile.id}
               />
             ))}

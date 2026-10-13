@@ -18,7 +18,8 @@ RAIZ = PASTA.parent   # painel_base.css/js (visual comum dos painéis) ficam na 
 if str(RAIZ) not in sys.path:
     sys.path.insert(0, str(RAIZ))
 import painel_comum as pc  # noqa: E402
-PLANILHA = PASTA / "Acompanhamento de META.xlsx"
+import armazenamento as arm  # noqa: E402  (na Vercel os dados vem do Supabase, nao do Excel)
+PLANILHA = arm.PlanilhaVirtual(arm.PAINEL_METAS) if arm.ativo() else PASTA / "Acompanhamento de META.xlsx"
 METAS = PASTA / "metas.json"
 MODELO = PASTA / "dashboard_modelo.html"
 SAIDA = PASTA / "Dashboard Metas.html"
@@ -38,7 +39,11 @@ COLUNAS_DADOS = ["Exames Realizados", "Unidade", "Procedimento - Classes", "Espe
 
 
 def carregar_dados() -> pd.DataFrame:
-    if PLANILHA.exists():
+    if arm.ativo():
+        df = arm.ler_metas_dados()
+        if df is None:
+            df = pd.DataFrame(columns=COLUNAS_DADOS)
+    elif PLANILHA.exists():
         df = pd.read_excel(PLANILHA, sheet_name="Dados")
     else:   # primeira vez (ou planilha apagada): painel vazio; o botão "Atualizar agora" baixa tudo e cria a planilha
         df = pd.DataFrame(columns=COLUNAS_DADOS)

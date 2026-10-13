@@ -1,8 +1,5 @@
-pandas
-openpyxl
-numpy
-# playwright: so para exportar PDF (exportar_pdf.py). A captura dos relatorios usa a API externa do Klingo, sem navegador.
-playwright
-pypdf
-# cryptography: so para criar o certificado de seguranca do servidor (acesso em rede); vai dentro do Servidor.exe
-cryptography
+# Funcoes Python da Vercel (api/*.py) e programa local. O que so o programa local usa (PDF, certificado de rede)
+# fica em requirements-desktop.txt, para nao pesar no deploy.
+pandas>=2.2,<4
+numpy>=1.26
+openpyxl>=3.1

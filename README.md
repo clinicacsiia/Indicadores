@@ -59,6 +59,83 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
   sincroniza qualquer relatório cadastrado em `dim_relatorio` (ver seção
   "Data warehouse de relatórios" abaixo).
 
+## Painéis em Python (Faturamento, Financeiro, Despesas, Indicadores, Cesta, Suprimentos, Atendimento)
+
+São os painéis do programa local (`servidor_portal.py` / `Indicadores CSI.exe`), agora publicados neste mesmo site. O
+código de cálculo (`*/gerar_*.py`, `klingo_relatorios.py`, `painel_comum.py`) e as telas
+(`*/dashboard_modelo.html`, `painel_base.js/css`) são **os mesmos**; mudou só onde ficam os dados e quem serve a página:
+
+| No programa local | Aqui |
+| --- | --- |
+| Excel por painel (`Faturamento.xlsx`...) | tabelas `painel_dados` / `painel_mes` no Supabase (`armazenamento.py`) |
+| SQLite (marcações "resolvido", histórico) | `painel_pendencia`, `painel_atualizacao` |
+| `Custos dos Itens.xlsx` (Suprimentos) | tabela `painel_custo_item` (preencher no Table Editor: colunas `item` e `custo`) |
+| Login/usuários do portal (`autenticacao.py`) | login do Supabase (o mesmo do site) + `profiles.permissions.<painel>` |
+| Servidor local, rede, certificado, `.exe` | funções Python da Vercel em `api/` |
+| Página recalculada quando a planilha muda | HTML pronto guardado em `painel_pagina`, refeito quando os dados ou o dia mudam |
+
+Como funciona:
+
+```
+site (menu "Faturamento", "Financeiro"...)  →  /painel/<id>  →  iframe  →  /api/painel?id=<id>   (api/painel.py)
+                                                                              │ confere login (Supabase Auth) e permissão (profiles)
+                                                                              ▼
+                              painel_pagina (HTML pronto)  ←──  gerar_<id>.py  ←──  painel_dados (linhas do Klingo, por mês)
+botão "Atualizar agora" (só admin)  →  /api/atualizar?id=<id>  →  API do Klingo  →  grava o mês inteiro (troca atômica)  →  refaz a página
+```
+
+- **Arquivos novos:** `armazenamento.py` (Supabase), `portal_nuvem.py` (login, permissão, página pronta, atualização),
+  `api/*.py` (as funções da Vercel), `vercel.json` (arquivos incluídos, tempo máximo, cron),
+  `supabase/migrations/20261013130000_paineis_python.sql`, `lib/paineis.ts` e `app/(app)/painel/[id]/`.
+  A lista de painéis vem do `modulos.json`, o mesmo arquivo dos dois lados.
+- **O que o programa local ganhou:** quase nada. As funções que liam/gravavam Excel ganharam um `if armazenamento.ativo()`
+  (na Vercel ou com `PORTAL_ARMAZENAMENTO=supabase`); sem isso tudo continua Excel + SQLite como antes.
+  `painel_base.js` fala com `/api/*` quando a página traz `window.PAINEL_NUVEM`.
+- **Permissões:** cada painel é uma chave em `profiles.permissions` (id do painel). Administrador vê todos; os demais só os
+  marcados em **Configurações**. Painel novo nasce **bloqueado** (dado financeiro e, em alguns, de paciente).
+- **Atualização:** só administrador. O botão baixa do Klingo mês a mês e **substitui o mês inteiro**, como o Excel fazia
+  (`revisar_meses`/`meses_a_frente` do `relatorios.json` valem igual). Como a função da Vercel para em 300 s, a atualização
+  para antes (190 s) e avisa; cada mês já baixado fica guardado, então é só clicar de novo para continuar (a carga inicial de
+  um painel com muito histórico pode pedir dois ou três cliques). Ordem: meses nunca baixados, os 3 mais recentes, e os antigos
+  do mais desatualizado para o mais novo. O Atendimento também atualiza a base das Metas (#13339) de que depende.
+- **Horário:** as funções rodam com fuso de Brasília (`TZ=BRT3`), senão "hoje" viraria amanhã depois das 21h.
+- **Cron (opcional):** `vercel.json` agenda `/api/preaquecer` todo dia às 06:30 (Brasília) para refazer as páginas e o primeiro
+  acesso do dia não esperar a conta (a Cesta chega a levar mais de 1 min). Só funciona se existir a variável `CRON_SECRET`.
+- **Não existe na Vercel:** exportar PDF (precisa do Chromium do `exportar_pdf.py`), acesso em rede/`.exe`, usuários próprios
+  do portal e as "visões" em PDF do Atendimento. A aba **Metas** continua sendo a do site (abaixo); a base das Metas em Python
+  só existe para o Atendimento.
+
+### Para colocar no ar
+
+1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` (SQL Editor do Supabase).
+2. **Variáveis da Vercel** (Settings → Environment Variables):
+   - `KLINGO_APP_TOKEN` — marcar *Sensitive*; Production (e Preview se for testar). É o mesmo token do secret da Edge Function.
+   - `SUPABASE_SERVICE_ROLE_KEY` — **já existe** (criada pela integração Supabase), mas só em *Production*: marque também
+     *Preview* se for testar um preview. Fica só no servidor (nunca `NEXT_PUBLIC_*`).
+   - `CRON_SECRET` — opcional, qualquer texto longo aleatório, para o cron diário.
+3. **Deploy:** publicar este branch (preview) e, conferido, juntar no branch de produção.
+4. **Configurações:** liberar cada painel para quem deve ver (administradores já veem todos).
+5. Em cada painel, como administrador: **Atualizar agora** (repetir se avisar que parou pelo tempo limite).
+
+### Segurança desta parte
+
+- As tabelas `painel_*` têm RLS ligado **sem policy** e acesso revogado de `anon`/`authenticated`: o navegador nunca lê nem grava
+  nelas (as linhas do Klingo podem ter nome de paciente — ver "ATENÇÃO LGPD"). Só as funções de `api/`, com a `service_role`
+  no servidor, e **depois** de conferir o login (`/auth/v1/user`) e a permissão (`profiles`).
+- **Mudança consciente em relação ao resto do site:** o site Next.js continua sem chave privilegiada, mas as funções Python
+  precisam da `service_role` (gravam dados e leem as tabelas fechadas). Ela fica só como variável de servidor da Vercel.
+- Escritas (`atualizar`, marcar "resolvido") exigem o cabeçalho `X-Painel: 1`, que um site de fora não consegue mandar com o
+  cookie do usuário; o quadro do painel só aparece dentro do próprio site (`frame-ancestors 'self'`).
+- Quem marcou um alerta como resolvido vem do login, nunca do corpo do pedido.
+
+### Testes
+
+`python -m unittest discover -s tests -v` — sobe um Supabase e um Klingo simulados (`tests/mock_nuvem.py`) e confere login,
+permissões, atualização (mês substituído, não somado), tipos das colunas, página pronta guardada e invalidada, pendências e
+corte por tempo. Os 7 painéis também foram gerados de ponta a ponta com dados de mentira e o botão **Atualizar agora**
+foi exercitado no Chromium. **Não foi testado:** o deploy na Vercel de verdade (funções Python junto do Next.js, tamanho do
+pacote com pandas, tempo da carga inicial) nem o Klingo/Supabase reais — confira o primeiro deploy e o log das funções.
+
 ## Aba Metas
 
 Fonte dos dados: relatório `13339` do Klingo (atendimentos por unidade,
@@ -301,7 +378,7 @@ Pontos chave:
   período (máx. 31 dias) e o site chama as Edge Functions com o JWT do próprio
   admin. As funções aceitam apenas `service_role` (SQL/carga histórica) ou um
   usuário logado com `is_admin()`; a anon key pública recebe 403. Nenhuma
-  chave privilegiada existe no site/Vercel. O secret `cron_service_role_key`
+  chave privilegiada existe no site (Next.js); as funções Python dos painéis são a exceção (ver "Painéis em Python"). O secret `cron_service_role_key`
   do Vault continua disponível só para cargas históricas via SQL.
 
 ## Deploy (Vercel)

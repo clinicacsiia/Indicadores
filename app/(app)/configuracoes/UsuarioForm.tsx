@@ -10,6 +10,7 @@ type Props = {
   role: "admin" | "viewer";
   veRelatorios: boolean;
   veMetas: boolean;
+  paineis: { id: string; nome: string; liberado: boolean }[];
   ehVoce: boolean;
 };
 
@@ -25,7 +26,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veRelatorios, veMetas, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veRelatorios, veMetas, paineis, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -98,6 +99,24 @@ export function UsuarioForm({ id, email, role, veRelatorios, veMetas, ehVoce }: 
             </span>
             <BotaoSalvar />
           </div>
+
+          {paineis.length > 0 && (
+            <div className="user-paineis" role="group" aria-labelledby={`paineis-${id}`}>
+              <span className="field-label user-paineis-titulo" id={`paineis-${id}`}>
+                Painéis
+              </span>
+              {paineis.map((p) => (
+                <label className="switch" key={p.id}>
+                  <input type="checkbox" name={`painel_${p.id}`} defaultChecked={p.liberado} />
+                  <span className="switch-track" aria-hidden="true" />
+                  <span className="switch-text">
+                    {p.nome}
+                    {papel === "admin" && <span className="switch-hint">Administradores sempre têm acesso</span>}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       </form>
     </li>

@@ -213,7 +213,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         # ---- atencao agora (nao depende do mes escolhido)
         ja_venceu = desp[desp["Vencimento"].notna() & (desp["Vencimento"].dt.date < hoje) & ~desp["_pago"]]
         a_vencer = desp[desp["Vencimento"].notna() & (desp["Vencimento"].dt.date >= hoje) & ~desp["_pago"]]
-        dias_ate = a_vencer["Vencimento"].map(lambda x: (x.date() - hoje).days)
+        dias_ate = a_vencer["Vencimento"].map(lambda x: (x.date() - hoje).days).astype("int64")   # astype: sem nenhuma conta a vencer o map devolve uma serie vazia de datas e a comparacao abaixo falharia
         prox = {"hoje": a_vencer[dias_ate == 0], "sete": a_vencer[dias_ate <= 7], "trinta": a_vencer[dias_ate <= 30]}
         extras["vencidas"] = {"qtd": int(len(ja_venceu)), "valor": float(ja_venceu["Valor"].sum()),
                               "faixas": faixas_vencidas(ja_venceu, hoje) if len(ja_venceu) else [],

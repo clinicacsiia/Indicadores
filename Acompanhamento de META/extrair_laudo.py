@@ -407,11 +407,32 @@ def dados_estao_recentes(intervalo_min: float) -> float | None:
     return idade if idade < intervalo_min else None
 
 
+def atualizar_nuvem(forcar: bool = False, historico: bool = False) -> dict:
+    """Mesma consulta da `atualizar`, gravando no Supabase (um mes por vez, substituindo o mes inteiro) em vez de no Excel."""
+    sys.path.insert(0, str(PASTA.parent))
+    import armazenamento as arm
+    periodos = ["a"] if historico else ["m"] + (["ma"] if date.today().day <= 5 else [])
+    minimo = ler_config()["intervalo_minimo_minutos"]
+    versao = arm.versao_dados(arm.PAINEL_METAS)
+    if not (forcar or historico) and versao and (time.time() - versao) / 60 < minimo:
+        msg = f"Dados atualizados há {(time.time() - versao) / 60:.0f} min (mínimo entre consultas: {minimo} min). Não consultei o Klingo."
+        return {"atualizou": False, "mensagem": msg}
+    por_mes: dict[str, list[dict]] = {}
+    for periodo, data in zip(periodos, buscar_dados(periodos)):
+        print(f">>> {NOME_PERIODO.get(periodo, periodo)}: {data['result']['rows']} linhas")
+        for linha in para_linhas(data):
+            por_mes.setdefault(linha["Mês"], []).append(linha)
+    total = sum(arm.gravar_mes(arm.PAINEL_METAS, arm.ABA_METAS, mes, linhas) for mes, linhas in sorted(por_mes.items()))
+    return {"atualizou": True, "novos": total, "total": total, "mensagem": f"Metas atualizadas: {total} atendimento(s) em {len(por_mes)} mês(es)."}
+
+
 def atualizar(forcar: bool = False, historico: bool = False) -> dict:
     """Consulta o Klingo (se os dados estiverem velhos ou se forcar) e grava na planilha.
 
     Devolve {"atualizou": bool, "mensagem": str, ...}. Usado pelo extrator e pelo botão do painel.
     """
+    if os.environ.get("VERCEL") or os.environ.get("PORTAL_ARMAZENAMENTO", "").lower() == "supabase":
+        return atualizar_nuvem(forcar=forcar, historico=historico)
     if historico:
         periodos = ["a"]
     else:
