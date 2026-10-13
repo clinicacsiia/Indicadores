@@ -1,0 +1,8 @@
+pandas
+openpyxl
+numpy
+# playwright: so para exportar PDF (exportar_pdf.py). A captura dos relatorios usa a API externa do Klingo, sem navegador.
+playwright
+pypdf
+# cryptography: so para criar o certificado de seguranca do servidor (acesso em rede); vai dentro do Servidor.exe
+cryptography

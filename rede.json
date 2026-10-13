@@ -1,0 +1,16 @@
+{
+  "ativar_rede": true,
+  "porta_rede": 8766,
+  "redes_permitidas": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+  "nomes_aceitos": [],
+  "pasta_compartilhada": "",
+  "intervalo_minimo_atualizar_agora_minutos": 5,
+  "_ajuda": {
+    "ativar_rede": "true = os colegas entram pelo Indicadores CSI.exe (cliente); false = o portal funciona so neste computador.",
+    "porta_rede": "Porta HTTPS para a rede (a local, 8765, nao muda). Se mudar, libere a nova porta no Firewall: Indicadores CSI - Servidor.exe --liberar-rede",
+    "redes_permitidas": "So computadores destes enderecos conseguem conectar. Padrao: as redes internas (10.x, 172.16-31.x, 192.168.x). Para liberar so uma faixa, ex.: [\"10.242.0.0/16\"].",
+    "nomes_aceitos": "Outros nomes pelos quais a rede chama este servidor (ex.: um apelido no DNS). O nome do computador e os IPs ja valem sozinhos.",
+    "pasta_compartilhada": "Opcional: pasta de rede (onde fica o Indicadores CSI.exe dos colegas) que recebe o servidor.json atualizado a cada abertura. Ex.: \\\\servidor\\apps\\Indicadores CSI. Dê aos colegas so permissao de LEITURA nela.",
+    "intervalo_minimo_atualizar_agora_minutos": "Quem nao e administrador so consegue clicar em Atualizar agora de novo depois deste tempo desde a ultima atualizacao (protege a cota do Klingo). 0 = sem limite."
+  }
+}

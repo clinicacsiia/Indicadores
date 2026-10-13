@@ -1,0 +1,70 @@
+{
+  "titulo": "Clínica CSI",
+  "banco_dados": "portal_csi.db",
+  "modulos": [
+    {
+      "id": "metas",
+      "nome": "Metas",
+      "descricao": "Metas do mês por unidade e serviço",
+      "pasta": "Acompanhamento de META",
+      "tipo": "metas"
+    },
+    {
+      "id": "faturamento",
+      "nome": "Faturamento",
+      "descricao": "Receita produzida, convênios e faturas em aberto",
+      "pasta": "Faturamento",
+      "tipo": "relatorios",
+      "codigo": "gerar_faturamento"
+    },
+    {
+      "id": "financeiro",
+      "nome": "Financeiro",
+      "descricao": "Contas a pagar e a receber, fluxo de caixa e taxas",
+      "pasta": "Financeiro",
+      "tipo": "relatorios",
+      "codigo": "gerar_financeiro"
+    },
+    {
+      "id": "despesas",
+      "nome": "Despesas",
+      "descricao": "Despesas por categoria, fornecedor e mês de competência",
+      "pasta": "Despesas",
+      "tipo": "relatorios",
+      "codigo": "gerar_despesas"
+    },
+    {
+      "id": "indicadores",
+      "nome": "Indicadores",
+      "descricao": "Produção, financeiro e glosas: os 16 indicadores e a origem de cada um",
+      "pasta": "Indicadores",
+      "tipo": "relatorios",
+      "codigo": "gerar_indicadores"
+    },
+    {
+      "id": "cesta",
+      "nome": "Cesta",
+      "descricao": "Cesta de exames: combos, venda cruzada, perfil e ticket",
+      "pasta": "Cesta",
+      "tipo": "relatorios",
+      "codigo": "gerar_cesta"
+    },
+    {
+      "id": "suprimentos",
+      "nome": "Suprimentos",
+      "descricao": "Estoque, solicitações dos setores, consumo, pendências e compras",
+      "pasta": "Suprimentos",
+      "tipo": "relatorios",
+      "codigo": "gerar_suprimentos"
+    },
+    {
+      "id": "atendimento",
+      "nome": "Atendimento",
+      "descricao": "Onde os registros erram, espera, duração, produtividade por profissional e revisão das metas",
+      "pasta": "Atendimento",
+      "tipo": "relatorios",
+      "codigo": "gerar_atendimento",
+      "visoes_pdf": ["juliana", "carla", "luzia"]
+    }
+  ]
+}

@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indicadores CSI</title>
+<link rel="icon" type="image/x-icon" href="/portal_csi.ico">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --base: #c3c2b7; --border: rgba(11,11,11,.10);
+    --accent: #2a78d6; --on-accent: #ffffff;
+    --crit: #d03b3b; --ok: #1ea25c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --base: #383835; --border: rgba(255,255,255,.10);
+      --accent: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --base: #383835; --border: rgba(255,255,255,.10);
+    --accent: #3987e5;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid; grid-template-columns: 240px 1fr; height: 100dvh;
+  }
+
+  .menu {
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px 12px; display: flex; flex-direction: column; gap: 16px;
+    overflow-y: auto;
+  }
+  .marca { padding: 0 8px; }
+  .marca b { display: block; font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+  .marca span { font-size: 13px; color: var(--ink2); }
+  .menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .menu a {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px;
+    color: var(--ink2); text-decoration: none; font-size: 15px; font-weight: 550;
+  }
+  .menu a svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .menu a:hover { background: var(--grid); color: var(--ink); }
+  .menu a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .menu a[aria-current="page"] { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--ink); }
+  .menu a[aria-current="page"] svg { color: var(--accent); }
+
+  .sem-relatorios {
+    padding: 12px; font-size: 13.5px; color: var(--muted); text-align: center; font-style: italic;
+  }
+
+  .espaco { flex: 1; min-height: 12px; }
+
+  /* Botao de Exportar PDF */
+  .menu-acoes { display: flex; flex-direction: column; gap: 8px; }
+  .btn-pdf {
+    display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+    padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--page); color: var(--ink); font-weight: 600; cursor: pointer;
+    font-size: 14px; transition: background .15s, opacity .15s;
+  }
+  .btn-pdf:hover { background: var(--grid); }
+  .btn-pdf:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-pdf svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .btn-pdf:disabled { opacity: .65; cursor: wait; }
+
+  /* Menu de exportacao e impressao */
+  .exp-corpo { padding: 14px 20px 6px; }
+  .exp-ajuda { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .exp-titulo { margin: 14px 0 6px; font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .exp-linha { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--page); }
+  .exp-linha.filho { margin-left: 26px; }
+  .exp-linha input[type=checkbox] { width: 16px; height: 16px; flex: none; accent-color: var(--accent); }
+  .exp-nome { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+  .exp-nome small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+  .exp-btn {
+    flex: none; padding: 6px 11px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .exp-btn:hover:not(:disabled) { background: var(--grid); }
+  .exp-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .exp-periodo { padding: 10px 12px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--page); margin-bottom: 4px; }
+  .exp-per-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .exp-per-linha label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink2); }
+  .exp-per-linha select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; }
+  .exp-atalhos { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13px; }
+  .exp-per-txt { margin: 8px 0 0; font-size: 13px; color: var(--ink); }
+  .exp-per-txt small { color: var(--muted); }
+  .exp-rodape { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); background: var(--surface); }
+  .exp-rodape span { flex: 1; font-size: 13px; color: var(--muted); }
+  dialog.ocupado .exp-btn, dialog.ocupado .exp-linha input { pointer-events: none; opacity: .5; }
+  @media (max-width: 520px) { .exp-linha { flex-wrap: wrap; } .exp-linha.filho { margin-left: 12px; } }
+
+  @keyframes rodar { to { transform: rotate(360deg); } }
+  .girando svg { animation: rodar 1s linear infinite; }
+
+  /* Rodape de Usuario */
+  .usuario-box {
+    border-top: 1px solid var(--border); padding-top: 14px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .usuario-perfil {
+    display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600;
+    color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 0 4px;
+  }
+  .usuario-perfil svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; fill: none; flex: none; color: var(--muted); }
+  .tag-admin {
+    display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .04em; background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    color: var(--accent); padding: 1px 6px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .usuario-links {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);
+    padding: 0 4px;
+  }
+  .link-btn {
+    background: none; border: 0; padding: 0; color: var(--accent); font: inherit;
+    cursor: pointer; text-decoration: none; font-weight: 550;
+  }
+  .link-btn:hover { text-decoration: underline; }
+  .link-sair { color: var(--ink2); }
+  .sep { color: var(--muted); opacity: .6; }
+
+  main { min-width: 0; min-height: 0; position: relative; }
+  #quadro-wrap { position: absolute; inset: 0; }
+  #quadro-wrap iframe { position: absolute; inset: 0; display: none; width: 100%; height: 100%; border: 0; background: var(--page); }
+  #quadro-wrap iframe.ativo { display: block; }
+
+  /* Barra de carregamento ao trocar de pagina no menu */
+  #barra-nav { position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 50;
+    overflow: hidden; opacity: 0; transition: opacity .15s; pointer-events: none; }
+  #barra-nav.ativa { opacity: 1; transition-delay: .12s; }  /* so aparece se a troca demorar um pouco, pra nao "piscar" nas rapidas */
+  #barra-nav .mov { position: absolute; top: 0; left: -35%; height: 100%; width: 35%;
+    background: var(--accent); border-radius: 0 3px 3px 0; animation: mover-barra-nav 1.1s ease-in-out infinite; }
+  @keyframes mover-barra-nav { 0% { left: -35%; } 100% { left: 100%; } }
+  @media (prefers-reduced-motion: reduce) { #barra-nav .mov { animation: none; left: 0; width: 100%; } }
+
+  /* Toast de notificacao */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 1000;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 16px;
+    font-size: 14px; max-width: 380px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    display: none; align-items: center; gap: 10px;
+  }
+  #toast.ok { border-left-color: var(--ok); }
+  #toast.erro { border-left-color: var(--crit); }
+
+  /* Modal de Conta e Usuarios */
+  dialog.modal {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+    color: var(--ink); padding: 0; max-width: 580px; width: 94vw; max-height: 90vh;
+    box-shadow: 0 16px 40px rgba(0,0,0,.25); overflow-y: auto;
+  }
+  dialog.modal::backdrop { background: rgba(0,0,0,.45); backdrop-filter: blur(2px); }
+  .modal-cabecalho {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 5;
+  }
+  .modal-cabecalho h2 { margin: 0; font-size: 18px; font-weight: 650; }
+  .btn-fechar {
+    background: none; border: 0; font-size: 24px; line-height: 1;
+    color: var(--muted); cursor: pointer; padding: 0 4px;
+  }
+  .btn-fechar:hover { color: var(--ink); }
+  .modal-abas {
+    display: flex; border-bottom: 1px solid var(--border); background: var(--page);
+    position: sticky; top: 57px; z-index: 4;
+  }
+  .aba-btn {
+    flex: 1; padding: 11px 14px; border: 0; background: none; font: inherit;
+    font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .aba-btn.ativa { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface); }
+  .aba-painel { padding: 20px; }
+  .aba-painel h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; color: var(--ink); }
+  .aba-painel p.desc { margin: 0 0 14px; font-size: 13px; color: var(--ink2); line-height: 1.4; }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--ink2); margin-top: 12px; }
+  input[type="text"], input[type="password"] {
+    display: block; width: 100%; margin-top: 6px; font: inherit; color: var(--ink);
+    background: var(--page); border: 1px solid var(--base); border-radius: 8px;
+    padding: 8px 10px; font-size: 14px;
+  }
+  input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primario {
+    width: 100%; margin-top: 16px; font: inherit; font-size: 14px; font-weight: 650;
+    color: var(--on-accent); background: var(--accent); border: 0; border-radius: 8px;
+    padding: 10px 14px; cursor: pointer;
+  }
+  .btn-primario:disabled { opacity: .6; cursor: wait; }
+  .msg-modal {
+    margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px;
+  }
+  .msg-modal.ok { background: #eafaf1; border: 1px solid #c2eed5; color: #155724; }
+  .msg-modal.erro { background: #fdf2f2; border: 1px solid #f8b4b4; color: #9b1c1c; }
+  @media (prefers-color-scheme: dark) {
+    .msg-modal.ok { background: #0e2a1b; border-color: #174e30; color: #6ee7b7; }
+    .msg-modal.erro { background: #2f1212; border-color: #551a1a; color: #fca5a5; }
+  }
+
+  /* Lista de usuarios */
+  .lista-usuarios {
+    list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column;
+    gap: 8px;
+  }
+  .card-usuario {
+    background: var(--page); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .card-usuario-topo {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .card-usuario-info {
+    display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;
+  }
+  .card-usuario-acoes {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-acao {
+    background: var(--surface); border: 1px solid var(--base); border-radius: 5px;
+    padding: 4px 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--ink2);
+    transition: all .15s;
+  }
+  .btn-acao:hover { background: var(--grid); color: var(--ink); }
+  .btn-acao.btn-remover { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 30%, var(--base)); }
+  .btn-acao.btn-remover:hover { background: #fdf2f2; color: #9b1c1c; border-color: var(--crit); }
+  .btn-acao:disabled { opacity: .4; cursor: not-allowed; }
+  .tag-atual { font-size: 11px; background: var(--grid); color: var(--ink2); padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+
+  /* Badges de relatorios */
+  .lista-badges-rep {
+    display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+  }
+  .badge-rep {
+    font-size: 11.5px; font-weight: 550; padding: 2px 7px; border-radius: 4px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--ink2);
+  }
+  .badge-rep.badge-admin-rep {
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    font-weight: 600;
+  }
+  .badge-rep.badge-vazio {
+    color: var(--muted); font-style: italic; background: none; border-style: dashed;
+  }
+
+  /* Grade de selecao de relatorios */
+  .grade-checks {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px;
+    margin-top: 6px;
+  }
+  .item-check {
+    display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500;
+    cursor: pointer; padding: 6px 8px; border-radius: 6px; background: var(--surface);
+    border: 1px solid var(--border); user-select: none;
+  }
+  .item-check:hover { background: var(--grid); }
+  .item-check input[type="checkbox"] { margin: 0; cursor: pointer; width: 15px; height: 15px; flex: none; }
+  .item-check.desativado { opacity: .6; pointer-events: none; }
+
+  .botoes-atalho {
+    display: flex; gap: 10px; margin: 4px 0 6px;
+  }
+  .btn-link-sm {
+    background: none; border: 0; color: var(--accent); padding: 0; font-size: 12px;
+    cursor: pointer; text-decoration: underline; font-weight: 550;
+  }
+
+  /* Painel de edicao inline do usuario */
+  .painel-edicao {
+    margin-top: 6px; padding: 12px; border-radius: 6px; background: var(--surface);
+    border: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px;
+  }
+  .botoes-edicao {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px;
+  }
+  .btn-secundario {
+    background: var(--page); border: 1px solid var(--base); border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--ink);
+  }
+  .btn-secundario:hover { background: var(--grid); }
+  .btn-sm-primario {
+    background: var(--accent); color: var(--on-accent); border: 0; border-radius: 6px;
+    padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  .divisor { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  @media (max-width: 720px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .menu {
+      flex-direction: row; align-items: center; gap: 8px; padding: 8px 12px;
+      border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden;
+    }
+    .marca, .espaco, .usuario-box { display: none; }
+    .menu ul { flex-direction: row; }
+    .menu a { padding: 8px 12px; white-space: nowrap; }
+    .btn-pdf { padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+<nav class="menu" aria-label="Menu principal">
+  <div class="marca"><b id="titulo"></b><span>Painéis de gestão</span></div>
+  <ul id="lista"></ul>
+
+  <div class="espaco"></div>
+
+  <div class="menu-acoes">
+    <button id="btn-exportar-pdf" class="btn-pdf" type="button" title="Abre o menu para baixar em PDF ou imprimir: todos os relatórios juntos, um por um ou por responsável">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="12" y1="18" x2="12" y2="12"></line>
+        <polyline points="9 15 12 18 15 15"></polyline>
+      </svg>
+      <span id="txt-exportar">Exportar / Imprimir</span>
+    </button>
+  </div>
+
+  <div class="usuario-box">
+    <div class="usuario-perfil" title="Usuário logado">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
+      <span id="usuario-nome"></span>
+      <span id="usuario-tag-admin" class="tag-admin" hidden>Admin</span>
+    </div>
+    <div class="usuario-links">
+      <button type="button" id="btn-conta" class="link-btn">Conta</button>
+      <span class="sep">·</span>
+      <a href="/sair" class="link-btn link-sair" title="Encerrar sessão">Sair</a>
+    </div>
+  </div>
+</nav>
+
+<main><div id="barra-nav"><div class="mov"></div></div><div id="quadro-wrap"></div></main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- Menu de exportacao e impressao -->
+<dialog id="modal-exportar" class="modal">
+  <div class="modal-conteudo">
+    <div class="modal-cabecalho">
+      <h2>Exportar e imprimir</h2>
+      <button type="button" class="btn-fechar" id="exp-fechar" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="exp-corpo">
+      <p class="exp-ajuda">Escolha o período, depois baixe em PDF ou imprima: tudo junto, um relatório por vez, ou marque vários e use os botões do rodapé. No Atendimento dá para separar por responsável.</p>
+      <div class="exp-periodo">
+        <div class="exp-titulo" style="margin-top:0">Período do relatório</div>
+        <div class="exp-per-linha">
+          <label>De <select id="exp-de" aria-label="Mês inicial"></select></label>
+          <label>até <select id="exp-ate" aria-label="Mês final"></select></label>
+        </div>
+        <div class="exp-atalhos">
+          <button type="button" class="link-btn" data-atalho="atual">Mês atual</button>
+          <button type="button" class="link-btn" data-atalho="anterior">Mês anterior</button>
+          <button type="button" class="link-btn" data-atalho="tres">Últimos 3 meses</button>
+          <button type="button" class="link-btn" data-atalho="tudo">Desde o início</button>
+        </div>
+        <p class="exp-per-txt" id="exp-per-txt"></p>
+      </div>
+      <div id="exp-lista"></div>
+    </div>
+    <div class="exp-rodape">
+      <span id="exp-contagem">Nenhum marcado</span>
+      <button type="button" class="exp-btn" id="exp-sel-baixar" disabled>Baixar marcados</button>
+      <button type="button" class="exp-btn" id="exp-sel-imprimir" disabled>Imprimir marcados</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Modal de Conta e Usuarios -->
+<dialog id="modal-conta" class="modal">
+  <div class="modal-conteudo">
+    <div class="modal-cabecalho">
+      <h2>Conta e Usuários</h2>
+      <button type="button" class="btn-fechar" id="modal-fechar" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-abas">
+      <button type="button" class="aba-btn ativa" data-aba="minha-senha">Minha Senha</button>
+      <button type="button" class="aba-btn" id="tab-usuarios" data-aba="usuarios" hidden>Usuários e Permissões</button>
+    </div>
+    <div class="aba-painel" id="painel-minha-senha">
+      <h3>Alterar minha senha</h3>
+      <p class="desc">Defina uma nova senha para a sua conta de acesso ao portal.</p>
+      <form id="form-trocar-senha">
+        <label for="senha-atual">Senha atual
+          <input type="password" id="senha-atual" required autocomplete="current-password">
+        </label>
+        <label for="senha-nova">Nova senha (mínimo 6 caracteres)
+          <input type="password" id="senha-nova" required minlength="6" autocomplete="new-password">
+        </label>
+        <label for="senha-nova2">Repita a nova senha
+          <input type="password" id="senha-nova2" required minlength="6" autocomplete="new-password">
+        </label>
+        <div class="msg-modal" id="msg-senha" hidden></div>
+        <button type="submit" class="btn-primario" id="btn-salvar-senha">Salvar nova senha</button>
+      </form>
+    </div>
+    <div class="aba-painel" id="painel-usuarios" hidden>
+      <h3>Usuários e Permissões</h3>
+      <p class="desc">Gerencie quem tem acesso ao portal e escolha exatamente quais relatórios cada pessoa pode ver.</p>
+      <div id="bloco-pedidos" hidden>
+        <h3>Pedidos de cadastro <span class="tag-atual" id="qtd-pedidos"></span></h3>
+        <p class="desc">Pessoas que pediram acesso na tela de login. Escolha o que cada uma pode ver e aprove, ou recuse.</p>
+        <ul class="lista-usuarios" id="lista-pedidos"></ul>
+        <hr class="divisor">
+      </div>
+      <ul class="lista-usuarios" id="lista-usuarios"></ul>
+
+      <hr class="divisor">
+
+      <h3>Cadastrar novo usuário</h3>
+      <p class="desc">Crie um novo acesso e selecione os relatórios permitidos.</p>
+      <form id="form-novo-usuario">
+        <label for="novo-usuario">Nome de usuário
+          <input type="text" id="novo-usuario" required minlength="3" maxlength="40" placeholder="ex.: maria" autocomplete="off">
+        </label>
+        <label for="novo-senha">Senha inicial (mínimo 6 caracteres)
+          <input type="password" id="novo-senha" required minlength="6" placeholder="••••••••" autocomplete="new-password">
+        </label>
+
+        <label class="item-check" style="margin-top: 14px;">
+          <input type="checkbox" id="novo-admin">
+          <span><b>Administrador</b> (acesso irrestrito e gerenciamento de usuários)</span>
+        </label>
+
+        <div id="bloco-novo-relatorios">
+          <label style="margin-top: 14px; margin-bottom: 2px;">Relatórios liberados para esta pessoa:</label>
+          <div class="botoes-atalho">
+            <button type="button" class="btn-link-sm" id="btn-marcar-todos-novo">Marcar todos</button>
+            <button type="button" class="btn-link-sm" id="btn-desmarcar-todos-novo">Desmarcar todos</button>
+          </div>
+          <div class="grade-checks" id="novo-relatorios-lista"></div>
+        </div>
+
+        <div class="msg-modal" id="msg-usuario" hidden></div>
+        <button type="submit" class="btn-primario" id="btn-cadastrar-usuario">Cadastrar usuário</button>
+      </form>
+    </div>
+  </div>
+</dialog>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+const D = JSON.parse(document.getElementById('dados').textContent);
+const $ = id => document.getElementById(id);
+const ICONES = {
+  metas: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  faturamento: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  financeiro: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v.01M17.5 14.5v.01"/>',
+  despesas: '<path d="m3 7 6 6 4-4 8 8"/><path d="M21 11v6h-6"/>',
+  indicadores: '<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>',
+  cesta: '<path d="M3 9h18l-1.8 10.2a1 1 0 0 1-1 .8H5.8a1 1 0 0 1-1-.8z"/><path d="M8 9l3-5M16 9l-3-5M9 13v4M12 13v4M15 13v4"/>',
+  suprimentos: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
+  atendimento: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>',
+};
+const ICONE_PADRAO ='<rect x="4" y="4" width="16" height="16" rx="3"/>';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Informacoes globais
+let MODULOS_DISPONIVEIS = D.todos_modulos || D.modulos || [];
+
+$('titulo').textContent = D.titulo;
+$('usuario-nome').textContent = D.usuario || 'Usuário';
+
+if (D.e_admin) {
+  $('usuario-tag-admin').hidden = false;
+  $('tab-usuarios').hidden = false;
+  $('btn-conta').textContent = 'Conta e Usuários';
+}
+
+// Montagem do menu lateral apenas com os modulos que o usuario tem permissao
+const listaMenu = $('lista');
+if (!D.modulos || D.modulos.length === 0) {
+  listaMenu.innerHTML = '<li class="sem-relatorios">Nenhum relatório liberado</li>';
+  $('btn-exportar-pdf').disabled = true;
+  $('btn-exportar-pdf').title = 'Nenhum relatório disponível para exportação';
+} else {
+  listaMenu.innerHTML = D.modulos.map(m =>
+    `<li><a href="#/${esc(m.id)}" data-id="${esc(m.id)}" title="${esc(m.descricao || '')}">` +
+    `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[m.id] || ICONE_PADRAO}</svg><span>${esc(m.nome)}</span></a></li>`).join('');
+}
+
+// Um iframe por modulo, criado so na primeira visita e mantido (escondido) depois: trocar de pagina
+// fica instantaneo a partir da segunda vez, sem recarregar nem perder a posicao do scroll/filtros.
+const quadroWrap = $('quadro-wrap');
+const barraNav = $('barra-nav');
+const iframes = {};
+
+// Periodo (De/Ate) escolhido num painel: os outros paineis o adotam quando voce abre cada um (so ai se recalculam), e o menu Exportar o usa de partida.
+let PER = null;   // {de, ate} ("AAAA-MM") ou null = cada painel abre no mes mais recente
+const chavePer = () => PER ? `${PER.de}..${PER.ate}` : '';
+const urlPainel = id => `/${id}/` + (PER ? `?de=${PER.de}&ate=${PER.ate}` : '');
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (e.origin !== location.origin || !d || d.tipo !== 'periodo' || !/^\d{4}-\d\d$/.test(d.de) || !/^\d{4}-\d\d$/.test(d.ate)) return;
+  const id = Object.keys(iframes).find(k => iframes[k].contentWindow === e.source);
+  if (!id) return;
+  PER = { de: d.de, ate: d.ate };
+  iframes[id].dataset.per = chavePer();   // este painel ja esta no periodo; os demais ficam para trás ate serem abertos
+});
+
+function abrir() {
+  if (!D.modulos || D.modulos.length === 0) {
+    let f = iframes._vazio;
+    if (!f) {
+      f = document.createElement('iframe');
+      f.title = 'Conteúdo do menu';
+      f.srcdoc = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+        <style>
+          body { display:grid; place-items:center; min-height:100vh; margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--page,#f9f9f7); color:#52514e; text-align:center; padding:24px; box-sizing:border-box; }
+          .caixa { max-width:440px; background:#fff; border:1px solid #e1e0d9; border-radius:12px; padding:36px 28px; box-shadow:0 4px 20px rgba(0,0,0,.04); }
+          h2 { margin:0 0 12px; color:#0b0b0b; font-size:20px; font-weight:650; }
+          p { margin:0; font-size:14.5px; line-height:1.55; }
+        </style></head>
+        <body><div class="caixa"><h2>Sem relatórios liberados</h2><p>Seu usuário (<b>${esc(D.usuario)}</b>) ainda não possui relatórios vinculados.<br><br>Solicite ao administrador a liberação dos relatórios que você precisa acessar.</p></div></body></html>`;
+      iframes._vazio = f;
+      quadroWrap.appendChild(f);
+    }
+    Object.values(iframes).forEach(x => x.classList.remove('ativo'));
+    f.classList.add('ativo');
+    return;
+  }
+  const id = location.hash.replace(/^#\//, '');
+  const m = D.modulos.find(x => x.id === id) || D.modulos[0];
+  document.querySelectorAll('.menu a').forEach(a => {
+    if (a.dataset.id === m.id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  document.title = `${m.nome} · ${D.titulo}`;
+
+  Object.values(iframes).forEach(f => f.classList.remove('ativo'));
+  let f = iframes[m.id];
+  if (!f) {
+    f = document.createElement('iframe');
+    f.title = 'Conteúdo do menu';
+    f.addEventListener('load', () => barraNav.classList.remove('ativa'));
+    iframes[m.id] = f;
+    quadroWrap.appendChild(f);
+    barraNav.classList.add('ativa');
+    f.dataset.per = chavePer();
+    f.setAttribute('src', urlPainel(m.id));
+  } else if ((f.dataset.per || '') !== chavePer()) {   // outro painel mudou o periodo desde que este foi aberto: recalcula so agora
+    f.dataset.per = chavePer();
+    barraNav.classList.add('ativa');
+    try { f.contentWindow.location.replace(urlPainel(m.id)); } catch (e) { f.setAttribute('src', urlPainel(m.id)); }
+  }
+  f.classList.add('ativo');
+}
+window.addEventListener('hashchange', abrir);
+abrir();
+
+// Depois que a pagina atual carregou, prepara os outros modulos em segundo plano (escondidos, um por vez
+// e com intervalo, pra nao travar a pagina), para que o clique no menu seja instantaneo mesmo na primeira troca.
+window.addEventListener('load', () => {
+  const faltam = (D.modulos || []).filter(m => !iframes[m.id]);
+  faltam.forEach((m, i) => {
+    setTimeout(() => {
+      if (iframes[m.id]) return;   // ja visitado manualmente nesse meio tempo
+      const f = document.createElement('iframe');
+      f.title = 'Conteúdo do menu';
+      iframes[m.id] = f;
+      quadroWrap.appendChild(f);
+      f.dataset.per = chavePer();
+      f.setAttribute('src', urlPainel(m.id));
+    }, 1500 + i * 1500);
+  });
+});
+
+// Toast helper
+let toastTimer = null;
+function mostrarToast(msg, tipo = '', duracao = 4500) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = tipo;
+  t.style.display = 'flex';
+  clearTimeout(toastTimer);
+  if (duracao > 0) {
+    toastTimer = setTimeout(() => { t.style.display = 'none'; }, duracao);
+  }
+}
+
+if (D.trocar_senha) {   // a senha padrao esta escrita no programa: qualquer um que a conheca entraria
+  mostrarToast('Você ainda está com a senha padrão. Troque agora em Conta › Minha Senha.', 'erro', 15000);
+}
+
+// Menu Exportar / Imprimir: baixa em PDF ou imprime; tudo junto, um por um, por responsavel ou os que o usuario marcar
+const btnPdf = $('btn-exportar-pdf');
+const modalExp = $('modal-exportar');
+const SEL = new Set();       // indices das linhas marcadas
+let LINHAS = [];             // {rotulo, sub, itens: [{modulo, visao}], nivel}
+let exportando = false;
+
+// Periodo do PDF: um unico De/Ate vale para tudo que for baixado ou impresso. O servidor oferece os meses (do primeiro de qualquer painel ao atual).
+const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const rotuloMes = ym => `${NOMES_MES[+ym.slice(5) - 1]}/${ym.slice(0, 4)}`;
+const dataBR = iso => iso.split('-').reverse().join('/');
+let MESES_EXP = [];   // ["2026-06", ..., "2026-10"], do mais antigo ao atual
+function textoPeriodoExp() {
+  const de = $('exp-de').value, ate = $('exp-ate').value;
+  if (!de || !ate) { $('exp-per-txt').textContent = ''; return; }
+  const ultimo = new Date(+ate.slice(0, 4), +ate.slice(5), 0).getDate(), fimMes = `${ate}-${String(ultimo).padStart(2, '0')}`;
+  const hoje = new Date(), hojeIso = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+  const parcial = hojeIso >= `${de}-01` && hojeIso < fimMes, fim = parcial ? hojeIso : fimMes;
+  $('exp-per-txt').innerHTML = `O PDF mostrará o período <b>de ${dataBR(de + '-01')} a ${dataBR(fim)}</b>` + (parcial ? ' <small>(o último mês ainda não terminou: só há dados até hoje)</small>' : '') +
+    '. <small>Cada painel mostra o que tem de dados dentro dele.</small>';
+}
+function escolherPeriodoExp(de, ate) {
+  $('exp-de').value = de; $('exp-ate').value = ate;
+  textoPeriodoExp();
+}
+async function prepararPeriodoExp() {
+  if (!MESES_EXP.length) {
+    try {
+      const j = await (await fetch('/periodos', { cache: 'no-store' })).json();
+      MESES_EXP = (j.meses || []).map(m => m.ym);
+    } catch (e) {}
+    if (!MESES_EXP.length) { const h = new Date(); MESES_EXP = [`${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`]; }
+    const opcoes = [...MESES_EXP].reverse().map(m => `<option value="${m}">${esc(rotuloMes(m))}</option>`).join('');
+    $('exp-de').innerHTML = $('exp-ate').innerHTML = opcoes;
+  }
+  const ult = MESES_EXP[MESES_EXP.length - 1];
+  const dentro = m => MESES_EXP.includes(m);
+  // parte do periodo que o usuario ja escolheu nos paineis; senao, o mes mais recente (o que os paineis mostram ao abrir)
+  escolherPeriodoExp(PER && dentro(PER.de) ? PER.de : ult, PER && dentro(PER.ate) ? PER.ate : ult);
+}
+function atalhoPeriodoExp(nome) {
+  const n = MESES_EXP.length, ult = MESES_EXP[n - 1];
+  if (nome === 'atual') escolherPeriodoExp(ult, ult);
+  else if (nome === 'anterior') escolherPeriodoExp(MESES_EXP[Math.max(n - 2, 0)], MESES_EXP[Math.max(n - 2, 0)]);
+  else if (nome === 'tres') escolherPeriodoExp(MESES_EXP[Math.max(n - 3, 0)], ult);
+  else escolherPeriodoExp(MESES_EXP[0], ult);
+}
+$('exp-de').addEventListener('change', () => { if ($('exp-de').value > $('exp-ate').value) $('exp-ate').value = $('exp-de').value; textoPeriodoExp(); });
+$('exp-ate').addEventListener('change', () => { if ($('exp-ate').value < $('exp-de').value) $('exp-de').value = $('exp-ate').value; textoPeriodoExp(); });
+document.querySelector('.exp-atalhos').addEventListener('click', e => { const b = e.target.closest('[data-atalho]'); if (b) atalhoPeriodoExp(b.dataset.atalho); });
+
+function montarLinhas() {
+  const L = [];
+  const ms = D.modulos || [];
+  L.push({ secao: 'Tudo junto' });
+  L.push({ rotulo: 'Todos os relatórios', sub: 'Um único PDF com todos os painéis liberados' + (ms.some(m => (m.visoes || []).length) ? ' (e o Atendimento de cada responsável)' : ''), itens: null });
+  L.push({ secao: 'Um por um' });
+  ms.forEach(m => {
+    const vs = m.visoes || [];
+    if (!vs.length) { L.push({ rotulo: m.nome, sub: m.descricao || '', itens: [{ modulo: m.id, visao: '' }] }); return; }
+    L.push({ rotulo: `${m.nome}: geral`, sub: 'Clínica inteira, todos os responsáveis', itens: [{ modulo: m.id, visao: '' }] });
+    vs.forEach(v => L.push({ rotulo: `${m.nome}: ${v.nome}`, sub: v.area || '', itens: [{ modulo: m.id, visao: v.id }], nivel: 1 }));
+    L.push({ rotulo: `${m.nome}: geral + cada responsável`, sub: 'Um PDF com a visão geral e uma seção por pessoa', itens: [{ modulo: m.id, visao: '' }, ...vs.map(v => ({ modulo: m.id, visao: v.id }))], nivel: 1 });
+  });
+  return L;
+}
+
+function desenharMenu() {
+  LINHAS = montarLinhas();
+  $('exp-lista').innerHTML = LINHAS.map((l, i) => l.secao
+    ? `<div class="exp-titulo">${esc(l.secao)}</div>`
+    : `<div class="exp-linha${l.nivel ? ' filho' : ''}">` +
+      (l.itens ? `<input type="checkbox" data-i="${i}" aria-label="Marcar ${esc(l.rotulo)}">` : '') +
+      `<div class="exp-nome">${esc(l.rotulo)}${l.sub ? `<small>${esc(l.sub)}</small>` : ''}</div>` +
+      `<button type="button" class="exp-btn" data-acao="baixar" data-i="${i}">Baixar PDF</button>` +
+      `<button type="button" class="exp-btn" data-acao="imprimir" data-i="${i}">Imprimir</button></div>`).join('');
+  SEL.clear();
+  atualizarSelecao();
+}
+
+function atualizarSelecao() {
+  $('exp-contagem').textContent = SEL.size ? `${SEL.size} marcado${SEL.size > 1 ? 's' : ''}` : 'Nenhum marcado';
+  $('exp-sel-baixar').disabled = $('exp-sel-imprimir').disabled = !SEL.size;
+}
+
+function itensMarcados() {
+  const out = [];
+  [...SEL].sort((a, b) => a - b).forEach(i => LINHAS[i].itens.forEach(it => {
+    if (!out.some(o => o.modulo === it.modulo && o.visao === it.visao)) out.push(it);
+  }));
+  return out;
+}
+
+// Impressao: o PDF pronto entra num quadro escondido e o navegador abre a janela de impressao; se nao deixar, abre o PDF numa aba.
+function imprimirPdf(blob) {
+  const url = URL.createObjectURL(blob);
+  const q = document.createElement('iframe');
+  q.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  let feito = false;
+  const abrirAba = () => { if (!feito) { feito = true; window.open(url, '_blank'); } };
+  q.addEventListener('load', () => {
+    setTimeout(() => {
+      try { q.contentWindow.focus(); q.contentWindow.print(); feito = true; } catch (e) { abrirAba(); }
+    }, 400);
+  });
+  q.src = url;
+  document.body.appendChild(q);
+  setTimeout(() => { q.remove(); URL.revokeObjectURL(url); }, 10 * 60 * 1000);
+}
+
+async function exportar(itens, acao) {
+  if (exportando) return;
+  exportando = true;
+  modalExp.classList.add('ocupado');
+  btnPdf.disabled = true;
+  btnPdf.classList.add('girando');
+  const txt = $('txt-exportar');
+  txt.textContent = 'Gerando PDF…';
+  mostrarToast('Gerando o PDF… Aguarde alguns instantes.', 'info', 0);
+  try {
+    const resp = await fetch('/exportar-pdf', {
+      method: 'POST',
+      headers: { 'X-Painel': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...(itens ? { itens } : {}), de: $('exp-de').value, ate: $('exp-ate').value })
+    });
+    if (!resp.ok) {
+      let erro = 'Não foi possível gerar o PDF.';
+      try {
+        const j = await resp.json();
+        if (j.mensagem) erro = j.mensagem;
+      } catch (e) {}
+      mostrarToast(erro, 'erro', 6000);
+      return;
+    }
+    const blob = await resp.blob();
+    if (acao === 'imprimir') {
+      imprimirPdf(blob);
+    } else {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const disp = resp.headers.get('Content-Disposition') || '';
+      const match = disp.match(/filename="?([^"]+)"?/);
+      const dataIso = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      a.download = match ? match[1] : `Relatorios_CSI_${dataIso}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    }
+    const avisos = decodeURIComponent(resp.headers.get('X-Avisos') || '');
+    if (avisos) mostrarToast((acao === 'imprimir' ? 'Pronto para imprimir' : 'PDF gerado') + ', mas ficaram de fora: ' + avisos, 'erro', 12000);
+    else mostrarToast(acao === 'imprimir' ? 'PDF pronto: escolha a impressora na janela que abriu.' : 'PDF exportado com sucesso!', 'ok', 5000);
+    modalExp.close();
+  } catch (e) {
+    mostrarToast('Erro de conexão ao gerar o PDF. O portal ainda está em execução?', 'erro', 6000);
+  } finally {
+    exportando = false;
+    modalExp.classList.remove('ocupado');
+    btnPdf.disabled = false;
+    btnPdf.classList.remove('girando');
+    txt.textContent = 'Exportar / Imprimir';
+  }
+}
+
+btnPdf.addEventListener('click', () => { desenharMenu(); modalExp.showModal(); prepararPeriodoExp(); });
+$('exp-fechar').addEventListener('click', () => modalExp.close());
+modalExp.addEventListener('click', e => { if (e.target === modalExp) modalExp.close(); });
+$('exp-lista').addEventListener('click', e => {
+  const b = e.target.closest('button[data-acao]');
+  if (b) exportar(LINHAS[+b.dataset.i].itens, b.dataset.acao);
+});
+$('exp-lista').addEventListener('change', e => {
+  const c = e.target.closest('input[data-i]');
+  if (!c) return;
+  if (c.checked) SEL.add(+c.dataset.i); else SEL.delete(+c.dataset.i);
+  atualizarSelecao();
+});
+$('exp-sel-baixar').addEventListener('click', () => exportar(itensMarcados(), 'baixar'));
+$('exp-sel-imprimir').addEventListener('click', () => exportar(itensMarcados(), 'imprimir'));
+// Modal Conta e Usuarios
+const modal = $('modal-conta');
+$('btn-conta').addEventListener('click', () => {
+  modal.showModal();
+  if (D.e_admin) carregarUsuarios();
+});
+$('modal-fechar').addEventListener('click', () => modal.close());
+modal.addEventListener('click', e => { if (e.target === modal) modal.close(); });
+
+// Alternar abas do modal
+document.querySelectorAll('.aba-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.aba-btn').forEach(b => b.classList.remove('ativa'));
+    btn.classList.add('ativa');
+    const aba = btn.dataset.aba;
+    $('painel-minha-senha').hidden = aba !== 'minha-senha';
+    $('painel-usuarios').hidden = aba !== 'usuarios';
+  });
+});
+
+function msgModal(elId, texto, ok) {
+  const el = $(elId);
+  el.textContent = texto || '';
+  el.className = 'msg-modal ' + (ok ? 'ok' : 'erro');
+  el.hidden = !texto;
+}
+
+// Form Trocar Senha
+$('form-trocar-senha').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  msgModal('msg-senha', '');
+  const atual = $('senha-atual').value;
+  const nova = $('senha-nova').value;
+  const nova2 = $('senha-nova2').value;
+  if (nova !== nova2) return msgModal('msg-senha', 'A nova senha repetida não confere.', false);
+  $('btn-salvar-senha').disabled = true;
+  try {
+    const r = await fetch('/conta/trocar-senha', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Painel': '1' },
+      body: JSON.stringify({ atual, nova })
+    });
+    const j = await r.json();
+    msgModal('msg-senha', j.mensagem, j.ok);
+    if (j.ok) {
+      $('senha-atual').value = '';
+      $('senha-nova').value = '';
+      $('senha-nova2').value = '';
+    }
+  } catch (e) {
+    msgModal('msg-senha', 'Erro ao alterar senha. Tente novamente.', false);
+  }
+  $('btn-salvar-senha').disabled = false;
+});
+
+// Renderizar checkboxes de relatorios para Novo Usuario
+function renderizarChecksNovoUsuario() {
+  const container = $('novo-relatorios-lista');
+  container.innerHTML = MODULOS_DISPONIVEIS.map(m => `
+    <label class="item-check" id="lbl-novo-${esc(m.id)}">
+      <input type="checkbox" name="relatorio" value="${esc(m.id)}" class="novo-rel-check" checked>
+      <span>${esc(m.nome)}</span>
+    </label>
+  `).join('');
+}
+
+// Admin toggle no Novo Usuario
+$('novo-admin').addEventListener('change', ev => {
+  const isAdmin = ev.target.checked;
+  const checks = document.querySelectorAll('.novo-rel-check');
+  checks.forEach(c => {
+    if (isAdmin) c.checked = true;
+    c.disabled = isAdmin;
+    c.closest('.item-check').classList.toggle('desativado', isAdmin);
+  });
+});
+
+$('btn-marcar-todos-novo').addEventListener('click', () => {
+  if ($('novo-admin').checked) return;
+  document.querySelectorAll('.novo-rel-check').forEach(c => { c.checked = true; });
+});
+$('btn-desmarcar-todos-novo').addEventListener('click', () => {
+  if ($('novo-admin').checked) return;
+  document.querySelectorAll('.novo-rel-check').forEach(c => { c.checked = false; });
+});
+
+// Listar e Gerenciar Usuarios
+async function carregarUsuarios() {
+  const lista = $('lista-usuarios');
+  lista.innerHTML = '<li class="card-usuario">Carregando usuários…</li>';
+  try {
+    const r = await fetch('/conta/usuarios');
+    const j = await r.json();
+    if (!j.ok) {
+      lista.innerHTML = '<li class="card-usuario">Não foi possível carregar os usuários.</li>';
+      return;
+    }
+    if (j.modulos && j.modulos.length) {
+      MODULOS_DISPONIVEIS = j.modulos;
+    }
+    renderizarChecksNovoUsuario();
+    renderizarPedidos(j.pedidos || []);
+
+    const mapaModulos = {};
+    MODULOS_DISPONIVEIS.forEach(m => { mapaModulos[m.id] = m.nome; });
+
+    lista.innerHTML = j.usuarios.map(u => {
+      const eAtual = u.usuario.toLowerCase() === (j.atual || '').toLowerCase();
+      const eMaster = !!u.master;
+      const isAdmin = !!u.admin;
+      const rels = u.relatorios || [];
+      const temTodos = isAdmin || rels.includes('*');
+
+      let badgesRelatorios = '';
+      if (temTodos) {
+        badgesRelatorios = '<span class="badge-rep badge-admin-rep">Acesso a todos os relatórios' + (isAdmin ? ' (Admin)' : '') + '</span>';
+      } else if (rels.length === 0) {
+        badgesRelatorios = '<span class="badge-rep badge-vazio">Nenhum relatório liberado</span>';
+      } else {
+        badgesRelatorios = rels.map(rid => `<span class="badge-rep">${esc(mapaModulos[rid] || rid)}</span>`).join('');
+      }
+
+      return `
+        <li class="card-usuario" id="card-${esc(u.usuario)}">
+          <div class="card-usuario-topo">
+            <div class="card-usuario-info">
+              <span>${esc(u.usuario)}</span>
+              ${isAdmin ? '<span class="tag-admin">Admin</span>' : ''}
+              ${eAtual ? '<span class="tag-atual">Você</span>' : ''}
+            </div>
+            <div class="card-usuario-acoes">
+              <button type="button" class="btn-acao btn-editar" data-u="${esc(u.usuario)}">Editar Permissões</button>
+              ${eMaster || eAtual ? '' : `<button type="button" class="btn-acao btn-remover" data-u="${esc(u.usuario)}">Remover</button>`}
+            </div>
+          </div>
+          <div class="lista-badges-rep">${badgesRelatorios}</div>
+          <div class="painel-edicao" id="edit-${esc(u.usuario)}" hidden></div>
+        </li>
+      `;
+    }).join('');
+
+    // Eventos dos botoes Editar e Remover
+    lista.querySelectorAll('.btn-editar').forEach(btn => {
+      btn.addEventListener('click', () => toggleEditorUsuario(btn.dataset.u, j.usuarios.find(x => x.usuario === btn.dataset.u)));
+    });
+
+    lista.querySelectorAll('.btn-remover').forEach(btn => {
+      btn.addEventListener('click', () => removerUsuario(btn.dataset.u));
+    });
+
+  } catch (e) {
+    lista.innerHTML = '<li class="card-usuario">Erro ao carregar lista de usuários.</li>';
+  }
+}
+
+// Pedidos de cadastro: o administrador escolhe as permissoes e aprova (ou recusa)
+function renderizarPedidos(pedidos) {
+  $('bloco-pedidos').hidden = pedidos.length === 0;
+  $('qtd-pedidos').textContent = pedidos.length;
+  $('lista-pedidos').innerHTML = pedidos.map((p, i) => `
+    <li class="card-usuario" data-i="${i}">
+      <div class="card-usuario-topo">
+        <div class="card-usuario-info"><span>${esc(p.usuario)}</span></div>
+        <span class="tag-atual">${esc((p.solicitado_em || '').replace('T', ' ').slice(0, 16))}</span>
+      </div>
+      ${p.mensagem ? `<div class="desc" style="margin:0">“${esc(p.mensagem)}”</div>` : ''}
+      <label class="item-check"><input type="checkbox" class="ped-admin"><span><b>Administrador</b> (acesso total e gestão de usuários)</span></label>
+      <div class="grade-checks">
+        ${MODULOS_DISPONIVEIS.map(m => `<label class="item-check"><input type="checkbox" class="ped-rel" value="${esc(m.id)}"><span>${esc(m.nome)}</span></label>`).join('')}
+      </div>
+      <div class="msg-modal" hidden></div>
+      <div class="botoes-edicao">
+        <button type="button" class="btn-acao btn-remover ped-recusar">Recusar</button>
+        <button type="button" class="btn-sm-primario ped-aprovar">Aprovar</button>
+      </div>
+    </li>`).join('');
+  $('lista-pedidos').querySelectorAll('li').forEach((li, i) => {
+    const nome = pedidos[i].usuario, msg = li.querySelector('.msg-modal');
+    const adm = li.querySelector('.ped-admin'), checks = li.querySelectorAll('.ped-rel');
+    adm.addEventListener('change', () => checks.forEach(c => {
+      if (adm.checked) c.checked = true;
+      c.disabled = adm.checked;
+      c.closest('.item-check').classList.toggle('desativado', adm.checked);
+    }));
+    const enviar = async (rota, corpo, botao) => {
+      botao.disabled = true;
+      try {
+        const r = await fetch(rota, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Painel': '1' }, body: JSON.stringify({ usuario: nome, ...corpo }) });
+        const j = await r.json();
+        if (j.ok) return carregarUsuarios();
+        msg.textContent = j.mensagem || 'Não consegui concluir.'; msg.className = 'msg-modal erro'; msg.hidden = false;
+      } catch (e) { msg.textContent = 'Erro de comunicação com o portal.'; msg.className = 'msg-modal erro'; msg.hidden = false; }
+      botao.disabled = false;
+    };
+    li.querySelector('.ped-aprovar').addEventListener('click', ev => {
+      const rels = adm.checked ? ['*'] : Array.from(checks).filter(c => c.checked).map(c => c.value);
+      if (!adm.checked && !rels.length && !confirm(`Aprovar "${nome}" sem nenhum relatório liberado? A pessoa entra, mas não vê nada.`)) return;
+      enviar('/conta/aprovar-pedido', { admin: adm.checked, relatorios: rels }, ev.currentTarget);
+    });
+    li.querySelector('.ped-recusar').addEventListener('click', ev => {
+      if (confirm(`Recusar o pedido de "${nome}"?`)) enviar('/conta/recusar-pedido', {}, ev.currentTarget);
+    });
+  });
+}
+
+function toggleEditorUsuario(nome, usuarioObj) {
+  const painel = $(`edit-${nome}`);
+  if (!painel) return;
+  if (!painel.hidden) {
+    painel.hidden = true;
+    painel.innerHTML = '';
+    return;
+  }
+
+  const isAdmin = !!usuarioObj.admin;
+  const eMaster = !!usuarioObj.master;
+  const rels = usuarioObj.relatorios || [];
+
+  painel.innerHTML = `
+    <div style="font-weight:650; color:var(--ink); font-size:13.5px;">Editar permissões de "${esc(nome)}"</div>
+    <label class="item-check">
+      <input type="checkbox" id="check-admin-${esc(nome)}" ${isAdmin ? 'checked' : ''} ${eMaster ? 'disabled' : ''}>
+      <span><b>Administrador</b> (acesso total aos relatórios e gestão de usuários)</span>
+    </label>
+    <div>
+      <label style="margin-top:8px; margin-bottom:2px;">Relatórios que esta pessoa pode ver:</label>
+      <div class="botoes-atalho">
+        <button type="button" class="btn-link-sm" id="btn-marca-edit-${esc(nome)}">Marcar todos</button>
+        <button type="button" class="btn-link-sm" id="btn-desmarca-edit-${esc(nome)}">Desmarcar todos</button>
+      </div>
+      <div class="grade-checks" id="grade-edit-${esc(nome)}">
+        ${MODULOS_DISPONIVEIS.map(m => {
+          const marcado = isAdmin || rels.includes('*') || rels.includes(m.id);
+          return `
+            <label class="item-check ${isAdmin ? 'desativado' : ''}">
+              <input type="checkbox" value="${esc(m.id)}" class="check-rel-edit" ${marcado ? 'checked' : ''} ${isAdmin ? 'disabled' : ''}>
+              <span>${esc(m.nome)}</span>
+            </label>
+          `;
+        }).join('')}
+      </div>
+    </div>
+    <label style="margin-top:6px;">Redefinir senha (opcional)
+      <input type="password" id="input-senha-edit-${esc(nome)}" placeholder="Deixe em branco para não alterar" minlength="6" autocomplete="new-password">
+    </label>
+    <div class="msg-modal" id="msg-edit-${esc(nome)}" hidden></div>
+    <div class="botoes-edicao">
+      <button type="button" class="btn-secundario" id="btn-cancela-edit-${esc(nome)}">Cancelar</button>
+      <button type="button" class="btn-sm-primario" id="btn-salva-edit-${esc(nome)}">Salvar Alterações</button>
+    </div>
+  `;
+  painel.hidden = false;
+
+  const adminCheck = $(`check-admin-${nome}`);
+  const gradeEdit = $(`grade-edit-${nome}`);
+
+  adminCheck.addEventListener('change', ev => {
+    const marcado = ev.target.checked;
+    gradeEdit.querySelectorAll('.check-rel-edit').forEach(c => {
+      if (marcado) c.checked = true;
+      c.disabled = marcado;
+      c.closest('.item-check').classList.toggle('desativado', marcado);
+    });
+  });
+
+  $(`btn-marca-edit-${nome}`).addEventListener('click', () => {
+    if (adminCheck.checked) return;
+    gradeEdit.querySelectorAll('.check-rel-edit').forEach(c => { c.checked = true; });
+  });
+
+  $(`btn-desmarca-edit-${nome}`).addEventListener('click', () => {
+    if (adminCheck.checked) return;
+    gradeEdit.querySelectorAll('.check-rel-edit').forEach(c => { c.checked = false; });
+  });
+
+  $(`btn-cancela-edit-${nome}`).addEventListener('click', () => {
+    painel.hidden = true;
+    painel.innerHTML = '';
+  });
+
+  $(`btn-salva-edit-${nome}`).addEventListener('click', async () => {
+    const btnSalvar = $(`btn-salva-edit-${nome}`);
+    const msgElId = `msg-edit-${nome}`;
+    msgModal(msgElId, '');
+
+    const novoAdmin = adminCheck.checked;
+    const relsSelecionados = novoAdmin
+      ? ['*']
+      : Array.from(gradeEdit.querySelectorAll('.check-rel-edit:checked')).map(c => c.value);
+
+    const novaSenha = $(`input-senha-edit-${nome}`).value;
+    if (novaSenha && novaSenha.length < 6) {
+      return msgModal(msgElId, 'A nova senha precisa ter pelo menos 6 caracteres.', false);
+    }
+
+    btnSalvar.disabled = true;
+    try {
+      const r = await fetch('/conta/editar-usuario', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Painel': '1' },
+        body: JSON.stringify({
+          usuario: nome,
+          admin: novoAdmin,
+          relatorios: relsSelecionados,
+          nova_senha: novaSenha || undefined
+        })
+      });
+      const j = await r.json();
+      if (j.ok) {
+        mostrarToast(j.mensagem, 'ok');
+        carregarUsuarios();
+      } else {
+        msgModal(msgElId, j.mensagem || 'Erro ao salvar alterações.', false);
+        btnSalvar.disabled = false;
+      }
+    } catch (e) {
+      msgModal(msgElId, 'Erro de comunicação ao salvar.', false);
+      btnSalvar.disabled = false;
+    }
+  });
+}
+
+async function removerUsuario(usuario) {
+  if (!confirm(`Deseja realmente remover o usuário "${usuario}"?`)) return;
+  try {
+    const r = await fetch('/conta/remover-usuario', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Painel': '1' },
+      body: JSON.stringify({ usuario })
+    });
+    const j = await r.json();
+    if (j.ok) {
+      mostrarToast(`Usuário "${usuario}" removido.`, 'ok');
+      carregarUsuarios();
+    } else {
+      alert(j.mensagem || 'Não foi possível remover.');
+    }
+  } catch (e) {
+    alert('Erro ao tentar remover usuário.');
+  }
+}
+
+// Form Novo Usuario
+$('form-novo-usuario').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  msgModal('msg-usuario', '');
+  const usuario = $('novo-usuario').value.trim();
+  const senha = $('novo-senha').value;
+  const isAdmin = $('novo-admin').checked;
+  const relatorios = isAdmin
+    ? ['*']
+    : Array.from(document.querySelectorAll('.novo-rel-check:checked')).map(c => c.value);
+
+  $('btn-cadastrar-usuario').disabled = true;
+  try {
+    const r = await fetch('/conta/adicionar-usuario', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Painel': '1' },
+      body: JSON.stringify({ usuario, senha, admin: isAdmin, relatorios })
+    });
+    const j = await r.json();
+    msgModal('msg-usuario', j.mensagem, j.ok);
+    if (j.ok) {
+      $('novo-usuario').value = '';
+      $('novo-senha').value = '';
+      $('novo-admin').checked = false;
+      $('novo-admin').dispatchEvent(new Event('change'));
+      document.querySelectorAll('.novo-rel-check').forEach(c => { c.checked = true; });
+      carregarUsuarios();
+    }
+  } catch (e) {
+    msgModal('msg-usuario', 'Erro ao cadastrar usuário.', false);
+  }
+  $('btn-cadastrar-usuario').disabled = false;
+});
+</script>
+</body>
+</html>

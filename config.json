@@ -1,0 +1,6 @@
+{
+  "banco_dados": "portal_csi.db",
+  "intervalo_minimo_minutos": 30,
+  "verificacao_automatica_minutos": 30,
+  "_ajuda": "banco_dados: local do arquivo de banco de dados SQLite (relativo a pasta do portal ou caminho absoluto). intervalo_minimo_minutos: se a planilha foi atualizada ha menos que isso, nao consulta o Klingo de novo. verificacao_automatica_minutos: tempo em minutos para conferencia automatica dos paineis."
+}

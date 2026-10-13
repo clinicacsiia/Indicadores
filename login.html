@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar · Indicadores CSI</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --base: #c3c2b7; --border: rgba(11,11,11,.10);
+    --accent: #2a78d6; --crit: #d03b3b; --on-accent: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --base: #383835; --border: rgba(255,255,255,.10);
+      --accent: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 16px;
+    background: var(--page); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .caixa { width: min(100%, 380px); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px 24px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.01em; }
+  .sub { margin: 4px 0 20px; color: var(--ink2); font-size: 14px; }
+  [hidden] { display: none !important; }
+  label { display: block; font-size: 14px; font-weight: 600; color: var(--ink2); margin-top: 14px; }
+  input {
+    display: block; width: 100%; margin-top: 6px; font: inherit; color: var(--ink); background: var(--page);
+    border: 1px solid var(--base); border-radius: 8px; padding: 10px 12px;
+  }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button {
+    width: 100%; margin-top: 22px; font: inherit; font-weight: 650; color: var(--on-accent); background: var(--accent);
+    border: 0; border-radius: 8px; padding: 11px 14px; cursor: pointer;
+  }
+  button:disabled { opacity: .6; cursor: wait; }
+  .erro { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; font-size: 14px; background: var(--page);
+    border: 1px solid var(--border); border-left: 4px solid var(--crit); color: var(--ink); }
+  .nota { margin: 16px 0 0; font-size: 13px; color: var(--muted); }
+  .ok { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; font-size: 14px; background: var(--page);
+    border: 1px solid var(--border); border-left: 4px solid var(--accent); color: var(--ink); }
+  button.link { width: auto; margin: 16px 0 0; padding: 0; background: none; color: var(--accent); font-weight: 600;
+    font-size: 14px; text-decoration: underline; }
+</style>
+</head>
+<body>
+<main class="caixa">
+  <h1 id="titulo"></h1>
+  <p class="sub" id="sub"></p>
+  <form id="form" autocomplete="on">
+    <label for="usuario">Usuário
+      <input id="usuario" name="usuario" type="text" autocomplete="username" placeholder="seu usuário" required minlength="3" maxlength="40" autofocus>
+    </label>
+    <label for="senha">Senha
+      <input id="senha" name="senha" type="password" placeholder="••••••••" required minlength="1" maxlength="200">
+    </label>
+    <label for="senha2" id="rot-senha2" hidden>Repita a senha
+      <input id="senha2" name="senha2" type="password" maxlength="200">
+    </label>
+    <label for="mensagem" id="rot-mensagem" hidden>Setor ou motivo do pedido (opcional)
+      <input id="mensagem" name="mensagem" type="text" maxlength="200" placeholder="ex.: Faturamento — preciso ver o painel de Metas">
+    </label>
+    <div class="erro" id="erro" role="alert" hidden></div>
+    <div class="ok" id="ok" role="status" hidden></div>
+    <button type="submit" id="botao"></button>
+  </form>
+  <button type="button" class="link" id="alternar" hidden></button>
+  <p class="nota" id="nota"></p>
+</main>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+if (window.top !== window) window.top.location = '/login';   // a sessao venceu dentro do portal: sai do quadro
+
+const D = JSON.parse(document.getElementById('dados').textContent);
+const $ = id => document.getElementById(id);
+const primeiro = D.primeiro_acesso;
+let pedido = false;   // true = a tela esta no modo "solicitar cadastro"
+
+function erro(msg) { $('erro').textContent = msg || ''; $('erro').hidden = !msg; }
+function aviso(msg) { $('ok').textContent = msg || ''; $('ok').hidden = !msg; }
+
+function desenhar() {
+  const criar = primeiro || pedido;   // pede a senha duas vezes
+  $('titulo').textContent = primeiro ? 'Primeiro acesso' : pedido ? 'Solicitar cadastro' : D.titulo;
+  $('sub').textContent = primeiro ? 'Ainda não há nenhum usuário. Crie o primeiro para proteger os dados do portal.'
+    : pedido ? 'Escolha um usuário e uma senha. Você só entra depois que o administrador aprovar e liberar os relatórios.'
+    : 'Entre com seu usuário e senha para ver os painéis.';
+  $('botao').textContent = primeiro ? 'Criar usuário e entrar' : pedido ? 'Enviar pedido' : 'Entrar';
+  $('senha').autocomplete = criar ? 'new-password' : 'current-password';
+  $('senha').minLength = criar ? 6 : 1;
+  $('rot-senha2').hidden = !criar; $('senha2').required = criar; $('senha2').minLength = 6; $('senha2').autocomplete = 'new-password';
+  $('rot-mensagem').hidden = !pedido;
+  $('alternar').hidden = primeiro;
+  $('alternar').textContent = pedido ? 'Voltar para o login' : 'Solicitar cadastro';
+  $('nota').textContent = primeiro
+    ? 'A senha precisa ter pelo menos 6 caracteres. Depois, dentro do portal, em “Conta e usuários”, dá para trocar a senha e cadastrar mais pessoas.'
+    : pedido ? 'A senha precisa ter pelo menos 6 caracteres.' : '';
+  erro(''); aviso('');
+}
+desenhar();
+
+$('alternar').addEventListener('click', () => {
+  pedido = !pedido;
+  $('senha').value = ''; $('senha2').value = ''; $('mensagem').value = '';
+  desenhar();
+  $('usuario').focus();
+});
+
+$('form').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  erro(''); aviso('');
+  if ((primeiro || pedido) && $('senha').value !== $('senha2').value) return erro('As duas senhas não são iguais.');
+  $('botao').disabled = true;
+  try {
+    const r = await fetch(primeiro ? '/login/criar' : pedido ? '/login/solicitar' : '/login', {
+      method: 'POST', headers: { 'X-Painel': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: $('usuario').value, senha: $('senha').value, mensagem: $('mensagem').value }),
+    });
+    const j = await r.json();
+    if (j.ok && pedido) {   // pedido enviado: nao entra; volta para o login com o aviso
+      pedido = false; desenhar(); aviso(j.mensagem);
+      $('senha').value = ''; $('senha2').value = ''; $('mensagem').value = '';
+      $('botao').disabled = false; return;
+    }
+    if (j.ok) { location.replace('/'); return; }
+    erro(j.mensagem || (pedido ? 'Não consegui enviar o pedido.' : 'Não consegui entrar.'));
+    $('senha').value = ''; $('senha2').value = ''; $('senha').focus();
+  } catch (e) {
+    erro('Não consegui falar com o servidor do portal. O computador dele está ligado e o Indicadores CSI Servidor está aberto? Se continuar, avise quem cuida do portal.');
+  }
+  $('botao').disabled = false;
+});</script>
+</body>
+</html>
