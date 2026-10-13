@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconConfig, IconRelatorios } from "./icons";
+import { IconConfig, IconMetas, IconRelatorios } from "./icons";
 
 export function NavLinks({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
 
   const links = [
     { href: "/", rotulo: "Relatórios", icone: <IconRelatorios />, ativo: pathname === "/" },
+    { href: "/metas", rotulo: "Metas", icone: <IconMetas />, ativo: pathname.startsWith("/metas") },
     ...(isAdmin
       ? [
           {

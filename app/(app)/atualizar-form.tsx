@@ -7,11 +7,13 @@ export type RelatorioOpcao = { klingo_id: string; nome: string; ativo: boolean }
 
 export function AtualizarForm({
   relatorios,
+  relatorioPadrao = "13397",
   de,
   ate,
   max,
 }: {
   relatorios: RelatorioOpcao[];
+  relatorioPadrao?: string;
   de: string;
   ate: string;
   max: string;
@@ -24,7 +26,7 @@ export function AtualizarForm({
         <label className="field-label" htmlFor="atualizar-relatorio">
           Relatório
         </label>
-        <select id="atualizar-relatorio" className="select" name="relatorio" defaultValue="13397" disabled={pendente}>
+        <select id="atualizar-relatorio" className="select" name="relatorio" defaultValue={relatorioPadrao} disabled={pendente}>
           {relatorios.map((r) => (
             <option key={r.klingo_id} value={r.klingo_id}>
               {r.nome} (#{r.klingo_id}){r.ativo ? "" : " — inativo"}

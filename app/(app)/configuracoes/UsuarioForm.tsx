@@ -9,6 +9,7 @@ type Props = {
   email: string;
   role: "admin" | "viewer";
   veRelatorios: boolean;
+  veMetas: boolean;
   ehVoce: boolean;
 };
 
@@ -24,7 +25,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veRelatorios, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veRelatorios, veMetas, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -74,6 +75,15 @@ export function UsuarioForm({ id, email, role, veRelatorios, ehVoce }: Props) {
             <span className="switch-track" aria-hidden="true" />
             <span className="switch-text">
               Pode ver Relatórios
+              {papel === "admin" && <span className="switch-hint">Administradores sempre têm acesso</span>}
+            </span>
+          </label>
+
+          <label className="switch">
+            <input type="checkbox" name="metas" defaultChecked={veMetas} />
+            <span className="switch-track" aria-hidden="true" />
+            <span className="switch-text">
+              Pode ver Metas
               {papel === "admin" && <span className="switch-hint">Administradores sempre têm acesso</span>}
             </span>
           </label>

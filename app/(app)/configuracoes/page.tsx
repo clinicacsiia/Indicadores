@@ -35,7 +35,7 @@ export default async function ConfiguracoesPage() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Configurações</h1>
           <p className="page-lede">
-            Defina quem é administrador e quem pode ver os Relatórios. Cada usuário é salvo separadamente.
+            Defina quem é administrador e quem pode ver os Relatórios e as Metas. Cada usuário é salvo separadamente.
           </p>
         </div>
       </header>
@@ -74,6 +74,7 @@ export default async function ConfiguracoesPage() {
                 email={usuario.email ?? ""}
                 role={usuario.role}
                 veRelatorios={usuario.permissions?.relatorios !== false}
+                veMetas={usuario.permissions?.metas !== false}
                 ehVoce={usuario.id === profile.id}
               />
             ))}
