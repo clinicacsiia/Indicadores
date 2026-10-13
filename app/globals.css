@@ -1256,11 +1256,47 @@ select {
 .meter[data-status="atrasado"] {
   --meter-color: var(--danger);
 }
+.meter[data-status="rodando"] {
+  --meter-color: var(--brand);
+}
 .meter-fill {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: 999px;
   background: var(--meter-color);
+  transition: width 0.3s ease;
+}
+
+/* Progresso do "Atualizar tudo" na tela Início. */
+.sync-progress {
+  flex-basis: 100%;
+}
+.sync-progress-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.sync-progress-nome {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.sync-progress-nome > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sync-progress .meter {
+  height: 10px;
+  margin-top: 8px;
+}
+.sync-progress-texto {
+  flex-basis: 100%;
+  margin: 6px 0 0;
 }
 .meter-tick {
   position: absolute;
