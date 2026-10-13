@@ -12,9 +12,12 @@
     "test:py": "python painel_py/testes/rodar.py"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^153.0.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "next": "16.4.0",
+    "pdf-lib": "^1.17.1",
+    "puppeteer-core": "^25.13.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -22,8 +25,12 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "exceljs": "^4.4.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

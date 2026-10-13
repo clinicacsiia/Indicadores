@@ -2,6 +2,7 @@ import { exigirSessao } from "@/lib/sessao";
 import { admin } from "@/lib/supabase/admin";
 import { NOME_DO_MENU, MENUS } from "@/klingo/config";
 import { aprovarPedido, criarUsuario, editarUsuario, recusarPedido, removerUsuario, salvarCusto, trocarMinhaSenha } from "./acoes";
+import Conferir from "./Conferir";
 import FormAcao from "./FormAcao";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,12 @@ export default async function Conta({ searchParams }: { searchParams: Promise<{ 
                 <td><FormAcao acao={salvarCusto.bind(null, c.item)} rotulo="Salvar"><input name="custo" defaultValue={c.custo ?? ""} inputMode="decimal" size={8} /><input name="observacao" defaultValue={c.observacao ?? ""} placeholder="Observação" /></FormAcao></td></tr>
             ))}
           </tbody></table></div>
+        </section>
+
+        <section>
+          <h2>Conferir números</h2>
+          <p className="nota">Cruza os relatórios entre si (produção × convênios, faturas emitidas × em aberto, recebido × movimentadas, Metas × produção, Cesta × produção).</p>
+          <Conferir />
         </section>
 
         <section>

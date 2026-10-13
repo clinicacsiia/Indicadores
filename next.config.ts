@@ -10,6 +10,7 @@ const cabecalhos = [
 
 const config: NextConfig = {
   poweredByHeader: false,
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
   reactStrictMode: true,
   async headers() {
     return [

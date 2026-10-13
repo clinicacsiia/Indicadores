@@ -1,0 +1,25 @@
+# Supabase local (supabase start). Produção: configurações do projeto no painel do Supabase (região São Paulo).
+project_id = "indicadores-csi"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = false           # só administradores criam usuários (o pedido de cadastro também passa pelo servidor)
+
+[auth.email]
+enable_confirmations = false

@@ -31,3 +31,10 @@ export function pontoMedio(de: string, ate: string): string {
   return new Date(Math.floor((a + b) / 2 / 864e5) * 864e5).toISOString().slice(0, 10);
 }
 export const diaSeguinte = (d: string) => new Date(Date.parse(d + "T00:00:00Z") + 864e5).toISOString().slice(0, 10);
+
+/** "Período: de dd/mm/aaaa a dd/mm/aaaa" (se o último mês ainda não terminou, o fim é o dia de hoje). */
+export function textoPeriodo(de: string, ate: string, hojeIso: string): string {
+  const f = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+  const fim = ultimoDia(ate) < hojeIso ? ultimoDia(ate) : hojeIso;
+  return `Período: de ${f(primeiroDia(de))} a ${f(fim)}`;
+}
