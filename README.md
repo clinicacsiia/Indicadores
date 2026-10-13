@@ -42,14 +42,49 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `app/(app)/atualizar-form.tsx` + `atualizar-actions.ts` — botão "Atualizar"
   (só admin): escolhe o relatório do catálogo `dim_relatorio` e o período.
   O relatório `13397` também atualiza os totais mostrados na tela.
+- `app/(app)/metas/page.tsx` — aba "Metas": escolhe o mês (de `primeiro_mes`
+  até o mês atual) e mostra, por grupo (CSI 1, CSI 2, CSI Pediatria), meta ×
+  realizado, % de cumprimento, quanto falta, quanto fazer por dia útil,
+  projeção do mês, SUS × outros e a situação (batida / no ritmo / atenção /
+  atrasado). Ver "Aba Metas" abaixo.
+- `lib/metas/` — `calculo.ts` (regras e contas das metas, porte do
+  `Acompanhamento de META/gerar_dashboard.py`) e `config.ts` (lê o
+  `metas.json`).
 - `app/(app)/configuracoes/` — aba "Configurações" (admin): define quem é
-  admin e quem pode ver Relatórios, com um "Salvar" por usuário e aviso de
-  sucesso/erro. Protegida tanto na página quanto por RLS.
+  admin e quem pode ver Relatórios e Metas, com um "Salvar" por usuário e
+  aviso de sucesso/erro. Protegida tanto na página quanto por RLS.
 - `supabase/functions/sync-indicadores/` — Edge Function que busca a API
   externa e grava os dados no banco.
 - `supabase/functions/sync-relatorios-dw/` — Edge Function genérica que
   sincroniza qualquer relatório cadastrado em `dim_relatorio` (ver seção
   "Data warehouse de relatórios" abaixo).
+
+## Aba Metas
+
+Fonte dos dados: relatório `13339` do Klingo (atendimentos por unidade,
+classe, especialidade, procedimento e operadora), sincronizado para
+`fact_relatorio_linha` como qualquer outro relatório. Fonte das metas e
+regras: **`Acompanhamento de META/metas.json`** — o mesmo arquivo do painel
+local; o site o lê direto. Para mudar uma meta, edite o arquivo e publique;
+`metas_por_mes` ajusta só um mês (`{"2026-11": {"csi1/densitometria": 520}}`).
+O calendário (seg–sáb, feriados, expediente 07h–18h, `primeiro_mes`) também
+vem dele; o dia de hoje conta só a parte do expediente que já passou.
+
+- A função `metas_atendimentos_mes(mês)` (migration `20261013120000_aba_metas`)
+  entrega os atendimentos do mês já contados. Cada atendimento conta uma vez
+  (ID = coluna "Exames Realizados", versão mais recente) e o que o Klingo
+  deixou de devolver no último sync do dia deixa de contar. Aplica a
+  permissão `permissions.metas` (padrão: liberado, como Relatórios).
+- A função precisa saber qual `colN` é qual coluna; por isso a
+  `sync-relatorios-dw` passou a gravar o título de cada coluna em
+  `dim_relatorio_coluna.titulo_klingo`. Enquanto nenhum sync com essa versão
+  rodou para o `13339`, a aba mostra "Nenhum atendimento".
+- Atendimentos que não entram em nenhuma meta aparecem em "fora de qualquer
+  meta"; os que entram em mais de uma geram um aviso (ajuste as regras).
+
+**Para colocar no ar:** aplicar a migration, publicar a Edge Function
+`sync-relatorios-dw` e, na aba Metas (como admin), clicar em "Atualizar" para
+o mês desejado (um mês por vez, máx. 31 dias).
 
 ## Data warehouse de relatórios
 

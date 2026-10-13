@@ -74,6 +74,7 @@ export async function atualizarRelatorio(_: AtualizarEstado, formData: FormData)
     }
 
     revalidatePath("/");
+    revalidatePath("/metas");
 
     if (erros > 0 || !indicadoresOk) {
       return { ok: false, mensagem: "Atualização concluída com falhas em alguns dias. Tente novamente ou confira os alertas." };

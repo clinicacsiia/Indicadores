@@ -27,6 +27,14 @@ export const IconRelatorios = (p: IconProps) => (
   </Icon>
 );
 
+export const IconMetas = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" />
+  </Icon>
+);
+
 export const IconConfig = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 7h10" />

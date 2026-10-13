@@ -912,7 +912,7 @@ select {
 }
 .user-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 180px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.4fr) 180px minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px 24px;
   padding: 16px 20px;
@@ -1129,6 +1129,153 @@ select {
   min-height: 46px;
   margin-top: 4px;
   font-size: 15px;
+}
+
+/* ───────── Metas ───────── */
+
+.kpi-unit {
+  color: var(--ink-3);
+  font-size: 0.5em;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.status-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status-pill[data-status="batida"],
+.status-pill[data-status="ritmo"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.status-pill[data-status="atencao"] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.status-pill[data-status="atrasado"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* Barra de cumprimento; o traço marca o esperado até agora. */
+.meter {
+  --meter-color: var(--ink-3);
+  position: relative;
+  width: 100%;
+  min-width: 80px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.meter[data-status="batida"],
+.meter[data-status="ritmo"] {
+  --meter-color: var(--ok);
+}
+.meter[data-status="atencao"] {
+  --meter-color: var(--warn);
+}
+.meter[data-status="atrasado"] {
+  --meter-color: var(--danger);
+}
+.meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--meter-color);
+}
+.meter-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ink);
+}
+.kpi .meter {
+  margin-top: 10px;
+}
+
+.meta-table td,
+.meta-table th {
+  padding-inline: 12px;
+  vertical-align: middle;
+}
+.meta-table th:first-child,
+.meta-table td:first-child {
+  padding-left: 16px;
+}
+.meta-table thead th {
+  white-space: nowrap;
+}
+.meta-table tbody th {
+  min-width: 130px;
+  max-width: 200px;
+  white-space: normal;
+}
+.meta-table thead th:nth-child(4) {
+  text-align: left;
+}
+.meta-cell-pct {
+  min-width: 128px;
+  text-align: left;
+}
+.meta-cell-pct .meter {
+  margin-top: 4px;
+}
+.meta-pct {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+.meta-sep {
+  color: var(--ink-3);
+}
+.meta-group-total {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.meta-group-total .meta-pct {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+.meta-legenda {
+  max-width: 90ch;
+  padding: 0 4px;
+}
+.meta-fora > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 24px;
+  padding: 16px 20px;
+  cursor: pointer;
+}
+.meta-fora[open] > summary {
+  padding-bottom: 0;
+}
+.meta-fora .table-wrap {
+  max-height: 50vh;
+}
+.meta-fora .meta-legenda {
+  padding: 8px 20px 16px;
 }
 
 /* ───────── Responsivo ───────── */

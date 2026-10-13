@@ -31,16 +31,19 @@ export async function updateProfileRole(userId: string, role: string) {
 
 export type SalvarUsuarioState = { ok?: boolean; error?: string };
 
-// Salva permissão e acesso aos Relatórios de uma vez, com retorno para a tela.
+// Salva permissão e acesso às telas de uma vez, com retorno para a tela.
 // Se o campo "role" não vier (select desabilitado para o próprio usuário),
-// só o acesso aos Relatórios é atualizado.
+// só o acesso às telas é atualizado.
 export async function salvarUsuario(
   _prev: SalvarUsuarioState,
   formData: FormData
 ): Promise<SalvarUsuarioState> {
   const userId = String(formData.get("userId") ?? "");
   const role = formData.get("role");
-  const canView = formData.get("relatorios") === "on";
+  const acesso = {
+    relatorios: formData.get("relatorios") === "on",
+    metas: formData.get("metas") === "on",
+  };
 
   if (!userId) return { error: "Usuário inválido." };
 
@@ -49,13 +52,13 @@ export async function salvarUsuario(
     if (result.error) return { error: result.error };
   }
 
-  const result = await updateProfileRelatoriosAccess(userId, canView);
+  const result = await updateProfileAccess(userId, acesso);
   if (result.error) return { error: result.error };
 
   return { ok: true };
 }
 
-export async function updateProfileRelatoriosAccess(userId: string, canView: boolean) {
+export async function updateProfileAccess(userId: string, acesso: { relatorios: boolean; metas: boolean }) {
   const supabase = await createClient();
   const { data: current, error: fetchError } = await supabase
     .from("profiles")
@@ -68,7 +71,7 @@ export async function updateProfileRelatoriosAccess(userId: string, canView: boo
     return { error: "Não foi possível atualizar a permissão." };
   }
 
-  const permissions = { ...(current?.permissions ?? {}), relatorios: canView };
+  const permissions = { ...(current?.permissions ?? {}), ...acesso };
 
   const { error } = await supabase.from("profiles").update({ permissions }).eq("id", userId);
 

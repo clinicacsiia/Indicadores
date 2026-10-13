@@ -112,7 +112,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchReportOnce(klingoId: string, day: string, token: string): Promise<unknown[]> {
+// `titulos`: chave da coluna (col1, col2…) -> título que o Klingo dá a ela. Vazio quando o
+// período não tem registros ou o Klingo não informou as colunas.
+type Relatorio = { data: unknown[]; titulos: Record<string, string> };
+
+async function fetchReportOnce(klingoId: string, day: string, token: string): Promise<Relatorio> {
   const params = new URLSearchParams({
     id: klingoId,
     ":periodo0": "l",
@@ -128,13 +132,28 @@ async function fetchReportOnce(klingoId: string, day: string, token: string): Pr
   const payload = await res.json();
   if (payload?.error) throw new Error("Klingo retornou erro no relatório");
   // Período sem nenhum registro: o Klingo devolve result = "" (sem erro) em vez de data = [].
-  if (payload?.result === "") return [];
+  if (payload?.result === "") return { data: [], titulos: {} };
   const data = payload?.result?.data;
   if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
-  return data;
+  return { data, titulos: extrairTitulos(payload.result) };
 }
 
-async function fetchReport(klingoId: string, day: string, token: string): Promise<unknown[]> {
+function extrairTitulos(result: unknown): Record<string, string> {
+  const titulos: Record<string, string> = {};
+  if (!isPlainObject(result)) return titulos;
+  const colunas = [
+    ...(Array.isArray(result.group_cols) ? result.group_cols : []),
+    ...(Array.isArray(result.columns) ? result.columns : []),
+  ];
+  for (const coluna of colunas) {
+    if (isPlainObject(coluna) && typeof coluna.name === "string" && typeof coluna.title === "string" && coluna.title.trim()) {
+      titulos[coluna.name] = coluna.title.trim();
+    }
+  }
+  return titulos;
+}
+
+async function fetchReport(klingoId: string, day: string, token: string): Promise<Relatorio> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
     try {
@@ -295,7 +314,7 @@ Deno.serve(async (req: Request) => {
       primeiraRequisicao = false;
 
       try {
-        const data = await fetchReport(relatorio.klingo_id, periodo, token);
+        const { data, titulos } = await fetchReport(relatorio.klingo_id, periodo, token);
         const grupos = await agruparLinhas(data);
         const agora = new Date().toISOString();
 
@@ -392,11 +411,15 @@ Deno.serve(async (req: Request) => {
             }
           }
 
+          // Título do Klingo só entra se vier para todas as colunas: num upsert em lote, uma
+          // coluna sem título apagaria o que já estava gravado.
+          const gravaTitulos = Array.from(observadas.keys()).every((key) => titulos[key]);
           const colunasPayload = Array.from(observadas.entries()).map(([coluna_key, tipo_observado]) => ({
             relatorio_id: relatorio.id,
             coluna_key,
             tipo_observado,
             last_seen_at: agora,
+            ...(gravaTitulos ? { titulo_klingo: titulos[coluna_key] } : {}),
           }));
           const { error: colunaError } = await supabase
             .from("dim_relatorio_coluna")
