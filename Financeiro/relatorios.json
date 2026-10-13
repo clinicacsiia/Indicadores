@@ -1,0 +1,37 @@
+{
+  "titulo": "Financeiro",
+  "arquivo": "Financeiro.xlsx",
+  "primeiro_mes": "2026-09",
+  "relatorios": [
+    {
+      "id": 798,
+      "aba": "Lançamentos",
+      "descricao": "Acompanhamento de Lançamento: receitas e despesas lançadas (o período do Klingo filtra pela data de emissão)",
+      "periodo": "PERIODO",
+      "chave": ["Lançamento"],
+      "alerta_datas": true,
+      "ordenar": ["Emissão", "Lançamento"],
+      "numeros": ["Lançamento", "Valor"],
+      "datas": {"Emissão": "dd/mm/yyyy", "Competência": "dd/mm/yyyy", "Vencimento": "dd/mm/yyyy"}
+    },
+    {
+      "id": 13297,
+      "aba": "Recebimento Particular",
+      "descricao": "Recebimentos Particulares com Taxa e Líquido: o que entra por cartão, Pix e dinheiro, com a taxa da maquininha",
+      "periodo": "periodo0",
+      "meses_a_frente": 6,
+      "ordenar": ["Data de Recebimento", "Paciente"],
+      "numeros": ["Atendimento", "Valor Bruto", "Taxa", "Valor Líquido"],
+      "datas": {"Data do Atendimento": "dd/mm/yyyy", "Data de Recebimento": "dd/mm/yyyy"}
+    },
+    {
+      "id": 13295,
+      "aba": "Créditos de Convênio",
+      "descricao": "Identificações de Créditos de Fatura: recebimento de convênio com glosa, impostos e líquido",
+      "periodo": "periodo0",
+      "ordenar": ["Data do Recebimento", "Convênio"],
+      "numeros": ["Fatura", "Valor Bruto", "Valor Recebido", "ISS", "IR", "PIS", "COFINS", "CSLL", "Total de Impostos", "Valor Líquido", "Glosa (calculada)"],
+      "datas": {"Data do Recebimento": "dd/mm/yyyy"}
+    }
+  ]
+}

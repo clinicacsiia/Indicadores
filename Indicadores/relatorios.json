@@ -1,0 +1,35 @@
+{
+  "titulo": "Indicadores",
+  "arquivo": "Indicadores.xlsx",
+  "primeiro_mes": "2026-09",
+  "relatorios": [
+    {
+      "id": 13374,
+      "aba": "Guias",
+      "descricao": "Faturamento - Guias com Situação: cada guia com situação (a faturar, em fatura, faturada, protocolada, recebida, pendente, cancelada), pendência/motivo, fatura, envio e valores recebido e glosado. O relatório não tem filtro de data: vem inteiro",
+      "sem_periodo": true,
+      "chave": ["Guia - Id", "Fatura - Id", "Guia - Status"],
+      "ordenar": ["Guia - Data", "Guia - Id"],
+      "numeros": ["Guia - Id", "Atendimento - Id", "Fatura - Id", "Movimentação Guia - Valor Recebido", "Movimentação Guia - Valor Glosado"],
+      "datas": {"Guia - Data": "dd/mm/yyyy", "Fatura - Envio - Data": "dd/mm/yyyy", "Fatura - Vencimento": "dd/mm/yyyy", "Fatura - Status Fluxo - Data": "dd/mm/yyyy"}
+    },
+    {
+      "id": 13375,
+      "aba": "Glosas e Recursos",
+      "descricao": "Faturamento - Glosas e Recursos: glosa por guia, recurso, valor recursado, deferido e perda. Filtro de período: Guia - Data (baixado mês a mês). Os nomes das colunas só são conhecidos quando houver a primeira glosa; o painel os reconhece pelo nome",
+      "periodo": "periodo0",
+      "numeros": [],
+      "datas": {}
+    },
+    {
+      "id": 13376,
+      "aba": "Baixas",
+      "descricao": "Financeiro - Conciliação de Créditos: cada baixa (pagamento ou recebimento) com conta, banco, se foi conciliada e valores. Sem filtro de data: vem inteiro",
+      "sem_periodo": true,
+      "chave": ["Baixa - Id"],
+      "ordenar": ["Data da Baixa", "Baixa - Id"],
+      "numeros": ["Baixa - Id", "Valor Bruto", "Valor Descontos"],
+      "datas": {"Data da Baixa": "dd/mm/yyyy", "Data de Conciliação da Baixa": "dd/mm/yyyy"}
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "_ajuda": "Edite as metas aqui. 'regra' diz quais atendimentos do Klingo contam para cada meta (todas as condições valem ao mesmo tempo). Condições: classe (a classe esta entre as do procedimento), classes_iguais (as classes sao exatamente essas), especialidade, procedimento_igual, procedimento_contem (qualquer um dos textos), procedimento_nao_contem. Acentos e maiúsculas não importam. Para mudar a meta só de um mês use metas_por_mes: {\"2026-11\": {\"csi1/densitometria\": 520}}.",
+  "primeiro_mes": "2026-09",
+  "_primeiro_mes_ajuda": "Meses antes deste não aparecem no painel (agosto/2026 tem só 2 registros de teste, de 31/08).",
+  "dias_semana_atendimento": [0, 1, 2, 3, 4, 5],
+  "_dias_semana_ajuda": "0=segunda ... 6=domingo. Usado para calcular o ritmo esperado (dias úteis de atendimento).",
+  "horario_atendimento": ["07:00", "18:00"],
+  "_horario_ajuda": "Usado só para contar a parte do dia de hoje que já passou (às 13h, por exemplo, conta ~55% do dia).",
+  "feriados": ["2026-10-12"],
+  "grupos": [
+    {
+      "id": "csi2",
+      "nome": "CSI 2",
+      "unidade": "CLÍNICA DE SAÚDE E IMAGEM - RM/TC",
+      "itens": [
+        {"id": "ressonancias", "nome": "Ressonâncias", "meta": 1090, "regra": {"classes_iguais": ["RM"]}},
+        {"id": "tomografias", "nome": "Tomografias", "meta": 220, "regra": {"classes_iguais": ["TC"]}}
+      ]
+    },
+    {
+      "id": "csi1",
+      "nome": "CSI 1",
+      "unidade": "CLÍNICA DE SAÚDE E IMAGEM - CSI",
+      "itens": [
+        {"id": "densitometria", "nome": "Densitometria", "meta": 500, "regra": {"classe": "DENSO"}},
+        {"id": "mamografias", "nome": "Mamografias", "meta": 500, "regra": {"classe": "MAMO"}},
+        {"id": "histerossalpingografia", "nome": "Histerossalpingografia", "meta": 138, "regra": {"procedimento_contem": ["HISTEROSSALPINGOGRAFIA"]}},
+        {"id": "endometriose", "nome": "Endometriose", "meta": 650, "regra": {"procedimento_contem": ["ENDOMETRIOSE"]}},
+        {"id": "ultrassons", "nome": "Ultrassons", "meta": 1700, "regra": {"classe": "USG", "procedimento_nao_contem": ["ECOCARDIO", "ECODOPPLERCARDIO"]}},
+        {"id": "ecg", "nome": "Eletrocardiograma", "meta": 70, "regra": {"classe": "ECG"}},
+        {"id": "consultas_gineco", "nome": "Consultas Ginecológicas", "meta": 500, "regra": {"especialidade": "GINECOLOGIA", "procedimento_igual": "CONSULTA"}},
+        {"id": "preventivo", "nome": "Preventivo", "meta": 370, "regra": {"procedimento_contem": ["PREVENTIVO"]}},
+        {"id": "contrastados", "nome": "Contrastados Pediátricos + Adultos", "meta": 100, "regra": {"classe": "CONT", "procedimento_nao_contem": ["HISTEROSSALPINGOGRAFIA"]}},
+        {"id": "ecocardiogramas", "nome": "Ecocardiogramas", "meta": 50, "regra": {"procedimento_contem": ["ECOCARDIO", "ECODOPPLERCARDIO"]}}
+      ]
+    },
+    {
+      "id": "pediatria",
+      "nome": "CSI Pediatria",
+      "unidade": "DESENVOAR",
+      "itens": [
+        {"id": "consultas_pediatricas", "nome": "Consultas Pediátricas", "meta": 737, "regra": {"especialidade": "PEDIATRIA", "procedimento_igual": "CONSULTA"}},
+        {"id": "eeg", "nome": "Eletroencefalograma", "meta": 40, "regra": {"classe": "EEG"}}
+      ]
+    }
+  ],
+  "metas_por_mes": {}
+}

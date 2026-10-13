@@ -1,0 +1,41 @@
+{
+  "titulo": "Cesta de Exames",
+  "arquivo": "Cesta de Exames.xlsx",
+  "primeiro_mes": "2026-09",
+  "ajustar_ao_faturamento": true,
+  "relatorios": [
+    {
+      "id": 13280,
+      "aba": "Base Cesta",
+      "descricao": "Base Cesta de Exames: uma linha por paciente, procedimento e valor, com unidade e operadora",
+      "periodo": "periodo0",
+      "revisar_meses": 2,
+      "ordenar": ["Data", "Paciente - Id"],
+      "numeros": ["Atendimento - Id", "Paciente - Id", "Idade", "Procedimento - Id", "Combo - Id", "Quantidade", "Valor"],
+      "datas": {"Data": "dd/mm/yyyy"},
+      "limpar_apostrofo": ["Faixa Etária"]
+    },
+    {
+      "id": 13284,
+      "aba": "Exames por Perfil",
+      "descricao": "Exames por Faixa Etária e Sexo: atendimentos distintos por procedimento, dia, faixa etária e sexo",
+      "periodo": "periodo0",
+      "revisar_meses": 2,
+      "ordenar": ["Data", "Procedimento"],
+      "numeros": ["Atendimentos (distintos)", "Qtde de Procedimentos"],
+      "datas": {"Data": "dd/mm/yyyy"},
+      "limpar_apostrofo": ["Faixa Etária"]
+    },
+    {
+      "id": 13285,
+      "aba": "Procedimentos por Perfil",
+      "descricao": "Procedimentos por Faixa Etária e Sexo: atendimentos distintos e valor por procedimento, dia, faixa etária e sexo",
+      "periodo": "periodo0",
+      "revisar_meses": 2,
+      "ordenar": ["Data", "Procedimento"],
+      "numeros": ["Atendimentos (distintos)", "Valor"],
+      "datas": {"Data": "dd/mm/yyyy"},
+      "limpar_apostrofo": ["Faixa Etária"]
+    }
+  ]
+}

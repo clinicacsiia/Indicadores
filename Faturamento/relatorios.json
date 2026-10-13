@@ -1,0 +1,47 @@
+{
+  "titulo": "Faturamento",
+  "arquivo": "Faturamento.xlsx",
+  "primeiro_mes": "2026-09",
+  "relatorios": [
+    {
+      "id": 26,
+      "aba": "Receita Produzida",
+      "descricao": "Receita Produzida por Centro de Resultado: o que foi realizado (atendimento, procedimento, operadora e valor)",
+      "periodo": "periodo",
+      "revisar_meses": 2,
+      "ordenar": ["Data"],
+      "numeros": ["Quantidade", "Valor"],
+      "datas": {"Data": "dd/mm/yyyy hh:mm"}
+    },
+    {
+      "id": 13329,
+      "aba": "Controle por Convênio",
+      "descricao": "Controle de Produção do Faturamento por Convênio: guias, produzido, recebido, glosa e saldo a receber",
+      "periodo": "periodo0",
+      "ordenar": ["Convênio"],
+      "numeros": ["Qtd. Guias", "Produzido", "Recebido", "Glosa", "Glosa Acatada", "A Receber (Saldo)"]
+    },
+    {
+      "id": 13328,
+      "aba": "Faturas em Aberto",
+      "descricao": "Faturas Não Baixadas: o que foi faturado e ainda não foi pago ou baixado, por vencimento",
+      "periodo": "periodo0",
+      "meses_a_frente": 3,
+      "ordenar": ["Vencimento", "Convênio"],
+      "numeros": ["Fatura", "Valor Bruto"],
+      "datas": {"Data da Fatura": "dd/mm/yyyy", "Vencimento": "dd/mm/yyyy"}
+    },
+    {
+      "id": 13355,
+      "aba": "Faturas Emitidas",
+      "descricao": "Faturamento Consulta - Fatura: cada fatura emitida ao convênio, com status (a enviar, enviada, movimentada, cancelada), datas de emissão, envio e vencimento, valor e responsável",
+      "periodo": "periodo0",
+      "primeiro_mes": "2026-06",
+      "chave": ["Fatura - Id"],
+      "ordenar": ["Fatura - Data de Emissão", "Fatura - Id"],
+      "numeros": ["Fatura - Id", "Fatura - Valor", "Fatura - Valor Retenções", "Lançamento - Valor", "Operadora - Id"],
+      "datas": {"Fatura - Data de Emissão": "dd/mm/yyyy", "Fatura - Data de Envio": "dd/mm/yyyy", "Fatura - Data de Vencimento": "dd/mm/yyyy",
+                "Fatura - Data Fim": "dd/mm/yyyy", "Fatura - Data Inicial": "dd/mm/yyyy"}
+    }
+  ]
+}

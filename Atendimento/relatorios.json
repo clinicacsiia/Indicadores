@@ -1,0 +1,27 @@
+{
+  "titulo": "Atendimento",
+  "arquivo": "Atendimento.xlsx",
+  "primeiro_mes": "2026-09",
+  "relatorios": [
+    {
+      "id": 13402,
+      "aba": "Atendimentos",
+      "descricao": "Atendimentos - Visão Gerencial de Produtividade, Espera e Receita - Mensal: uma linha por procedimento atendido, com setor, profissional ou equipamento, convênio, status, horários de registro, início e fim, duração, usuário responsável e valor. O relatório não traz o Id do atendimento nem o paciente. Baixado mês a mês (Data do Atendimento); os 3 últimos meses são baixados de novo a cada atualização, porque horários e valores podem ser corrigidos depois",
+      "periodo": "periodo0",
+      "revisar_meses": 2,
+      "ordenar": ["Data do Atendimento", "Usuário Responsável"],
+      "numeros": ["Atendimentos (Qtde)", "Idade do Paciente", "Horário Agendado", "Valor do Atendimento", "Duração do Atendimento (min)", "Ticket Médio"],
+      "datas": {"Data do Atendimento": "dd/mm/yyyy hh:mm", "Início do Atendimento": "dd/mm/yyyy hh:mm", "Fim do Atendimento": "dd/mm/yyyy hh:mm"}
+    },
+    {
+      "id": 13404,
+      "aba": "Fluxo na Recepção",
+      "descricao": "Atendimentos - Tempos de Espera e Fluxo na Recepção - Mensal: uma linha por etapa do fluxo de cada atendimento (Cadastro, Procedimentos, Guia, Pagamento, Chamado, Em Atendimento, Finalizado, pré-atendimento da pediatria), com Check-In, início e fim da etapa e tempo na etapa. As colunas calculadas 'Espera após Check-In' e 'Duração da Etapa' vêm erradas no Klingo e não são usadas: o painel calcula tudo dos horários. Um mês passa do limite de linhas do Klingo; o motor divide o período sozinho",
+      "periodo": "periodo0",
+      "revisar_meses": 1,
+      "ordenar": ["Data do Atendimento", "Check-In", "Início da Etapa"],
+      "numeros": ["Atendimentos (Qtde)", "Espera após Check-In (min)", "Duração da Etapa (min)"],
+      "datas": {"Data do Atendimento": "dd/mm/yyyy hh:mm", "Check-In": "dd/mm/yyyy hh:mm", "Início da Etapa": "dd/mm/yyyy hh:mm:ss", "Fim da Etapa": "dd/mm/yyyy hh:mm:ss"}
+    }
+  ]
+}
