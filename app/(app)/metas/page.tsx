@@ -139,8 +139,14 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const [{ data: bruto, error }, { data: catalogo }] = await Promise.all([
     // A função aplica a permissão "Pode ver Metas" e já entrega os atendimentos do mês contados.
     supabase.rpc("metas_atendimentos_mes", { p_mes: mes }),
+    // Admin escolhe qualquer relatório para atualizar; os demais nem consultam o catálogo.
     isAdmin
-      ? supabase.from("dim_relatorio").select("klingo_id, nome, ativo").eq("klingo_id", RELATORIO_METAS)
+      ? supabase
+          .from("dim_relatorio")
+          .select("klingo_id, nome, ativo")
+          .is("supersedido_por", null)
+          .order("ativo", { ascending: false })
+          .order("nome")
       : Promise.resolve({ data: null }),
   ]);
 

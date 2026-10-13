@@ -9,7 +9,6 @@ type Props = {
   id: string;
   email: string;
   role: "admin" | "viewer";
-  veRelatorios: boolean;
   veMetas: boolean;
   paineis: { id: string; nome: string; liberado: boolean }[];
   ehVoce: boolean;
@@ -27,7 +26,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veRelatorios, veMetas, paineis, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veMetas, paineis, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -79,11 +78,6 @@ export function UsuarioForm({ id, email, role, veRelatorios, veMetas, paineis, e
             {papel === "admin" && <span className="switch-hint"> — administradores sempre têm acesso a tudo</span>}
           </span>
           <div className="user-switches">
-            <label className="switch">
-              <input type="checkbox" name="relatorios" defaultChecked={veRelatorios} />
-              <span className="switch-track" aria-hidden="true" />
-              <span className="switch-text">Relatórios</span>
-            </label>
             <label className="switch">
               <input type="checkbox" name="metas" defaultChecked={veMetas} />
               <span className="switch-track" aria-hidden="true" />

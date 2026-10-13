@@ -31,7 +31,7 @@ export function Brand({ href }: { href?: string }) {
   );
 
   return href ? (
-    <Link href={href} className="brand" aria-label="Clínica CSI Indicadores, ir para Relatórios">
+    <Link href={href} className="brand" aria-label="Clínica CSI Indicadores, página inicial">
       {content}
     </Link>
   ) : (
