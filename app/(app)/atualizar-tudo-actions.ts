@@ -20,10 +20,23 @@ function somarDias(iso: string, dias: number) {
   return d.toISOString().slice(0, 10);
 }
 
-// Para cada relatório liberado para visualização, busca só o que falta: do dia
-// seguinte ao último sync bem-sucedido até hoje, limitado aos últimos 31 dias
-// (o máximo que a Edge Function aceita numa chamada). Relatório sem nenhum
-// sync ainda usa esse mesmo limite de 31 dias como ponto de partida.
+function diaSaoPaulo(instante: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(instante));
+}
+
+// Mesma janela que a tela Início usa para medir "em dia" (status_sincronizacao_relatorios):
+// mensal -> do dia 1 do mês até hoje; os demais -> últimos 30 dias.
+function inicioDaJanela(periodicidade: string | null, hoje: string) {
+  return periodicidade === "mensal" ? `${hoje.slice(0, 8)}01` : somarDias(hoje, -29);
+}
+
+// Para cada relatório liberado para visualização, busca só o que falta dentro da
+// mesma janela que a tela Início mede (ver inicioDaJanela): do primeiro dia ainda
+// sem sync completo até hoje. Um dia só conta como completo se o sync terminou
+// depois da meia-noite dele — sincronizar o dia de hoje (ou um dia que foi
+// sincronizado antes de acabar) pega só parte dos registros, então ele é buscado
+// de novo. A janela tem no máximo 31 dias, o limite da Edge Function por chamada.
+// Relatório "pontual" não se repete: só entra se nunca foi sincronizado.
 export async function atualizarTudo(
   _prev: AtualizarTudoEstado,
   _formData: FormData
@@ -35,7 +48,7 @@ export async function atualizarTudo(
 
   const { data: ativos, error } = await supabase
     .from("dim_relatorio")
-    .select("id, klingo_id")
+    .select("id, klingo_id, periodicidade")
     .eq("ativo", true)
     .is("supersedido_por", null);
 
@@ -48,26 +61,43 @@ export async function atualizarTudo(
   }
 
   const hoje = hojeSaoPaulo();
-  const inicioMaximo = somarDias(hoje, -(MAX_DIAS - 1));
   let totalLinhas = 0;
   let comErro = 0;
   let algumExecutado = false;
 
   for (const relatorio of ativos) {
-    const { data: ultimo } = await supabase
+    const pontual = relatorio.periodicidade === "pontual";
+    const inicioJanela = pontual ? somarDias(hoje, -(MAX_DIAS - 1)) : inicioDaJanela(relatorio.periodicidade, hoje);
+
+    const { data: sucessos, error: sucessosError } = await supabase
       .from("sync_relatorio_runs")
-      .select("periodo")
+      .select("periodo, finished_at")
       .eq("relatorio_id", relatorio.id)
       .eq("status", "success")
-      .order("periodo", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .gte("periodo", pontual ? "0001-01-01" : inicioJanela)
+      .lte("periodo", hoje)
+      .limit(1000);
 
-    const de = ultimo?.periodo
-      ? (somarDias(ultimo.periodo, 1) > inicioMaximo ? somarDias(ultimo.periodo, 1) : inicioMaximo)
-      : inicioMaximo;
+    if (sucessosError) {
+      comErro++;
+      console.error("Falha ao ler histórico de sync:", sucessosError.message);
+      continue;
+    }
 
-    if (de > hoje) continue; // já está em dia
+    if (pontual && (sucessos?.length ?? 0) > 0) continue;
+
+    const completos = new Set(
+      (sucessos ?? [])
+        .filter((s) => s.finished_at && diaSaoPaulo(s.finished_at) > s.periodo)
+        .map((s) => s.periodo as string)
+    );
+    let de = hoje;
+    for (let dia = inicioJanela; dia < hoje; dia = somarDias(dia, 1)) {
+      if (!completos.has(dia)) {
+        de = dia;
+        break;
+      }
+    }
 
     algumExecutado = true;
     try {
@@ -92,7 +122,7 @@ export async function atualizarTudo(
   revalidatePath("/");
   revalidatePath("/metas");
 
-  if (!algumExecutado) return { ok: true, mensagem: "Tudo já estava em dia." };
+  if (!algumExecutado && comErro === 0) return { ok: true, mensagem: "Tudo já estava em dia." };
   if (comErro > 0) {
     return {
       ok: false,
