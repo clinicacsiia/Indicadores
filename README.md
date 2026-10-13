@@ -460,3 +460,5 @@ Também aparece (WARN) que `is_admin()` e `can_view_relatorios()` são
 `SECURITY DEFINER` executáveis por `authenticated`. É intencional: as policies
 de RLS dependem delas, e elas só devolvem `true`/`false` sobre o próprio
 usuário logado (`auth.uid()`), sem expor dado de ninguém. `anon` não executa.
+
+> **Configurações → usuários:** criar usuário e redefinir senha usam `SUPABASE_SERVICE_ROLE_KEY` (só no servidor, Production **e** Preview na Vercel).

@@ -910,13 +910,6 @@ select {
   padding: 0;
   list-style: none;
 }
-.user-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 180px minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px 24px;
-  padding: 16px 20px;
-}
 .user-list > li + li {
   border-top: 1px solid var(--line);
 }
@@ -1017,8 +1010,64 @@ select {
 .save-status[data-kind="error"] {
   color: var(--danger);
 }
+.user-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+}
 .user-form {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.user-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.user-role {
+  width: 200px;
+}
+.user-paineis {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.user-switches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px 20px;
+}
+.user-senha,
+.reset-senha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.reset-senha .input {
+  width: 240px;
+}
+.novo-usuario {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 16px;
+  padding: 4px 20px 20px;
+}
+.novo-usuario-msg {
+  grid-column: 1 / -1;
+}
+@media (max-width: 960px) {
+  .novo-usuario {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ───────── Carregando ───────── */
@@ -1280,19 +1329,6 @@ select {
 
 /* ───────── Responsivo ───────── */
 
-@media (max-width: 960px) {
-  .user-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .user-id {
-    grid-column: 1 / -1;
-  }
-  .user-actions {
-    grid-column: 1 / -1;
-    justify-content: space-between;
-  }
-}
-
 @media (max-width: 880px) {
   .shell {
     display: block;
@@ -1420,17 +1456,4 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface, #fff);
-}
-
-/* Painéis liberados por usuário (Configurações): uma linha própria abaixo da linha do usuário */
-.user-paineis {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px 24px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--line);
-}
-.user-paineis-titulo {
-  grid-column: 1 / -1;
 }

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { RedefinirSenha } from "./RedefinirSenha";
 import { salvarUsuario, type SalvarUsuarioState } from "./actions";
 
 type Props = {
@@ -33,11 +34,11 @@ export function UsuarioForm({ id, email, role, veRelatorios, veMetas, paineis, e
   const nome = email.endsWith("@csi.local") ? email.replace("@csi.local", "") : email;
 
   return (
-    <li>
+    <li className="user-card">
       <form action={action} className="user-form" aria-label={`Permissões de ${nome}`}>
-        <div className="user-row">
-          <input type="hidden" name="userId" value={id} />
+        <input type="hidden" name="userId" value={id} />
 
+        <div className="user-head">
           <div className="user-id">
             <span className="avatar" aria-hidden="true">
               {nome.charAt(0) || "?"}
@@ -48,7 +49,7 @@ export function UsuarioForm({ id, email, role, veRelatorios, veMetas, paineis, e
             </span>
           </div>
 
-          <div className="field">
+          <div className="field user-role">
             <label className="field-label" htmlFor={`role-${id}`}>
               Permissão
             </label>
@@ -70,55 +71,49 @@ export function UsuarioForm({ id, email, role, veRelatorios, veMetas, paineis, e
               </span>
             )}
           </div>
+        </div>
 
-          <label className="switch">
-            <input type="checkbox" name="relatorios" defaultChecked={veRelatorios} />
-            <span className="switch-track" aria-hidden="true" />
-            <span className="switch-text">
-              Pode ver Relatórios
-              {papel === "admin" && <span className="switch-hint">Administradores sempre têm acesso</span>}
-            </span>
-          </label>
-
-          <label className="switch">
-            <input type="checkbox" name="metas" defaultChecked={veMetas} />
-            <span className="switch-track" aria-hidden="true" />
-            <span className="switch-text">
-              Pode ver Metas
-              {papel === "admin" && <span className="switch-hint">Administradores sempre têm acesso</span>}
-            </span>
-          </label>
-
-          <div className="user-actions">
-            <span
-              className="save-status"
-              data-kind={state.error ? "error" : state.ok ? "ok" : undefined}
-              role="status"
-            >
-              {state.error ?? (state.ok ? "Salvo" : "")}
-            </span>
-            <BotaoSalvar />
+        <div className="user-paineis" role="group" aria-labelledby={`acesso-${id}`}>
+          <span className="field-label user-paineis-titulo" id={`acesso-${id}`}>
+            Telas liberadas
+            {papel === "admin" && <span className="switch-hint"> — administradores sempre têm acesso a tudo</span>}
+          </span>
+          <div className="user-switches">
+            <label className="switch">
+              <input type="checkbox" name="relatorios" defaultChecked={veRelatorios} />
+              <span className="switch-track" aria-hidden="true" />
+              <span className="switch-text">Relatórios</span>
+            </label>
+            <label className="switch">
+              <input type="checkbox" name="metas" defaultChecked={veMetas} />
+              <span className="switch-track" aria-hidden="true" />
+              <span className="switch-text">Metas</span>
+            </label>
+            {paineis.map((p) => (
+              <label className="switch" key={p.id}>
+                <input type="checkbox" name={`painel_${p.id}`} defaultChecked={p.liberado} />
+                <span className="switch-track" aria-hidden="true" />
+                <span className="switch-text">{p.nome}</span>
+              </label>
+            ))}
           </div>
+        </div>
 
-          {paineis.length > 0 && (
-            <div className="user-paineis" role="group" aria-labelledby={`paineis-${id}`}>
-              <span className="field-label user-paineis-titulo" id={`paineis-${id}`}>
-                Painéis
-              </span>
-              {paineis.map((p) => (
-                <label className="switch" key={p.id}>
-                  <input type="checkbox" name={`painel_${p.id}`} defaultChecked={p.liberado} />
-                  <span className="switch-track" aria-hidden="true" />
-                  <span className="switch-text">
-                    {p.nome}
-                    {papel === "admin" && <span className="switch-hint">Administradores sempre têm acesso</span>}
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
+        <div className="user-actions">
+          <span
+            className="save-status"
+            data-kind={state.error ? "error" : state.ok ? "ok" : undefined}
+            role="status"
+          >
+            {state.error ?? (state.ok ? "Salvo" : "")}
+          </span>
+          <BotaoSalvar />
         </div>
       </form>
+
+      <div className="user-senha">
+        <RedefinirSenha id={id} />
+      </div>
     </li>
   );
 }
