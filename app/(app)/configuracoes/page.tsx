@@ -15,7 +15,7 @@ export default async function ConfiguracoesPage() {
   // RLS (policy "profiles_select_admin") também bloqueia a leitura abaixo
   // para quem não é admin; isso aqui só evita renderizar a tela à toa.
   if (profile?.role !== "admin") {
-    redirect("/metas");
+    redirect("/");
   }
 
   const supabase = await createClient();

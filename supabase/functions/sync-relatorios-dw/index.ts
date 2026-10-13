@@ -19,8 +19,9 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 //   retry em falha transitória e só relatórios com ativo=true. A função nunca
 //   descobre relatórios testando IDs; novos relatórios entram pelo cadastro
 //   manual em dim_relatorio.
-// - Quem dispara: o botão "Atualizar" do site (admin logado, com `klingo_ids`) ou SQL com
-//   service_role. Não há mais agendamento automático.
+// - Quem dispara: os botões "Atualizar" (Metas, com `klingo_ids`) e "Atualizar
+//   tudo" (Início, varrendo os ativos) do site, por QUALQUER usuário logado —
+//   não só admin — ou SQL com service_role. Não há mais agendamento automático.
 // - Relatórios com `supersedido_por` preenchido (decisão humana) são pulados.
 //
 // ATENÇÃO LGPD: ao contrário de sync-indicadores, esta função NÃO agrega nem
@@ -50,9 +51,10 @@ function isServiceRoleCaller(req: Request): boolean {
   }
 }
 
-// Quem pode chamar: service_role (SQL Editor / carga histórica) ou um admin logado
-// no site (botão "Atualizar"). A anon key pública NÃO passa: ela não tem usuário.
-// O admin é validado aqui com o JWT dele (nunca com service_role), via is_admin().
+// Quem pode chamar: service_role (SQL Editor / carga histórica) ou qualquer
+// usuário autenticado no site (botões "Atualizar" e "Atualizar tudo" — todo
+// usuário logado pode disparar, não só admin). A anon key pública NÃO passa:
+// ela não tem usuário por trás.
 async function isAuthorizedCaller(req: Request): Promise<boolean> {
   if (isServiceRoleCaller(req)) return true;
   const authorization = req.headers.get("Authorization");
@@ -63,9 +65,7 @@ async function isAuthorizedCaller(req: Request): Promise<boolean> {
     { global: { headers: { Authorization: authorization } }, auth: { persistSession: false } },
   );
   const { data: auth } = await userClient.auth.getUser();
-  if (!auth.user) return false;
-  const { data: isAdmin } = await userClient.rpc("is_admin");
-  return isAdmin === true;
+  return auth.user !== null;
 }
 
 function json(body: unknown, status = 200): Response {

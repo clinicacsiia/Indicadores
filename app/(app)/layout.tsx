@@ -4,6 +4,7 @@ import { Brand } from "@/app/components/Brand";
 import { NavLinks } from "@/app/components/NavLinks";
 import { IconSair } from "@/app/components/icons";
 import { PAINEIS, podeVerPainel } from "@/lib/paineis";
+import { APP_VERSION } from "@/lib/version";
 
 export default async function AppLayout({
   children,
@@ -24,7 +25,10 @@ export default async function AppLayout({
       </a>
 
       <aside className="sidebar">
-        <Brand href="/metas" />
+        <div className="brand-block">
+          <Brand href="/" />
+          <span className="version-tag">v{APP_VERSION}</span>
+        </div>
 
         <NavLinks isAdmin={isAdmin} paineis={paineis} />
 

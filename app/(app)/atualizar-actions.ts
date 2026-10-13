@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
+import { chamarEdgeFunction } from "@/lib/klingo/chamarEdgeFunction";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const KLINGO_ID_RE = /^\d{1,10}$/;
@@ -13,23 +14,6 @@ export type AtualizarEstado = { ok: boolean; mensagem: string } | null;
 
 function diasEntre(de: string, ate: string) {
   return (Date.parse(`${ate}T00:00:00Z`) - Date.parse(`${de}T00:00:00Z`)) / 86_400_000 + 1;
-}
-
-async function chamarFuncao(nome: string, accessToken: string, corpo: unknown) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${nome}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      // JWT do admin logado: a Edge Function valida com is_admin(). Nenhuma chave
-      // privilegiada (service_role) existe no site.
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(corpo),
-    signal: AbortSignal.timeout(280_000),
-  });
-  const payload = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, payload };
 }
 
 // Dispara a atualização de UM relatório escolhido, num período. Só admin: a Edge Function
@@ -58,21 +42,22 @@ export async function atualizarRelatorio(_: AtualizarEstado, formData: FormData)
   const token = sessao.session.access_token;
 
   try {
-    const dw = await chamarFuncao("sync-relatorios-dw", token, { from: de, to: ate, klingo_ids: [klingoId] });
+    const dw = await chamarEdgeFunction("sync-relatorios-dw", token, { from: de, to: ate, klingo_ids: [klingoId] });
     if (!dw.ok) {
       console.error("sync-relatorios-dw falhou:", dw.status, JSON.stringify(dw.payload));
       return { ok: false, mensagem: "Não foi possível atualizar o relatório agora. Veja os alertas de sincronização." };
     }
     const erros = Array.isArray(dw.payload?.erros) ? dw.payload.erros.length : 0;
 
-    // O relatório 13397 também alimenta os totais exibidos nesta tela.
+    // O relatório 13397 também alimenta os totais que a sync-indicadores agregava.
     let indicadoresOk = true;
     if (klingoId === RELATORIO_INDICADORES) {
-      const ind = await chamarFuncao("sync-indicadores", token, { from: de, to: ate });
+      const ind = await chamarEdgeFunction("sync-indicadores", token, { from: de, to: ate });
       indicadoresOk = ind.ok;
       if (!ind.ok) console.error("sync-indicadores falhou:", ind.status, JSON.stringify(ind.payload));
     }
 
+    revalidatePath("/");
     revalidatePath("/metas");
 
     if (erros > 0 || !indicadoresOk) {
