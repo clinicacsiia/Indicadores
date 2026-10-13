@@ -73,7 +73,11 @@ function alertasTopo(lista, ym, max = 3) {
 
 // marcacoes "resolvido" (guardadas no banco do portal, valem para todos os usuarios)
 const ALERTAS = { marcas: null, aviso: null };
-const painelAtual = () => location.pathname.split('/')[1] || '';
+// Programa local: o painel e o 1o trecho do endereco (/faturamento/). Na Vercel (window.PAINEL_NUVEM, posto pelo servidor) o painel vem em window.PAINEL_ID
+// e as chamadas ao servidor sao funcoes em /api/*.
+const painelAtual = () => window.PAINEL_ID || location.pathname.split('/')[1] || '';
+const apiPainel = (nome, extra = '') => window.PAINEL_NUVEM ? `/api/${nome}?id=${encodeURIComponent(painelAtual())}${extra}` : nome;
+const apiPendencias = acao => window.PAINEL_NUVEM ? `/api/pendencias?id=${encodeURIComponent(painelAtual())}&acao=${acao}` : (acao ? `/pendencias/${acao}` : `/pendencias?painel=${encodeURIComponent(painelAtual())}`);
 const versaoDados = () => (typeof D !== 'undefined' && D.versao) || 0;
 const dataHora = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
 const marcasPorChave = lista => Object.fromEntries((lista || []).map(m => [m.chave, m]));
@@ -156,7 +160,7 @@ document.addEventListener('click', async e => {
     setTimeout(() => { b.textContent = 'Copiar a lista'; }, 2000);
   } else if (b.dataset.al === 'resolver' || b.dataset.al === 'reabrir') {
     b.disabled = true;
-    const j = await chamarPendencias(b.dataset.al === 'resolver' ? '/pendencias/resolver' : '/pendencias/reabrir',
+    const j = await chamarPendencias(apiPendencias(b.dataset.al === 'resolver' ? 'resolver' : 'reabrir'),
       { chave: li.dataset.chave, titulo: li.dataset.titulo || li.querySelector('.tit').textContent, versao: versaoDados() });
     b.disabled = false;
     if (j.ok) reaplicarMarcas(); else avisoAlertas(j.mensagem || 'Não consegui gravar a marcação.');
@@ -164,7 +168,7 @@ document.addEventListener('click', async e => {
 });
 
 if (location.protocol.startsWith('http')) {   // busca as marcacoes e acompanha cada vez que o painel redesenha os alertas (troca de mes)
-  fetch('/pendencias?painel=' + encodeURIComponent(painelAtual()), { cache: 'no-store' }).then(r => r.json())
+  fetch(apiPendencias(''), { cache: 'no-store' }).then(r => r.json())
     .then(j => { ALERTAS.marcas = marcasPorChave(j.resolvidas); reaplicarMarcas(); }).catch(() => { ALERTAS.marcas = {}; reaplicarMarcas(); });
 }
 new MutationObserver(ms => {
@@ -469,12 +473,17 @@ function iniciarAtualizacao(versaoAtual) {
     aviso('Para usar o botão <b>Atualizar agora</b>, abra o painel pelo <b>Indicadores CSI</b>. Aberto direto do arquivo, esta página só mostra os dados da última atualização.', 'info');
     return;
   }
+  if (window.PAINEL_NUVEM && window.PAINEL_ADMIN === false) {   // na Vercel so administrador consulta o Klingo (protege a cota da API)
+    btn.disabled = true;
+    aviso('Só administradores podem usar <b>Atualizar agora</b>. Os dados mostrados são os da última atualização.', 'info');
+    return;
+  }
   btn.addEventListener('click', async () => {
     btn.disabled = true; btn.classList.add('girando'); $('btn-texto').textContent = 'Atualizando…';
     barra.mostrar();
     aviso('Consultando o Klingo para buscar os dados mais recentes…', 'info');
     try {
-      const r = await fetch('atualizar', { method: 'POST', headers: { 'X-Painel': '1' } });
+      const r = await fetch(apiPainel('atualizar'), { method: 'POST', headers: { 'X-Painel': '1' } });
       const j = await r.json();
       if (j.ok && j.atualizou === false) {
         // nao consultou o Klingo: alguem atualizou ha pouco ou ja ha uma atualizacao em andamento (varias pessoas usam o portal).
@@ -488,14 +497,15 @@ function iniciarAtualizacao(versaoAtual) {
         aviso(esc(j.mensagem), 'erro');
       }
     } catch (e) {
-      aviso('Não consegui falar com o servidor do portal. O computador dele está ligado e o Indicadores CSI Servidor está aberto? Se continuar, avise quem cuida do portal.', 'erro');
+      aviso(window.PAINEL_NUVEM ? 'Não consegui concluir a atualização (pode ter passado do tempo limite ou a conexão caiu). Recarregue a página e clique em Atualizar agora de novo: o que já foi baixado ficou guardado.'
+        : 'Não consegui falar com o servidor do portal. O computador dele está ligado e o Indicadores CSI Servidor está aberto? Se continuar, avise quem cuida do portal.', 'erro');
     }
     barra.esconder();
     btn.disabled = false; btn.classList.remove('girando'); $('btn-texto').textContent = 'Atualizar agora';
   });
   setInterval(async () => {      // se a verificacao automatica (de qualquer painel) trouxe dados novos, recarrega
     try {
-      const j = await (await fetch('estado', { cache: 'no-store' })).json();
+      const j = await (await fetch(apiPainel('estado'), { cache: 'no-store' })).json();
       if (j.atualizando) barra.mostrar(); else barra.esconder();
       if (j.versao !== versaoAtual && !j.atualizando) location.reload();
       else if (j.aviso) aviso(esc(j.aviso), 'erro');

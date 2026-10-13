@@ -281,7 +281,7 @@ function microItem(x) {
   const tipos = x.tipos.length ? tabela([{ t: 'Movimento' }, { t: 'Quantidade', n: 1 }, { t: 'Linhas', n: 1 }], x.tipos.map(r => [esc(r.nome), qtd(r.qtd, x.un), num(r.linhas)])) : '';
   const compras = x.compras.length ? tabela([{ t: 'Data' }, { t: 'Tipo' }, { t: 'Fornecedor', txt: 1 }, { t: 'Quantidade', n: 1 }, { t: 'Valor', n: 1 }], x.compras.map(c => [dataBR(c.data), esc(c.tipo), c.fornecedor ? esc(c.fornecedor) : VAZIO, qtd(c.qtd, x.un), c.valor ? brl(c.valor) : VAZIO])) : '<p class="vazio">Nenhuma compra ou doação registrada.</p>';
   const calc = `<div class="calc">${x.custo == null || x.custo_confira ? `Quanto custa 1 ${x.em_embalagem ? (x.embalagem_txt.split(' ')[0]) : u}? <input type="number" min="0" step="any" id="calc-preco" placeholder="R$"> <span id="calc-res"></span>` : ''}
-    <div style="margin-top:6px">Para valer em todo o painel, digite o preço em <b>${esc(D.itens.arquivo_custos)}</b> (coluna “Custo informado”), na pasta Suprimentos, e clique em Atualizar agora.</div></div>`;
+    <div style="margin-top:6px">${D.itens.custos_nuvem ? 'Para valer em todo o painel, cadastre o preço do item na tabela <b>painel_custo_item</b> do Supabase (colunas item e custo) e clique em Atualizar agora.' : `Para valer em todo o painel, digite o preço em <b>${esc(D.itens.arquivo_custos)}</b> (coluna “Custo informado”), na pasta Suprimentos, e clique em Atualizar agora.`}</div></div>`;
   return `<div class="micro"><h3>${esc(bonito(x.item))}</h3><p class="sub2">${esc(sub)} ${x.flags.filter(f => f !== 'embalagem').map(tagFlag).join(' ')}</p>
     <div class="kpis">${k1}${k2}${k3}${k4}</div>${calc}
     <h2 style="margin-top:16px">Consumo por setor</h2>${setores}
@@ -299,7 +299,7 @@ function listaItensHtml() {
 function itensTier() {
   if (!D.itens || !D.itens.lista.length) return '';
   const corpo = `<section>${itensResumoHtml()}</section>` + itensAchadosHtml() +
-    `<section><h2>Cada item</h2><p class="nota">Clique em um item para ver o custo de cada unidade e o consumo. Preços que você digitar em <b>${esc(D.itens.arquivo_custos)}</b> entram aqui.</p><div id="ficha">${microItem(null)}</div>${listaItensHtml()}</section>` +
+    `<section><h2>Cada item</h2><p class="nota">Clique em um item para ver o custo de cada unidade e o consumo. Preços que você cadastrar em <b>${D.itens.custos_nuvem ? 'painel_custo_item (Supabase)' : esc(D.itens.arquivo_custos)}</b> entram aqui.</p><div id="ficha">${microItem(null)}</div>${listaItensHtml()}</section>` +
     `<section>${acordeao('Compras: o que foi comprado × consumido', comprasCorpo(), { dica: `${D.itens.compras.length} lançamentos` })}${D.exame ? acordeao('Material por atendimento (RM/TC)', exameCorpo(), { dica: 'ordem de grandeza' }) : ''}</section>`;
   return tier('Item a item', 'Custo e consumo de cada item, do grampo ao contraste', corpo);
 }

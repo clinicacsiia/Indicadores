@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { PAINEIS } from "@/lib/paineis";
 
 // RLS (policy "profiles_update_admin") é quem realmente garante que só admin
 // grava aqui, mesmo que estas actions sejam chamadas diretamente.
@@ -40,9 +41,11 @@ export async function salvarUsuario(
 ): Promise<SalvarUsuarioState> {
   const userId = String(formData.get("userId") ?? "");
   const role = formData.get("role");
-  const acesso = {
+  const acesso: Record<string, boolean> = {
     relatorios: formData.get("relatorios") === "on",
     metas: formData.get("metas") === "on",
+    // Painéis em Python: cada um é uma chave em profiles.permissions (o id do painel).
+    ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
   };
 
   if (!userId) return { error: "Usuário inválido." };
@@ -58,7 +61,7 @@ export async function salvarUsuario(
   return { ok: true };
 }
 
-export async function updateProfileAccess(userId: string, acesso: { relatorios: boolean; metas: boolean }) {
+export async function updateProfileAccess(userId: string, acesso: Record<string, boolean>) {
   const supabase = await createClient();
   const { data: current, error: fetchError } = await supabase
     .from("profiles")

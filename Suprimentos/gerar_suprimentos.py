@@ -27,6 +27,7 @@ from openpyxl.styles import Alignment, Font
 
 PASTA = Path(__file__).parent
 sys.path.insert(0, str(PASTA.parent))
+import armazenamento  # noqa: E402  (na Vercel, custos informados vem do Supabase)
 import klingo_relatorios as k  # noqa: E402
 import painel_comum as pc  # noqa: E402
 import guia_pendencias as gp  # noqa: E402
@@ -525,7 +526,10 @@ def embalagem(item: str, un: str) -> tuple[int, str, bool]:
 
 
 def ler_custos_informados() -> dict[str, float]:
-    """Custos que o usuario digitou em 'Custos dos Itens.xlsx' (coluna 'Custo informado'). Vazio ou arquivo ausente = nenhum."""
+    """Custos que o usuario digitou em 'Custos dos Itens.xlsx' (coluna 'Custo informado'). Vazio ou arquivo ausente = nenhum.
+    Na Vercel vem da tabela painel_custo_item do Supabase."""
+    if armazenamento.ativo():
+        return armazenamento.custos_informados()
     if not CUSTOS_ARQ.exists():
         return {}
     try:
@@ -543,6 +547,8 @@ def ler_custos_informados() -> dict[str, float]:
 
 def gravar_modelo_custos(itens: list[dict]) -> None:
     """Cria/atualiza a planilha de custos com todos os itens, mantendo o que o usuario ja digitou. Nao grava se nada mudou."""
+    if armazenamento.ativo():   # na Vercel nao ha planilha para preencher: os custos ficam na tabela painel_custo_item
+        return
     try:
         antigos = {}
         if CUSTOS_ARQ.exists():
@@ -581,7 +587,7 @@ def gravar_modelo_custos(itens: list[dict]) -> None:
 
 def montar_itens(m: pd.DataFrame, s: pd.DataFrame, hoje: date, informados: dict[str, float]) -> dict:
     """Uma linha por item: estoque, custo, consumo registrado, o que os setores pediram e receberam, e o que impede de enxergar o custo."""
-    vazio = {"lista": [], "resumo": {}, "compras": [], "achados": [], "informados": len(informados), "arquivo_custos": CUSTOS_ARQ.name}
+    vazio = {"lista": [], "resumo": {}, "compras": [], "achados": [], "informados": len(informados), "arquivo_custos": CUSTOS_ARQ.name, "custos_nuvem": armazenamento.ativo()}
     if not len(m) and not len(s):
         return vazio
     pm = {i: g for i, g in m.groupby(M_ITEM)} if len(m) else {}
@@ -698,7 +704,7 @@ def montar_itens(m: pd.DataFrame, s: pd.DataFrame, hoje: date, informados: dict[
         achados.append({"titulo": "Material entregue aos setores sem nenhuma baixa",
                         "texto": f"<b>{n_br(len(sem_baixa))}</b> itens saíram do estoque para os setores e nunca foram baixados como consumo, ex.: "
                                  + ", ".join(f"{html.escape(bonito(x['item']))} ({n_br(x['entregue'])} {html.escape(x['un'].lower())})" for x in top) + ". É consumo que nenhum custo alcança."})
-    return {"lista": lista, "resumo": resumo, "compras": compras, "achados": achados, "informados": len(informados), "arquivo_custos": CUSTOS_ARQ.name}
+    return {"lista": lista, "resumo": resumo, "compras": compras, "achados": achados, "informados": len(informados), "arquivo_custos": CUSTOS_ARQ.name, "custos_nuvem": armazenamento.ativo()}
 
 
 def montar_exame(m: pd.DataFrame, itens: dict, primeiro_mes: str) -> dict | None:

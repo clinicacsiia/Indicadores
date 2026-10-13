@@ -3,6 +3,7 @@ import { signOut } from "@/app/actions";
 import { Brand } from "@/app/components/Brand";
 import { NavLinks } from "@/app/components/NavLinks";
 import { IconSair } from "@/app/components/icons";
+import { PAINEIS, podeVerPainel } from "@/lib/paineis";
 
 export default async function AppLayout({
   children,
@@ -11,6 +12,7 @@ export default async function AppLayout({
 }) {
   const profile = await getCurrentProfile();
   const isAdmin = profile?.role === "admin";
+  const paineis = PAINEIS.filter((p) => podeVerPainel(profile, p.id));
   const email = profile?.email ?? "";
   // "csiadmin@csi.local" é exibido como "csiadmin".
   const nome = email.endsWith("@csi.local") ? email.replace("@csi.local", "") : email;
@@ -24,7 +26,7 @@ export default async function AppLayout({
       <aside className="sidebar">
         <Brand href="/" />
 
-        <NavLinks isAdmin={isAdmin} />
+        <NavLinks isAdmin={isAdmin} paineis={paineis} />
 
         <div className="sidebar-user">
           <span className="avatar" aria-hidden="true">
