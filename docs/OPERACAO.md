@@ -1,13 +1,10 @@
 # Operação: o que só você pode fazer e como manter
 
-## 0. Antes de tudo: o app antigo
-O repositório ainda tem o app antigo (pastas `app/`, `lib/`, `proxy.ts`, `next.config.js` e `supabase/functions/`). Ele **precisa ser apagado**
-para o site novo (que usa `src/`) compilar; o novo `next.config.ts` já existe ao lado. Comando (os arquivos continuam no histórico do Git):
-
-```
-git rm -r app lib proxy.ts next.config.js supabase/functions
-```
-Os arquivos de `supabase/migrations/2026101*.sql` ficam (são o histórico já aplicado no banco); a migração nova remove as tabelas antigas.
+## 0. Estado atual
+O app antigo (Next.js com `profiles`/`dim_relatorio`) foi **removido do repositório** (continua no histórico do Git). Os arquivos de
+`supabase/migrations/2026101*.sql` ficam (são o histórico já aplicado no banco); a migração nova remove as tabelas antigas.
+A branch `claude/peaceful-gauss-5dstr0` já gera um *preview* na Vercel que compila e responde (`/estado`; a função Python responde 404 sem o
+segredo, como deve). **Falta o que só você pode fazer abaixo** para o site funcionar de ponta a ponta. Não abri Pull Request nem fiz merge na `main`.
 
 ## 1. Supabase (região São Paulo)
 1. Projeto atual: `Indicadores` (`syhcvonwthtqalpjcmtj`). Anote **URL**, **anon key** e **service role key** (esta nunca vai ao navegador).
@@ -24,8 +21,11 @@ Os arquivos de `supabase/migrations/2026101*.sql` ficam (são o histórico já a
 
 ## 2. Vercel
 1. Importar o repositório (projeto `indicadores`); framework Next.js; **sem** "Root Directory".
-2. Variáveis de ambiente (Production e Preview): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `KLINGO_APP_TOKEN`, `CRON_SECRET` (gere com `openssl rand -hex 32`). Nunca com prefixo `NEXT_PUBLIC_` os três últimos.
+2. Variáveis de ambiente. **Já existem no projeto** (integração com o Supabase), só em *Production*: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`;
+   e em *Production + Preview*: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. **Faltam:** `CRON_SECRET` (gere com
+   `openssl rand -hex 32`; é o mesmo valor do SQL de `agendar_sincronizacao`; **guarde-o: ele também libera a função de cálculo**) e
+   `KLINGO_APP_TOKEN` (token novo). Para testar em *Preview*, cadastre também `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` nesse escopo.
+   Nunca use o prefixo `NEXT_PUBLIC_` nos segredos. Eu não cadastrei esses dois: não os conheço e não quis gerar um segredo que apareceria na conversa.
 3. Plano: confirmar o limite de tempo das funções (`vercel.json` pede 300 s para o cálculo Python; o plano gratuito pode limitar a menos —
    nesse caso a primeira abertura de um período novo pode falhar; o cache e o pré-aquecimento ajudam). O cron é do Supabase (a Vercel gratuita só tem cron diário).
 4. Se o projeto tiver "Vercel Authentication" nos previews, defina `VERCEL_AUTOMATION_BYPASS_SECRET` para a função Python ser chamada.

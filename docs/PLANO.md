@@ -10,7 +10,7 @@
 | 6 | Cesta, Suprimentos (custos), Atendimento (+ responsáveis) | Código do legado em uso; custos migrados para `custos_itens` |
 | 7 | Guia dos alertas e "marcar como resolvido" | **Feita**; textos reescritos (revisar) |
 | 8 | Exportar/Imprimir + PDF; suíte "Conferir números" | PDF **feito** (testado no Chromium local); "Conferir números": ver `OPERACAO.md` |
-| 9 | Segurança final, backups, deploy, checklist | Checklist em `OPERACAO.md` |
+| 9 | Segurança final, backups, deploy, checklist | Cabeçalhos e proxy **feitos e verificados** (build de produção + preview na Vercel); backups, domínio e checklist dependem de você (`OPERACAO.md`) |
 
 Ainda **não** feito: importação das planilhas (`scripts/importar_planilhas.ts` espera os `.xlsx`), golden master, E2E com Playwright contra Supabase
 local, verificação visual lado a lado com o legado.
