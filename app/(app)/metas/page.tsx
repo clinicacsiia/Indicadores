@@ -203,6 +203,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
 
       {isAdmin && catalogo && catalogo.length > 0 && (
         <AtualizarForm
+          key={mes}
           relatorios={catalogo}
           relatorioPadrao={RELATORIO_METAS}
           de={primeiroDia}
