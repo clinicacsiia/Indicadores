@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, type Profile } from "@/lib/supabase/profile";
 import { IconAlerta } from "@/app/components/icons";
 import { PAINEIS } from "@/lib/paineis";
+import { NovoUsuarioForm } from "./NovoUsuarioForm";
 import { UsuarioForm } from "./UsuarioForm";
 
 export const metadata: Metadata = { title: "Configurações" };
@@ -36,7 +37,7 @@ export default async function ConfiguracoesPage() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Configurações</h1>
           <p className="page-lede">
-            Defina quem é administrador e quem pode ver cada tela: Relatórios, Metas e os painéis (Faturamento, Financeiro...). Cada usuário é salvo separadamente. Os painéis começam bloqueados para quem não é administrador.
+            Adicione usuários, redefina senhas e escolha quais telas cada um pode ver (Relatórios, Metas e painéis). Cada usuário é salvo separadamente; os painéis começam bloqueados para quem não é administrador.
           </p>
         </div>
       </header>
@@ -48,12 +49,15 @@ export default async function ConfiguracoesPage() {
         </div>
       )}
 
-      {!error && usuarios.length === 0 && (
-        <section className="panel empty">
-          <h2>Nenhum usuário cadastrado</h2>
-          <p>Os usuários aparecem aqui assim que fizerem o primeiro acesso.</p>
-        </section>
-      )}
+      <section className="panel" aria-labelledby="titulo-novo">
+        <div className="panel-head" style={{ paddingBottom: 12 }}>
+          <div>
+            <h2 className="panel-title" id="titulo-novo">Novo usuário</h2>
+            <p className="panel-sub">Cria o acesso com uma senha inicial. Depois libere as telas na lista abaixo.</p>
+          </div>
+        </div>
+        <NovoUsuarioForm />
+      </section>
 
       {usuarios.length > 0 && (
         <section className="panel" aria-labelledby="titulo-usuarios">
