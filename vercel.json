@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/py/painel.py": {
+      "maxDuration": 300,
+      "includeFiles": "painel_py/**",
+      "excludeFiles": "{legado/**,node_modules/**,.next/**,src/**,tests/**,docs/**,supabase/**}"
+    }
+  }
+}

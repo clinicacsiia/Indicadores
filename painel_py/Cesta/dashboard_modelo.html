@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cesta de Exames</title>
+<style>
+__CSS__
+  .pares { display: grid; gap: 12px; margin-top: 12px; }
+  .par { display: grid; grid-template-columns: 62px 1fr; gap: 12px; align-items: center; font-size: 14px; }
+  .par .duplo { display: grid; gap: 3px; min-width: 0; }
+  .par .lin { display: flex; align-items: center; gap: 8px; height: 12px; }
+  .par .b { height: 9px; border-radius: 0 3px 3px 0; min-width: 2px; flex: none; }
+  .par .f { background: var(--accent); } .par .mm { background: var(--neutro-2); }
+  .par .v { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink2); white-space: nowrap; }
+  .combo-itens { white-space: normal; min-width: 150px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 12px; background: var(--grid); color: var(--ink2); margin: 1px 4px 1px 0; white-space: normal; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Cesta de Exames</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Atendimento</b> aqui é <b>um paciente em um dia</b>, e a <b>cesta</b> é o conjunto de exames que ele fez nesse dia.</li>
+        <li><b>Ticket médio</b> é a receita dividida pelos atendimentos <b>com cobrança</b>: atendimento só com linhas de R$ 0 (retorno, cortesia, exame sem preço cadastrado) conta como atendimento, mas fica fora do ticket. <b>Exames por atendimento</b> conta exames diferentes na mesma cesta. <b>Cesta múltipla</b> é o atendimento com 2 ou mais exames diferentes.</li>
+        <li><b>Combos:</b> exames que aparecem juntos na mesma cesta, em pelo menos 10 atendimentos. <b>Coesão</b> mostra quanto o exame menos frequente do combo vem junto com os outros (100% = quem faz o menor sempre faz o combo todo). <b>Força</b> (lift) diz quantas vezes os exames aparecem juntos mais do que o acaso explicaria: acima de 2 já é uma ligação real.</li>
+        <li><b>Oportunidades:</b> “Fazem A e não B” são os atendimentos que tiveram o exame A sem o B, num par em que a maioria costuma fazer os dois. “Se 10% convertessem” é uma simulação (10% desses atendimentos × ticket médio de B), não uma previsão.</li>
+        <li>Combos e oportunidades usam <b>todos os meses acumulados</b>, porque precisam de volume. O resto do painel segue o mês escolhido.</li>
+        <li><b>Fontes:</b> Base da Cesta (base por paciente: cestas, combos e ticket), Exames por Perfil (exames por faixa etária e sexo) e Procedimentos por Perfil (valor por exame, faixa etária e sexo). A <b>receita</b> deste painel é a mesma do <b>Faturamento</b>: o Klingo entrega na Cesta uns 6% a menos (exame repetido no dia vira uma linha só e contraste ou material não entram no valor), então o painel ajusta cada linha por exame e convênio para fechar com o Faturamento. A seção “Conferência” (em Detalhes) mostra os três relatórios entre si, o que o Klingo entregou, o valor ajustado e de onde vem a diferença. Atendimentos, exames diferentes por atendimento, combos e perfil continuam vindo da Cesta.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e o ritmo do mês), <b>Análise</b> (gráficos de receita, perfil, combos e oportunidades) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
+        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz os meses e guarda nos dados do portal.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const brlOu = v => v == null ? VAZIO : brl(v);
+const numOu = (v, d = 0) => v == null ? VAZIO : num(v, d);
+const B = D.base || {};
+const CHAVES = chavesMeses(D);
+
+$('sub').textContent = `Fonte: relatórios de Base da Cesta, Exames por Perfil e Procedimentos por Perfil do Klingo · dados de ${D.dados_em}`;
+
+// ====================== RESUMO ======================
+function kpisHtml(m, prev) {
+  const k = m.kpi, c = B.consulta || {};
+  const antes = m.periodo ? 'o período anterior' : 'o mês anterior';
+  const ref = k.ref_txt ? 'contra ' + k.ref_txt : (m.fechado ? '' : m.periodo ? 'Período em andamento: ainda sem comparação.' : 'Ainda cedo para comparar com o mês anterior.');
+  const sozinhas = c.cestas ? c.sozinhas / c.cestas * 100 : null;
+  const contra = prev ? 'contra ' + prev.rotulo : '';
+  return `<div class="kpis">
+    ${kpi(`Atendimentos em ${esc(m.rotulo)}`, num(k.atend), { destaque: 1, comp: k.var_atend != null ? comp(k.var_atend, ref) : ref, sub: `${num(k.pacientes)} pacientes · ${num(k.exames)} exames realizados${m.ultimo_dia ? ' · até ' + m.ultimo_dia : ''}` })}
+    ${kpi('Ticket médio por atendimento', k.ticket == null ? '—' : brl(k.ticket), { comp: comp(k.var_ticket, 'no período comparável'),
+      sub: `Receita: <b>${brlc(k.receita)}</b>${k.ajustada ? ' (ajustada ao Faturamento)' : ''}` + (k.sem_cobranca ? `<br>Não conta ${num(k.sem_cobranca)} atendimento(s) sem cobrança (R$ 0)` : '') })}
+    ${kpi('Exames por atendimento', k.itens == null ? '—' : num(k.itens, 2), { comp: prev && prev.kpi.itens ? comp(varPct(k.itens, prev.kpi.itens), contra) : '', sub: 'Exames diferentes na mesma cesta, em média' })}
+    ${kpi('Atendimentos com 2+ exames', pct(k.multi), { comp: comp(k.var_multi, 'contra ' + antes, { unidade: 'pp' }), sub: 'Taxa de cesta múltipla' })}
+    ${kpi('Consultas sem exame no dia', pct(sozinhas, 0), { sub: c.cestas ? `${num(c.sozinhas)} de ${num(c.cestas)} consultas (todos os meses)` : 'Sem consultas na base' })}
+  </div>`;
+}
+
+// atendimentos por dia: linha simples com a media dos dias com atendimento
+function diarioGraf(m) {
+  if (m.periodo) {   // periodo de varios meses: no lugar do dia a dia (que so existe dentro de um mes), os atendimentos de cada mes
+    const ms = (m.meses_do_periodo || []).map(y => D.meses[y]).filter(x => x && x.tem_dados);
+    if (ms.length < 2) return '';
+    return `<section><h2>Atendimentos mês a mês no período</h2><p class="nota">Pacientes atendidos em cada mês de ${esc(m.rotulo)}.</p>${barras(ms.map(x => ({ rotulo: x.rotulo, valor: x.kpi.atend, texto: num(x.kpi.atend), extra: x.fechado ? '' : 'parcial',
+      tip: `${x.rotulo}\n${num(x.kpi.atend)} atendimentos\nReceita: ${brl(x.kpi.receita)}${x.fechado ? '' : '\nmês ainda em andamento'}` })), '', '30%')}</section>`;
+  }
+  const dias = m.dias; if (!dias.length) return '';
+  const comAtend = dias.filter(d => d.atend > 0), mediaV = comAtend.length ? soma(comAtend, d => d.atend) / comAtend.length : 0;
+  const N = Math.max(dias[dias.length - 1].d, 2);
+  const tipX = x => { const d = dias.find(z => z.d === x); return d ? `Dia ${d.d}\n${num(d.atend)} atendimentos\nReceita: ${brl(d.receita)}${d.cobrados ? '\nTicket: ' + brl(d.receita / d.cobrados) : ''}` : ''; };
+  const g = linhas({ mr: 100, aria: 'Atendimentos por dia', xRot: [...Array(N).keys()].map(i => i + 1).filter(d => d === 1 || d % 5 === 0 || d === N).map(d => ({ x: d, t: String(d) })), tipX,
+    series: [{ nome: 'Média', cor: 'var(--neutro-2)', traco: true, pontos: [{ x: 1, y: mediaV }, { x: N, y: mediaV }] },
+      { nome: 'Atendimentos', cor: 'var(--accent)', principal: true, marcaPico: true, pontos: dias.map(d => ({ x: d.d, y: d.atend })) }] });
+  return `<section><h2>Atendimentos por dia</h2><p class="nota">Pacientes atendidos em cada dia de ${esc(m.rotulo)}. A linha tracejada é a média dos dias com atendimento (${num(mediaV, 0)}).</p>${g}</section>`;
+}
+
+// ====================== ANALISE ======================
+function receitaGraf(m) {
+  if (!m.procedimentos.length) return '';
+  const mods = donut(m.modalidades.map(x => ({ rotulo: x.nome, valor: x.receita, tip: `${x.nome}\n${brl(x.receita)} (${pct(x.pct, 1)})\n${num(x.exames)} exames` })), { fmt: brlc, centro: { num: rotEixo(m.kpi.receita), rot: 'R$ de receita' } });
+  const top = barras(m.procedimentos.map(p => ({ rotulo: p.nome, valor: p.receita, texto: brlc(p.receita), extra: `${num(p.exames)} exames`, tip: `${p.nome}\n${brl(p.receita)} em ${num(p.exames)} exames\nTicket ${p.ticket == null ? '—' : brl(p.ticket)}` })), '', '44%', { destaque: 0 });
+  return `<section class="grid2"><div><h2>O que mais fatura</h2><p class="nota">Receita de ${esc(m.rotulo)} por tipo de exame${m.kpi.ajustada ? ', ajustada ao Faturamento' : ' (relatório de Procedimentos por Perfil)'}.</p>${mods}</div>
+    <div><h2>Os ${m.procedimentos.length} exames que mais faturam</h2><p class="nota">Receita e quantidade de exames.</p>${top}</div></section>`;
+}
+function perfilGraf(m) {
+  const p = m.perfil; if (!p.length) return '';
+  const max = Math.max(...p.map(x => Math.max(x.exames_f, x.exames_m)), 1), tf = soma(p, x => x.exames_f), tm = soma(p, x => x.exames_m);
+  const w = v => Math.max(v / max * 62, 0.5);
+  const pares = '<div class="pares">' + p.map(x => `<div class="par" tabindex="0" data-tip="${esc(`${x.faixa} anos\nMulheres: ${num(x.exames_f)} exames\nHomens: ${num(x.exames_m)} exames`)}">
+    <div>${esc(x.faixa)}</div><div class="duplo"><div class="lin"><div class="b f" style="width:${w(x.exames_f)}%"></div><span class="v">${num(x.exames_f)}</span></div>
+    <div class="lin"><div class="b mm" style="width:${w(x.exames_m)}%"></div><span class="v">${num(x.exames_m)}</span></div></div></div>`).join('') + '</div>';
+  return `<section class="grid2"><div><h2>Quem são os pacientes</h2><p class="nota">Exames por faixa etária e sexo em ${esc(m.rotulo)} (relatório de Exames por Perfil).</p>
+      ${pares}<div class="leg"><span style="--c:var(--accent)"><i></i>Mulheres</span><span style="--c:var(--neutro-2)"><i></i>Homens</span></div></div>
+    <div><h2>Mulheres e homens</h2><p class="nota">Participação no total de exames.</p>${donut([{ rotulo: 'Mulheres', valor: tf, cor: 'var(--accent)' }, { rotulo: 'Homens', valor: tm, cor: 'var(--neutro-2)' }], { centro: { num: pct(tf + tm ? tf / (tf + tm) * 100 : null, 0), rot: 'mulheres' } })}</div></section>`;
+}
+function combosGraf() {
+  if (!B.combos || !B.combos.length) return '';
+  return `<section><h2>O que os pacientes fazem juntos</h2>
+    <p class="nota">Combos de exames na mesma cesta, em pelo menos ${B.min_cont} atendimentos. Base: todos os meses acumulados (${num(B.cestas)} atendimentos, de ${esc(B.periodo)}).</p>
+    ${barras(B.combos.map(c => ({ rotulo: c.itens.join(' + '), valor: c.n, texto: num(c.n), extra: pct(c.pct, 1),
+      tip: `${c.itens.join(' + ')}\n${num(c.n)} atendimentos (${pct(c.pct, 2)} de todos)\nCoesão ${pct(c.coesao, 0)} · força ${num(c.lift, 1)}×` })), undefined, '52%', { destaque: 0 })}</section>`;
+}
+function oportunidadesGraf() {
+  if (!B.oportunidades || !B.oportunidades.length) return '';
+  return `<section><h2>Oportunidades de venda cruzada</h2>
+    <p class="nota">Quanto renderia se ${num(B.conversao, 0)}% dos atendimentos que fizeram só o primeiro exame fizessem também o segundo (simulação, não previsão). Pares em que quem faz o primeiro costuma fazer o segundo em pelo menos ${num(B.min_conf, 0)}% dos casos.</p>
+    ${barras(B.oportunidades.map(o => ({ rotulo: `${o.se.join(' + ')} → ${o.entao}`, valor: o.potencial, texto: brlc(o.potencial), extra: `${num(o.sem)} sem o 2º`,
+      tip: `${o.se.join(' + ')} → ${o.entao}\n${pct(o.conf, 0)} fazem os dois (${num(o.juntos)} de ${num(o.nse)})\n${num(o.sem)} ficaram sem o 2º exame\nPotencial ${brl(o.potencial)} (ticket ${brl(o.ticket)})` })), undefined, '52%')}</section>`;
+}
+function gruposGraf(m) {
+  const mk = lista => barras(lista.map(x => ({ rotulo: x.nome, valor: x.receita, texto: brlc(x.receita), extra: `${num(x.atend)} atend.`, tip: `${x.nome}\n${brl(x.receita)} · ${num(x.atend)} atendimentos\nTicket ${x.ticket == null ? '—' : brl(x.ticket)}` })), '', '44%');
+  return `<section class="grid2"><div><h2>Convênios por receita</h2><p class="nota">Do maior ao menor em ${esc(m.rotulo)}.</p>${mk(m.operadoras)}</div>
+    <div><h2>Unidades por receita</h2><p class="nota">Um paciente pode passar por mais de uma unidade no mesmo dia.</p>${mk(m.unidades)}</div></section>`;
+}
+
+// ====================== DETALHES ======================
+function detalhes(m) {
+  const it = [];
+  const dias = m.dias;
+  if (dias.length) it.push(acordeao('Atendimentos por dia', tabela([{ t: 'Dia' }, { t: 'Atendimentos', n: 1 }, { t: 'Receita', n: 1 }, { t: 'Ticket', n: 1 }], dias.map(d => [String(d.d), num(d.atend), brl(d.receita), d.cobrados ? brl(d.receita / d.cobrados) : '—'])), { dica: `${dias.length} dias` }));
+  if (m.procedimentos.length) it.push(acordeao('Exames que mais faturam: tabela', tabela([{ t: 'Exame', txt: 1 }, { t: 'Tipo' }, { t: 'Exames', n: 1 }, { t: 'Receita', n: 1 }, { t: 'Ticket', n: 1 }, { t: '% mulheres', n: 1 }, { t: 'Faixa mais comum' }],
+    m.procedimentos.map(p => [esc(p.nome), esc(p.modalidade), num(p.exames), brl(p.receita), brlOu(p.ticket), pct(p.pct_mulheres, 0), esc(p.faixa_top || '—')])), { dica: `${m.procedimentos.length} exames` }));
+  if (m.perfil.length) it.push(acordeao('Perfil: atendimentos, receita e ticket por faixa etária', tabela([{ t: 'Faixa etária' }, { t: 'Atendimentos', n: 1 }, { t: 'Exames', n: 1 }, { t: 'Receita', n: 1 }, { t: 'Ticket', n: 1 }, { t: '2+ exames', n: 1 }],
+    m.perfil.map(x => [esc(x.faixa), num(x.atend), num(x.exames_f + x.exames_m), brl(x.receita), brlOu(x.ticket), pct(x.multi)])), { dica: `${m.perfil.length} faixas` }));
+  if (B.combos && B.combos.length) {
+    const itens = c => c.itens.map(i => `<span class="tag">${esc(i)}</span>`).join('');
+    it.push(acordeao('Combos: tabela completa', tabela([{ t: 'Combo', txt: 1 }, { t: 'Atendimentos', n: 1 }, { t: '% de todos', n: 1 }, { t: 'Coesão', n: 1 }, { t: 'Força', n: 1 }],
+      B.combos.map(c => [`<div class="combo-itens">${itens(c)}</div>`, num(c.n), pct(c.pct, 2), pct(c.coesao, 0), num(c.lift, 1) + '×'])), { dica: `${B.combos.length} combos` }));
+  }
+  if (B.oportunidades && B.oportunidades.length) {
+    const c = B.consulta;
+    const linhas = B.oportunidades.map(o => [`<div class="combo-itens">${o.se.map(i => `<span class="tag">${esc(i)}</span>`).join('')}<br><small style="color:var(--ink2)">${num(o.nse)} atendimentos</small></div>`,
+      `<div class="combo-itens"><span class="tag">${esc(o.entao)}</span><br><small style="color:var(--ink2)">${pct(o.conf, 0)} fazem os dois (${num(o.juntos)})</small></div>`,
+      `<b>${num(o.sem)}</b>`, `<b>${brlc(o.potencial)}</b><br><small style="color:var(--ink2)">ticket ${brl(o.ticket)}</small>`]);
+    const nota = c && c.ticket_com_exame && c.ticket_sozinha ? `<p class="nota" style="margin-top:12px">Consulta que vem com exame no mesmo dia: ticket de <b>${brl(c.ticket_com_exame)}</b>. Consulta sozinha: <b>${brl(c.ticket_sozinha)}</b>. ${num(c.sozinhas)} de ${num(c.cestas)} consultas (${pct(c.sozinhas / c.cestas * 100, 0)}) ficaram sem nenhum exame.</p>` : '';
+    it.push(acordeao('Oportunidades de venda cruzada: tabela completa', tabela([{ t: 'Quem faz', txt: 1 }, { t: 'Costuma fazer também', txt: 1 }, { t: 'Ficaram sem o 2º exame', n: 1 }, { t: `Se ${num(B.conversao, 0)}% convertessem`, n: 1 }], linhas) + nota, { dica: `${B.oportunidades.length} pares` }));
+  }
+  const t = lista => tabela([{ t: 'Nome' }, { t: 'Atend.', n: 1 }, { t: 'Receita', n: 1 }, { t: 'Ticket', n: 1 }, { t: 'Exames/atend.', n: 1 }, { t: '2+ exames', n: 1 }],
+    lista.map(x => [esc(x.nome), num(x.atend), brl(x.receita), brlOu(x.ticket), numOu(x.itens, 2), pct(x.multi)]));
+  it.push(acordeao('Convênios e unidades: tabelas', `<p class="nota">Um paciente pode passar por mais de uma unidade ou convênio no mesmo dia, então a soma das linhas pode passar do total de atendimentos.</p><h3>Convênios (por receita)</h3>${t(m.operadoras)}<h3 style="margin-top:20px">Unidades</h3>${t(m.unidades)}`, { dica: `${m.operadoras.length} convênios · ${m.unidades.length} unidades` }));
+  it.push(acordeao('Conferência entre os 3 relatórios e sobre os dados', dadosHtml(m)));
+  return it.join('');
+}
+function dadosHtml(m) {
+  const c = m.conferencia;
+  const dif = (a, b) => b ? (a - b) / b * 100 : null;
+  const linha = (nome, a, b, fmt, tol) => { const d = dif(a, b); const ok = d != null && Math.abs(d) <= tol;
+    return [nome, fmt(a), fmt(b), d == null ? '—' : (d >= 0 ? '+' : '−') + num(Math.abs(d), 2) + '%', chip(ok ? 'ok' : 'info')]; };
+  const conf = tabela([{ t: 'O que se compara', txt: 1 }, { t: 'Base da Cesta', n: 1 }, { t: 'Outro relatório', n: 1 }, { t: 'Diferença', n: 1 }, { t: 'Situação' }], [
+    linha('Receita (Base da Cesta × Procedimentos por Perfil)', c.receita_13280, c.receita_13285, brl, 0.1),
+    linha('Exames (Base da Cesta × Procedimentos por Perfil)', c.exames_13280, c.exames_13285, num, 0.5),
+    linha('Exames (Base da Cesta × Exames por Perfil)', c.exames_13280, c.exames_13284, num, 0.5)]);
+  const q = D.qualidade.length ? alertasHtml(D.qualidade) : '';
+  const p = m.producao;
+  const unit = v => v == null ? '—' : brl(v);
+  let faturamento = '';
+  if (p) {
+    const d = dif(p.receita_cesta, p.receita_26), dl = dif(p.linhas_cesta, p.linhas_26), ok = d != null && Math.abs(d) <= 2;
+    const sinal = x => x == null ? '—' : (x >= 0 ? '+' : '−') + num(Math.abs(x), 2) + '%';
+    const topo = tabela([{ t: 'Exame', txt: 1 }, { t: 'Qtd. Cesta', n: 1 }, { t: 'Qtd. Faturamento', n: 1 }, { t: 'Valor unit. Cesta', n: 1 }, { t: 'Valor unit. Faturamento', n: 1 }, { t: 'Diferença', n: 1 }],
+      p.top.map(x => [esc(x.nome), num(x.qtd_cesta), num(x.qtd_26), unit(x.unit_cesta), unit(x.unit_26), brl(x.dif)]));
+    const ajust = m.kpi.ajustada ? [['Receita usada neste painel (ajustada)', brl(p.receita_ajustada), brl(p.receita_26), sinal(dif(p.receita_ajustada, p.receita_26)), chip(Math.abs(dif(p.receita_ajustada, p.receita_26)) <= 0.5 ? 'ok' : 'info')]] : [];
+    const causas = p.causas.filter(x => Math.abs(x.valor) >= 0.005).map(x => [esc(x.titulo), num(x.linhas), brl(x.valor), p.dif ? pct(x.valor / p.dif * 100, 0) : '—', esc(x.texto)]);
+    faturamento = `<h3 style="margin-top:20px">Cesta × receita produzida do Faturamento</h3>
+      <p class="nota">Só dias completos de ${esc(m.rotulo)} (até o dia ${p.ate_dia}). A receita produzida é a referência da empresa: ela fecha com o produzido por convênio e com as faturas.
+        ${m.kpi.ajustada ? 'Por isso este painel <b>usa o valor do Faturamento</b>: o que o Klingo entrega na Cesta é ajustado por exame e convênio para fechar com ele, e a diferença está explicada abaixo.' : 'O ajuste ao Faturamento está desligado (<b>ajustar_ao_faturamento</b> no relatorios.json): os números da Cesta são os do Klingo.'}</p>
+      ${tabela([{ t: 'O que se compara', txt: 1 }, { t: 'Cesta', n: 1 }, { t: 'Faturamento', n: 1 }, { t: 'Diferença', n: 1 }, { t: 'Situação' }], [
+        ['Receita entregue pelo Klingo', brl(p.receita_cesta), brl(p.receita_26), sinal(d), chip(ok ? 'ok' : 'info')], ...ajust,
+        ['Linhas de procedimento', num(p.linhas_cesta), num(p.linhas_26), sinal(dl), chip(dl != null && Math.abs(dl) <= 2 ? 'ok' : 'info')]])}
+      <h3 style="margin-top:20px">De onde vem a diferença de ${brl(p.dif)}</h3>
+      <p class="nota">As linhas foram pareadas por dia, unidade, exame e convênio. A Cesta também traz <b>${num(p.zero_cesta)}</b> linhas com valor R$ 0,00, que o Faturamento não lista.</p>
+      ${tabela([{ t: 'Causa', txt: 1 }, { t: 'Linhas', n: 1 }, { t: 'Valor', n: 1 }, { t: '% da diferença', n: 1 }, { t: 'O que significa', txt: 1 }], causas)}
+      <h3 style="margin-top:20px">Exames com maior diferença de preço e quantidade</h3>${topo}`;
+  }
+  return `<p class="nota">Os relatórios de Base da Cesta e Procedimentos por Perfil devem fechar na receita e nos exames. O relatório de Exames por Perfil conta atendimentos distintos por exame e dia, então pode dar um pouco menos.</p>${conf}${faturamento}
+    ${q ? `<h3 style="margin-top:20px">Sobre os dados</h3><p class="nota">Pontos que ajudam a ler os números com cuidado.</p>${q}` : ''}`;
+}
+
+function render(ym) {
+  const m = D.meses[ym], prev = anteriorDe(D, CHAVES, ym);
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período e os atendimentos de cada mês' : 'Os números do mês e o ritmo dos atendimentos',
+      kpisHtml(m, prev) + diarioGraf(m) + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente.</p>${alertasTopo(m.alertas, ym)}</section>`) +
+    tier('Análise', 'Receita, perfil dos pacientes, combos e oportunidades',
+      receitaGraf(m) + perfilGraf(m) + combosGraf() + oportunidadesGraf() + gruposGraf(m)) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+}
+
+if (!CHAVES.length) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar os relatórios no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

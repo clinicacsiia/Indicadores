@@ -1,0 +1,54 @@
+/* Clínica CSI · Indicadores: casca do portal (login, topo, modais, conta). Os painéis têm o próprio visual (painel_py/painel_base.css). */
+:root {
+  --bg: #f2f5fa; --surface: #ffffff; --surface-2: #e9eef6; --ink: #0e1c2e; --ink2: #465670; --muted: #617189;
+  --border: #dae2ee; --brand: #1553b8; --brand-ink: #ffffff; --danger: #b3261e; --ok: #17794a; --warn-bg: #fbf0d9;
+  --topo-bg: #0b1e3a; --topo-ink: #bccbe3; --topo-forte: #ffffff; --topo-ativo: #17325e;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a1220; --surface: #0f1a2d; --surface-2: #142238; --ink: #e7eef8; --ink2: #a8b9d3; --muted: #8aa0c0;
+    --border: #1e3050; --brand: #5b9bf5; --brand-ink: #06142b; --danger: #ff8a80; --ok: #6fd3a0; --warn-bg: #33270f;
+    --topo-bg: #070d1a; --topo-ativo: #142a4d; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 0 0 8px; }
+.nota { color: var(--ink2); font-size: 13px; margin: 2px 0 10px; } .micro { font-size: 11px; color: var(--muted); } .vazio { color: var(--muted); font-style: italic; }
+.erro { color: var(--danger); font-size: 13px; } .ok { color: var(--ok); font-size: 13px; }
+.aviso { background: var(--warn-bg); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.tag { display: inline-block; background: var(--surface-2); border-radius: 99px; padding: 0 8px; font-size: 11px; font-weight: 650; }
+
+/* botões e campos */
+.btn { font: inherit; font-weight: 600; color: var(--brand-ink); background: var(--brand); border: 1px solid var(--brand); border-radius: 8px; padding: 8px 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.btn.sec { background: transparent; color: inherit; border-color: var(--border); } .btn.perigo { background: var(--danger); border-color: var(--danger); color: #fff; } .btn.pq { padding: 4px 10px; font-size: 12px; }
+.btn:disabled { opacity: .6; cursor: default; } .link { background: none; border: 0; color: var(--brand); cursor: pointer; font: inherit; padding: 6px 0; text-align: left; }
+input, textarea, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); }
+label > input[type="checkbox"], .menus-escolha input { width: auto; margin-right: 6px; }
+.menus-escolha { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0; } .menus-escolha label { flex-direction: row; align-items: center; }
+
+/* login */
+main.login { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+.form { width: min(380px, 100%); display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: 0 8px 28px rgba(14, 28, 46, .08); }
+
+/* portal */
+.portal { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.topo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; background: var(--topo-bg); color: var(--topo-ink); padding: 8px 16px; }
+.topo .marca { display: flex; flex-direction: column; line-height: 1.1; color: var(--topo-forte); text-decoration: none; } .topo .marca span { font-size: 11px; color: var(--topo-ink); }
+.topo nav { display: flex; flex-wrap: wrap; gap: 2px; flex: 1; } .topo nav a { color: var(--topo-ink); text-decoration: none; padding: 7px 12px; border-radius: 8px; font-weight: 600; } .topo nav a:hover { background: var(--topo-ativo); } .topo nav a.ativo { background: var(--topo-ativo); color: var(--topo-forte); }
+.topo .direita { display: flex; gap: 8px; } .topo .btn.sec { color: var(--topo-ink); border-color: rgba(255, 255, 255, .18); }
+.conteudo { flex: 1; min-height: 0; } .painel-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+.vazio-portal { max-width: 520px; margin: 60px auto; padding: 0 16px; }
+dialog.modal { width: min(980px, 96vw); height: min(780px, 92vh); padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--ink); } dialog.modal::backdrop { background: rgba(5, 12, 24, .55); }
+dialog.modal[open] { display: flex; flex-direction: column; } .modal-topo { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+dialog.modal iframe { flex: 1; width: 100%; border: 0; }
+
+/* conta e exportar (dentro do modal) */
+.modal-pagina { padding: 16px 20px 40px; max-width: 920px; margin: 0 auto; } .conta section, .modal-pagina section { margin: 0 0 28px; }
+.cartao { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin: 0 0 8px; } .cartao summary { cursor: pointer; }
+.form-coluna { display: grid; gap: 10px; max-width: 420px; margin-top: 8px; } .linha-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+.tab-wrap { overflow-x: auto; } table.t { border-collapse: collapse; width: 100%; font-size: 13px; } table.t th, table.t td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; } table.t th { color: var(--muted); font-size: 12px; } table.t .n { text-align: right; } table.t .txt { max-width: 340px; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .topo { padding: 8px 10px; } .topo .direita { width: 100%; justify-content: flex-end; } dialog.modal { width: 100vw; height: 100dvh; max-width: none; border-radius: 0; } }

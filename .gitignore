@@ -1,7 +1,31 @@
+# dependências e build
 node_modules
 .next
-.env.local
-.env*.local
-npm-debug.log*
-*.tsbuildinfo
+out
 next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+
+# segredos e dados reais: nunca no Git
+.env
+.env.*
+!.env.example
+legado/**/usuarios.json
+**/usuarios.json
+*.db
+*.sqlite
+*.xlsx
+*.xls
+*.pkl
+*.key
+*.crt
+*.pem
+klingo_token.txt
+tests/paridade/fixtures/reais/
+
+# python
+__pycache__/
+*.pyc
+.cache_*.pkl
+.venv/
+.vercel

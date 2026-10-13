@@ -1,0 +1,27 @@
+{
+  "titulo": "Suprimentos",
+  "arquivo": "Suprimentos.xlsx",
+  "primeiro_mes": "2026-09",
+  "relatorios": [
+    {
+      "id": 13385,
+      "aba": "Movimentações",
+      "descricao": "Suprimentos - Movimentações: cada entrada e saída de estoque (compra, consumo, transferência, inventário, perda), com item, local, centro de custo, quantidade e valor. Baixado desde fev/2026 porque o saldo depende de todo o histórico",
+      "periodo": "periodo0",
+      "primeiro_mes": "2026-02",
+      "ordenar": ["Data da Movimentação", "Item"],
+      "numeros": ["Movimentação - Quantidade Entrada", "Movimentação - Quantidade Saída", "Movimentação - Quantidade Consolidada", "Movimentação - Valor Total", "Movimentação - Valor Unitário"],
+      "datas": {"Data da Movimentação": "dd/mm/yyyy hh:mm"}
+    },
+    {
+      "id": 13387,
+      "aba": "Solicitações",
+      "descricao": "Suprimentos - Solicitações: cada item pedido por um setor ao estoque, com quantidade solicitada e atendida e se ainda está pendente. O status muda com o tempo (pendente vira atendido), por isso todos os meses são baixados de novo a cada atualização",
+      "periodo": "periodo0",
+      "primeiro_mes": "2026-02",
+      "ordenar": ["Solicitação - Data", "Solicitação - Id"],
+      "numeros": ["Solicitação - Id", "Solicitação - Quantidade Solicitada", "Solicitação - Quantidade Atendida", "Solicitação - Valor Atendido"],
+      "datas": {"Solicitação - Data": "dd/mm/yyyy hh:mm"}
+    }
+  ]
+}

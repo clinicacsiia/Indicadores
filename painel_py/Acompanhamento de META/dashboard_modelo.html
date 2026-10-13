@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard de Metas</title>
+<style>
+__CSS__
+  .st-batida { --c: var(--good); } .st-ritmo { --c: var(--neutro); } .st-atencao { --c: var(--warn); } .st-atrasado { --c: var(--crit); }
+  .chip { min-width: 0; }
+  .chip.grande { font-size: 15px; }
+  .unidade { color: var(--muted); font-size: 13px; margin: 2px 0 8px; }
+  .sus-grupo { font-size: 14px; margin: 18px 0 8px; }
+  .sus-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .sus-meta { border: 1px solid var(--line, rgba(128,128,128,.25)); border-radius: 10px; padding: 10px 12px; }
+  .sus-meta h3 { font-size: 13px; margin: 0 0 8px; }
+  .sus-lin { display: grid; grid-template-columns: 92px 1fr; gap: 2px 8px; align-items: center; margin-bottom: 8px; font-size: 12px; }
+  .sus-mes { color: var(--muted); }
+  .sus-barra { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: rgba(128,128,128,.12); }
+  .sus-barra i { display: block; height: 100%; }
+  .sus-num { grid-column: 2; color: var(--muted); }
+  .sus-num b { color: inherit; }
+  .sus-leg { display: flex; gap: 16px; font-size: 12px; margin: 4px 0 2px; }
+  .sus-leg span { display: inline-flex; align-items: center; gap: 6px; }
+  .sus-leg i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); display: inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Acompanhamento de Metas</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Percentual geral</b> = soma dos exames feitos ÷ soma das metas; cada meta conta no máximo até 100%, para uma meta muito acima não esconder as outras.</li>
+        <li><b>A marca preta</b> nas barras mostra <b>onde a barra deveria estar hoje</b>, pelos dias de atendimento que já passaram (<span id="ajuda-semana"></span>, sem feriados). Barra além da marca = adiantado; antes da marca = atrasado. No gráfico do ritmo, a linha tracejada é esse mesmo esperado.</li>
+        <li><b>“Precisa por dia”</b> é quantos exames ainda faltam divididos pelos dias úteis que restam. <b>“No ritmo atual”</b> é quanto o mês fecha se o ritmo médio dos dias passados continuar (no começo do mês esse número oscila bastante; fica mais confiável com os dias).</li>
+        <li><b>Situação:</b> <b>Meta batida</b> (100% ou mais) · <b>No ritmo</b> (feito igual ou acima do esperado hoje) · <b>Atenção</b> (abaixo do esperado, mas com pelo menos <span id="ajuda-limite"></span>% dele) · <b>Atrasado</b> (menos que isso). Verde, amarelo e vermelho aparecem só nas comparações e nos alertas.</li>
+        <li><b>Comparação com o mês anterior:</b> em mês aberto, o painel compara o mesmo ponto (os mesmos dias do mês) para não comparar um mês pela metade com um mês inteiro.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e ritmo do mês), <b>Análise</b> (cada meta e cada unidade em gráficos) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
+      </ul>
+    </div>
+  </details>
+  <footer id="rodape" class="sub" style="margin-top:24px;text-align:center"></footer>
+</div>
+
+<script type="application/json" id="dados">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const CHAVES = chavesMeses(D);
+const dias = v => num(Number(v.toFixed(1)), 1);
+
+const ICONE = {
+  batida:  '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="var(--c)"/><path d="M4.4 8.3l2.3 2.3 4.8-5" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  ritmo:   '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="var(--c)"/><path d="M4.5 8h6M8.3 5.2L11 8l-2.7 2.8" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  atencao: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 .8l7.6 13.4H.4z" fill="var(--c)" stroke="var(--c)" stroke-width="1.2" stroke-linejoin="round"/><path d="M8 5.8v4M8 11.7v.1" stroke="#0b0b0b" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  atrasado:'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="var(--c)"/><path d="M5.3 5.3l5.4 5.4M10.7 5.3l-5.4 5.4" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>'
+};
+const ROTULO = {
+  aberto:  { batida: 'Meta batida', ritmo: 'No ritmo', atencao: 'Atenção', atrasado: 'Atrasado' },
+  fechado: { batida: 'Meta batida', ritmo: 'No ritmo', atencao: 'Quase lá', atrasado: 'Abaixo da meta' }
+};
+const chipSt = (st, fechado, grande) => `<span class="chip st-${st}${grande ? ' grande' : ''}">${ICONE[st]}${ROTULO[fechado ? 'fechado' : 'aberto'][st]}</span>`;
+const corSt = st => st === 'atrasado' ? 'var(--crit)' : st === 'atencao' ? 'var(--warn)' : undefined;   // cinza enquanto não há motivo de alerta
+
+$('ajuda-semana').textContent = D.semana_txt;
+$('ajuda-limite').textContent = Math.round(D.limite_atencao * 100);
+
+// ---- projeção de fechamento do conjunto: cada meta limitada a 100%, como no percentual geral
+function projecaoGeral(M) {
+  const itens = M.grupos.flatMap(g => g.itens);
+  const meta = soma(itens, i => i.meta);
+  return meta ? soma(itens, i => Math.min(i.projecao != null ? i.projecao : i.realizado, i.meta)) / meta * 100 : null;
+}
+// ---- mesmo ponto do mês anterior: atendimentos e % acumulado até o último dia completo
+function pontoComparavel(M, ant) {
+  if (!ant) return null;
+  if (M.periodo) {   // periodo de varios meses: so compara com o periodo anterior quando os dois ja terminaram (nao ha "mesmo ponto" em varios meses)
+    if (!M.fechado || !ant.fechado || !ant.total_atendimentos) return null;
+    return { k: null, curN: M.total_atendimentos, antN: ant.total_atendimentos, curPct: M.geral.pct, antPct: ant.geral.pct, total: true, periodo: true };
+  }
+  const hojeDia = M.dias.filter(d => d.n != null).length;                       // dias com dado (o último é hoje, se o mês está aberto)
+  const k = M.fechado ? M.dias.length : hojeDia - 1;                            // só dias completos
+  if (k < 1 || ant.dias.length < k) return null;
+  const somaN = (X, n) => soma(X.dias.slice(0, n), d => d.n || 0);
+  const antK = M.fechado ? ant.dias.length : k, curN = somaN(M, k), antN = somaN(ant, antK);
+  return { k, curN, antN, curPct: M.dias[k - 1].pct, antPct: ant.dias[antK - 1].pct, total: M.fechado };
+}
+
+// ====================== RESUMO ======================
+function kpisHtml(M, ant) {
+  const g = M.geral, aberto = !M.fechado && M.esperado_pct > 0;
+  const pc = pontoComparavel(M, ant);
+  const mp = M.periodo ? 'período' : 'mês', Mp = M.periodo ? 'Período' : 'Mês';
+  const contraAnt = pc ? (pc.periodo ? `contra o período anterior (${esc(ant.rotulo)})` : `contra o mesmo ponto de ${esc(ant.rotulo)}${pc.total ? '' : ` (até o dia ${pc.k})`}`) : '';
+  const vsEsp = aberto ? comp(g.pct - M.esperado_pct, `contra o esperado até hoje (${pct(M.esperado_pct, 0)})`, { unidade: 'pp', d: 0 }) : '';
+  const vsAnt = pc && pc.antPct != null ? comp(pc.curPct - pc.antPct, contraAnt, { unidade: 'pp', d: 0 }) : '';
+  const frase = { batida: `Todas as metas do ${mp} foram batidas.`, ritmo: M.fechado ? `${Mp} encerrado.` : 'No ritmo: o realizado está igual ou acima do esperado para hoje.',
+    atencao: M.fechado ? `${Mp} encerrado, perto de fechar as metas.` : 'Atenção: o realizado está um pouco abaixo do esperado para hoje.',
+    atrasado: M.fechado ? `${Mp} encerrado abaixo das metas.` : 'Atrasado: o realizado está bem abaixo do esperado para hoje.' }[g.status];
+  const proj = projecaoGeral(M);
+  const itens = M.grupos.flatMap(x => x.itens), atras = itens.filter(i => i.status === 'atrasado').length, aten = itens.filter(i => i.status === 'atencao').length;
+  const nAnt = pc ? comp(varPct(pc.curN, pc.antN), contraAnt) : (M.fechado ? `${Mp} fechado.` : M.periodo ? 'Período em andamento: sem comparação.' : 'Sem mês anterior para comparar.');
+  return `<div class="kpis">
+    ${kpi(`Metas cumpridas em ${esc(M.rotulo)}`, `${num(Math.round(g.pct))}%`, { destaque: 1, comp: [vsEsp, vsAnt].filter(Boolean).join('<br>') || chipSt(g.status, M.fechado),
+      sub: `${chipSt(g.status, M.fechado)}<br><b>${frase}</b> ${g.itens_ok} de ${g.itens_total} metas ${M.fechado ? 'foram batidas' : 'estão batidas ou no ritmo'}.` })}
+    ${kpi(`Atendimentos no ${mp}`, num(M.total_atendimentos), { comp: nAnt, sub: `${num(M.total_fora)} fora de qualquer meta · último atendimento ${esc(M.ultimo_atendimento)}` })}
+    ${M.fechado ? kpi('Dias úteis', num(M.uteis_total), { sub: `${Mp} fechado` }) : kpi('Projeção de fechamento', proj == null ? '—' : pct(proj, 0), { comp: proj == null ? '' : comp(proj - 100, 'contra a meta (100%)', { unidade: 'pp', d: 0 }), sub: M.uteis_decorridos >= 0.5 ? 'Se o ritmo médio dos dias passados continuar.' : 'Ainda cedo para projetar.' })}
+    ${kpi('Metas em risco', num(atras + aten), { classe: atras ? 'ruim' : '', comp: atras || aten ? `<span class="delta desce">${num(atras)} atrasada(s)</span>${aten ? ` · <span class="delta igual">${num(aten)} em atenção</span>` : ''}` : '<span class="delta sobe">Nenhuma em risco</span>', sub: `de ${itens.length} metas` })}
+    ${M.fechado ? '' : kpi('Dias úteis', `${dias(M.uteis_decorridos)} de ${M.uteis_total}`, { comp: `Restam <b>${dias(M.uteis_restantes)}</b> dias úteis`, sub: 'Hoje conta só até agora.' })}
+  </div>`;
+}
+
+// ritmo do mês: % das metas cumprido por dia, contra o esperado e contra o mês anterior
+function ritmoHtml(M, ant) {
+  if (M.periodo) {   // periodo de varios meses: no lugar do ritmo diario, o percentual das metas em cada mes
+    const ms = (M.meses_do_periodo || []).map(y => D.meses[y]).filter(Boolean);
+    if (ms.length < 2) return '';
+    return `<section><h2>Metas cumpridas mês a mês no período</h2><p class="nota">Percentual das metas de cada mês de ${esc(M.rotulo)} (cada meta conta até 100%).</p>${barras(ms.map(x => ({ rotulo: x.rotulo, valor: x.geral.pct, texto: pct(x.geral.pct, 0), extra: `${x.geral.itens_ok} de ${x.geral.itens_total} metas ok`, cor: x.fechado ? (x.geral.pct < 100 ? 'var(--warn)' : undefined) : corSt(x.geral.status), marca: x.fechado ? 100 : x.esperado_pct,
+      tip: `${x.rotulo}\nMetas cumpridas: ${pct(x.geral.pct, 1)}${x.fechado ? '' : `\nEsperado até hoje: ${pct(x.esperado_pct, 1)} (mês em andamento)`}\n${num(x.total_atendimentos)} atendimentos` })), '', '30%', { max: Math.max(100, ...ms.map(x => x.geral.pct)) })}</section>`;
+  }
+  const d = M.dias, N = d.length;
+  if (!N) return '';
+  const tipX = x => { const p = d.find(z => z.d === x); const a = ant && ant.dias.find(z => z.d === x && z.pct != null);
+    return `Dia ${x}\n` + (p.pct != null ? `Feito: ${pct(p.pct, 1)} das metas (${num(p.n)} atendimentos no dia)\n` : '') + `Esperado: ${pct(p.esp, 1)}` + (a ? `\n${ant.rotulo}: ${pct(a.pct, 1)}` : ''); };
+  const g = linhas({ W: 760, H: 260, mr: 96, fmt: v => pct(v, 0), aria: 'Percentual das metas cumprido por dia, contra o esperado', xRot: [1, 5, 10, 15, 20, 25, N].map(x => ({ x, t: String(x) })), tipX,
+    series: [
+      ...(ant ? [{ nome: ant.rotulo, cor: 'var(--neutro-3)', larg: 1.6, pontos: ant.dias.filter(z => z.pct != null && z.d <= N).map(z => ({ x: z.d, y: z.pct })) }] : []),
+      { nome: 'Esperado', cor: 'var(--neutro-2)', traco: true, pontos: d.map(z => ({ x: z.d, y: z.esp })) },
+      { nome: M.rotulo, cor: 'var(--accent)', principal: true, pontos: d.filter(z => z.pct != null).map(z => ({ x: z.d, y: z.pct })) }] });
+  return `<section><h2>Ritmo das metas no mês</h2><p class="nota">Quanto das metas já foi cumprido a cada dia (cada meta conta até 100%). A linha tracejada é onde deveria estar pelos dias úteis; a clara é o mês anterior.</p>${g}</section>`;
+}
+
+// ====================== ANÁLISE ======================
+function rankingGraf(M) {
+  const marca = !M.fechado && M.esperado_pct > 0 ? M.esperado_pct : (M.fechado ? 100 : null);
+  const itens = M.grupos.flatMap(g => g.itens.map(i => ({ ...i, grupo: g.nome }))).sort((a, b) => a.pct - b.pct);
+  const max = Math.max(100, ...itens.map(i => i.pct));
+  return `<section><h2>Cada meta, da mais atrasada para a mais folgada</h2>
+    <p class="nota">${M.fechado ? 'A marca preta é a meta (100%).' : `A marca preta é onde cada barra deveria estar hoje (${pct(M.esperado_pct, 0)}).`} A barra só muda de cor quando a meta está em atenção ou atrasada.</p>
+    ${barras(itens.map(i => ({ rotulo: `${i.nome} · ${i.grupo}`, valor: i.pct, texto: pct(i.pct, 0), extra: `${int(i.realizado)} de ${int(i.meta)}`, cor: M.fechado ? (i.pct < 100 ? 'var(--warn)' : undefined) : corSt(i.status), marca,
+      tip: `${i.nome} (${i.grupo})\nFeito: ${int(i.realizado)} de ${int(i.meta)} (${pct(i.pct)})` + (!M.fechado && marca ? `\nEsperado até hoje: ~${int(i.meta * M.esperado_pct / 100)} (${pct(M.esperado_pct)})` : '') + (i.faltam ? `\nFaltam ${int(i.faltam)}` : '') })), '', '40%', { max })}</section>`;
+}
+function unidadesGraf(M) {
+  const marca = !M.fechado && M.esperado_pct > 0 ? M.esperado_pct : (M.fechado ? 100 : null);
+  const fatias = [...M.grupos.map(g => ({ rotulo: g.nome, valor: soma(g.itens, i => i.realizado) })), { rotulo: 'Fora das metas', valor: M.total_fora }];
+  return `<section class="grid2"><div><h2>Cumprimento por unidade</h2><p class="nota">Percentual das metas de cada unidade${marca ? ', com a marca do esperado' : ''}.</p>
+    ${barras(M.grupos.map(g => ({ rotulo: g.nome, valor: g.pct, texto: pct(g.pct, 0), extra: `${g.ok} de ${g.itens.length} metas ok`, cor: corSt(g.status), marca,
+      tip: `${g.nome}\n${g.unidade}\nFeito: ${pct(g.pct)}` + (!M.fechado && marca ? `\nEsperado até hoje: ${pct(M.esperado_pct)}` : '') })), '', '34%', { max: Math.max(100, ...M.grupos.map(g => g.pct)) })}</div>
+    <div><h2>Atendimentos por unidade</h2><p class="nota">Atendimentos que contam em alguma meta e os que ficaram de fora.</p>${donut(fatias, { centro: { num: int(M.total_atendimentos), rot: 'atendimentos' } })}</div></section>`;
+}
+function ritmoPorMetaGraf(M) {
+  if (M.fechado || M.uteis_decorridos < 0.5) return '';
+  const itens = M.grupos.flatMap(g => g.itens.map(i => ({ ...i, grupo: g.nome }))).filter(i => i.faltam > 0 && i.por_dia)
+    .map(i => ({ ...i, media: i.realizado / M.uteis_decorridos })).map(i => ({ ...i, razao: i.media / i.por_dia * 100 })).sort((a, b) => a.razao - b.razao);
+  if (!itens.length) return '';
+  return `<section><h2>O ritmo de hoje dá conta do que falta?</h2>
+    <p class="nota">Para cada meta ainda aberta: quanto se faz por dia útil hoje, em % do que seria preciso fazer por dia para bater a meta (a marca preta é 100%). Abaixo de 100% = no ritmo atual a meta não fecha.</p>
+    ${barras(itens.map(i => ({ rotulo: `${i.nome} · ${i.grupo}`, valor: i.razao, texto: pct(i.razao, 0), extra: `faz ${num(i.media, 1)}/dia · precisa ${int(i.por_dia)}/dia`, cor: i.razao < 100 * D.limite_atencao ? 'var(--crit)' : i.razao < 100 ? 'var(--warn)' : undefined, marca: 100,
+      tip: `${i.nome} (${i.grupo})\nFaz ${num(i.media, 1)} por dia útil, precisa de ~${int(i.por_dia)} por dia útil\nFaltam ${int(i.faltam)} em ${dias(M.uteis_restantes)} dias úteis` + (i.projecao != null ? `\nNo ritmo atual fecha com ~${int(i.projecao)} (${pct(i.projecao / i.meta * 100, 0)})` : '') })), '', '40%', { max: Math.max(150, ...itens.map(i => i.razao)) })}</section>`;
+}
+
+// SUS x sem SUS: uma barra empilhada por mês dentro de cada meta (todas as metas, sem paginação; mesma escala entre os meses da meta)
+function susPorMetaGraf() {
+  const meses = [...CHAVES].reverse().filter(k => D.meses[k].convenio_ok);
+  if (!meses.length) return '';
+  const COR_SUS = 'var(--accent)', COR_NAO = 'var(--neutro-3)';
+  const blocos = D.meses[meses[meses.length - 1]].grupos.map(g => {
+    const metas = g.itens.map(it => {
+      const por = meses.map(k => { const i = D.meses[k].grupos.find(x => x.id === g.id).itens.find(x => x.id === it.id); return { k, s: i ? i.sus : 0, n: i ? i.nao_sus : 0 }; });
+      const max = Math.max(...por.map(p => p.s + p.n), 1);
+      const linhas = por.map(p => {
+        const tot = p.s + p.n, w = v => (v / max * 100).toFixed(2);
+        const tip = `${it.nome} · ${D.meses[p.k].rotulo}\nSUS: ${int(p.s)}${tot ? ` (${pct(p.s / tot * 100, 0)})` : ''}\nSem SUS: ${int(p.n)}\nTotal: ${int(tot)}`;
+        return `<div class="sus-lin"><span class="sus-mes">${esc(D.meses[p.k].rotulo)}</span>
+          <div class="sus-barra" tabindex="0" data-tip="${esc(tip)}">${p.s ? `<i style="width:${w(p.s)}%;background:${COR_SUS}"></i>` : ''}${p.n ? `<i style="width:${w(p.n)}%;background:${COR_NAO}"></i>` : ''}</div>
+          <span class="sus-num"><b>${int(p.s)}</b> SUS · ${int(p.n)} sem SUS</span></div>`;
+      }).join('');
+      return `<div class="sus-meta"><h3>${esc(it.nome)}</h3>${linhas}</div>`;
+    }).join('');
+    return `<h3 class="sus-grupo">${esc(g.nome)}</h3><div class="sus-grade">${metas}</div>`;
+  }).join('');
+  return `<section><h2>SUS e sem SUS, por meta e por mês</h2>
+    <p class="nota">Cada barra é um mês da meta, dividida entre atendimentos SUS e sem SUS. A escala é a mesma entre os meses de uma mesma meta.</p>
+    <div class="sus-leg"><span style="--c:${COR_SUS}"><i></i>SUS</span><span style="--c:${COR_NAO}"><i></i>Sem SUS</span></div>${blocos}</section>`;
+}
+
+// ====================== DETALHES ======================
+// SUS x sem SUS: linhas gravadas antes da coluna Convênio existir não entram em nenhum dos dois (baixar o ano inteiro completa)
+const semConv = gr => { const n = soma(gr.itens, i => i.sem_conv); return n ? `<p class="nota">${int(n)} atendimento(s) deste mês estão sem convênio na planilha e não entram em SUS nem em Sem SUS.</p>` : ''; };
+const colsSus = M => M.convenio_ok ? [{ t: 'SUS', n: 1 }, { t: 'Sem SUS', n: 1 }] : [];
+function detalhes(M) {
+  const it = [];
+  M.grupos.forEach(gr => {
+    const linhas = gr.itens.map(i => [esc(i.nome), int(i.meta), int(i.realizado), ...(M.convenio_ok ? [int(i.sus), int(i.nao_sus)] : []), pct(i.pct), int(i.faltam), i.por_dia != null ? '~' + int(i.por_dia) : '—', i.projecao != null && i.realizado < i.meta ? `~${int(i.projecao)} (${pct(i.projecao / i.meta * 100, 0)})` : '—', chipSt(i.status, M.fechado)]);
+    it.push(acordeao(`${esc(gr.nome)}: cada meta`, `<p class="unidade">${esc(gr.unidade)}</p>` + (M.convenio_ok ? semConv(gr) : '') + tabela([{ t: 'Meta' }, { t: 'Meta (qtd)', n: 1 }, { t: 'Feito', n: 1 }, ...colsSus(M), { t: '%', n: 1 }, { t: 'Faltam', n: 1 }, { t: 'Precisa por dia útil', n: 1 }, { t: 'No ritmo atual fecha', n: 1 }, { t: 'Situação' }], linhas),
+      { dica: `${pct(gr.pct, 0)} · ${gr.ok} de ${gr.itens.length} ok` }));
+  });
+  const todas = M.grupos.flatMap(gr => gr.itens.map(i => [esc(gr.nome), esc(i.nome), int(i.meta), int(i.realizado), ...(M.convenio_ok ? [int(i.sus), int(i.nao_sus)] : []), pct(i.pct), int(i.faltam), chipSt(i.status, M.fechado)]));
+  it.push(acordeao('Todos os números em tabela', tabela([{ t: 'Unidade' }, { t: 'Meta' }, { t: 'Meta (qtd)', n: 1 }, { t: 'Feito', n: 1 }, ...colsSus(M), { t: '%', n: 1 }, { t: 'Faltam', n: 1 }, { t: 'Situação' }], todas), { dica: `${todas.length} metas` }));
+  if (M.dias.length) it.push(acordeao('Dia a dia', tabela([{ t: 'Dia' }, { t: 'Atendimentos', n: 1 }, { t: 'Metas cumpridas (acumulado)', n: 1 }, { t: 'Esperado (acumulado)', n: 1 }],
+    M.dias.filter(d => d.pct != null).map(d => [String(d.d), num(d.n), pct(d.pct, 1), pct(d.esp, 1)])), { dica: `${M.dias.filter(d => d.pct != null).length} dias` }));
+  it.push(acordeao(`Atendimentos que não entram em nenhuma meta (${int(M.total_fora)} de ${int(M.total_atendimentos)})`,
+    `<p class="nota">Conferência: são os atendimentos do relatório que não foram contados em nenhuma meta. Se algum deles deveria contar, ajuste a regra no <b>metas.json</b>.</p>` +
+    tabela([{ t: 'Unidade' }, { t: 'Especialidade' }, { t: 'Procedimento' }, { t: 'Qtd', n: 1 }], M.fora.map(r => [esc(r.Unidade), esc(r.Especialidade), esc(r.Procedimento), int(r.qtd)])), { dica: `${M.fora.length} procedimentos` }));
+  return it.join('');
+}
+
+function render(ym) {
+  const M = D.meses[ym], ant = anteriorDe(D, CHAVES, ym);
+  $('sub').textContent = `${M.rotulo} · último atendimento: ${M.ultimo_atendimento} · dados consultados no Klingo em ${D.dados_em}`;
+  $('conteudo').innerHTML =
+    tier('Resumo', 'Os números do mês e o ritmo das metas', kpisHtml(M, ant) + ritmoHtml(M, ant)) +
+    tier('Análise', 'Cada meta e cada unidade', rankingGraf(M) + ritmoPorMetaGraf(M) + unidadesGraf(M) + susPorMetaGraf()) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(M)}</section>`);
+  $('rodape').textContent = `Fonte: Klingo, relatório “Atendimentos – Acompanhamento de Metas por Unidade e Procedimento – Mensal”. Dados consultados em ${D.dados_em}; página montada em ${D.gerado_em}.`;
+}
+
+const int = v => num(Math.round(v));
+if (!CHAVES.length) {
+  document.querySelector('main#conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

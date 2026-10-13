@@ -1,0 +1,24 @@
+{
+  "_ajuda": "Quem cuida de cada parte do Atendimento. Cada pessoa vira uma opcao em 'Responsavel' no painel (e uma secao no PDF, se estiver em visoes_pdf no modulos.json): todos os numeros, graficos, tabelas e alertas passam a considerar so os setores dela. 'setores' sao os nomes dos grupos do metas.json: CSI 1, CSI 2 (ressonancia e tomografia) e CSI Pediatria. 'obs' aparece na faixa da visao. Depois de mudar, abra o painel de novo.",
+  "responsaveis": [
+    {
+      "id": "juliana",
+      "nome": "Juliana",
+      "area": "Call center e recepção da ressonância",
+      "setores": ["CSI 2"],
+      "obs": "Nenhuma coluna dos relatórios identifica o call center: por enquanto esta visão mostra a recepção da ressonância e tomografia (CSI 2)."
+    },
+    {
+      "id": "carla",
+      "nome": "Carla",
+      "area": "Pediatria",
+      "setores": ["CSI Pediatria"]
+    },
+    {
+      "id": "luzia",
+      "nome": "Luzia",
+      "area": "CSI 1",
+      "setores": ["CSI 1"]
+    }
+  ]
+}

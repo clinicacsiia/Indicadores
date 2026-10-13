@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Financeiro</title>
+<style>
+__CSS__
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Financeiro</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick">Mês de vencimento <select id="mes"></select></label>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Mês de vencimento:</b> os números do mês somam o que <b>vence</b> naquele mês (dinheiro que sai ou entra no caixa), e não o que foi lançado nele. Os lançamentos vêm do relatório de Lançamentos Financeiros.</li>
+        <li><b>Pago ou sem baixa:</b> considero uma despesa <b>paga</b> quando o lançamento tem uma <b>Conta</b> (banco ou caixa) preenchida. Sem Conta = sem baixa. Se a clínica dá baixa de outro jeito, esse critério precisa ser ajustado.</li>
+        <li><b>A receber:</b> soma as receitas já lançadas com vencimento no mês (cartão em parcelas, Pix, dinheiro) com as faturas de convênio ainda não baixadas que vencem no mês (relatório de Faturas em Aberto, do painel de Faturamento). Vendas futuras não entram.</li>
+        <li><b>Taxa de cartão:</b> vem do relatório de Recebimento Particular (recebimento particular com taxa e líquido), pelo mês do atendimento.</li>
+        <li><b>Créditos de convênio:</b> relatório de Créditos de Convênio, pela data do recebimento.</li>
+        <li><b>Comparação com o mês anterior:</b> compara o total que vence em cada mês. Para a despesa e para a taxa de cartão, menos é melhor (seta verde quando cai). Os meses futuros mostram só o que já foi lançado.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e fluxo dos próximos meses), <b>Análise</b> (para onde vai e de onde vem o dinheiro) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
+        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz os meses e guarda nos dados do portal: baixas, correções e exclusões feitas no Klingo aparecem aqui, e os meses antigos continuam guardados.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const brlOu = v => v == null ? VAZIO : brl(v);
+const bonito = s => String(s ?? '').toLowerCase().replace(/(^|[\s/(-])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase());
+const ORDEM_NIVEL = { critico: 0, atencao: 1, ok: 2, info: 3 };
+const CHAVES = chavesMeses(D);
+
+$('sub').textContent = `Fonte: relatórios de Lançamentos Financeiros, Recebimento Particular e Créditos de Convênio do Klingo · dados de ${D.dados_em}`;
+
+// ====================== RESUMO ======================
+function kpisHtml(m, prev) {
+  const p = m.pagar, pagoPct = p.total ? p.pago / p.total * 100 : 0, v = D.vencidas, pt = m.particular;
+  const contra = prev ? 'contra ' + prev.rotulo : '';
+  const dif = (a, b) => prev && a != null && b != null ? a - b : null;
+  const dSaldo = dif(m.saldo, prev && prev.saldo);
+  const dTaxa = prev ? dif(pt.taxa_cartao_pct, prev.particular.taxa_cartao_pct) : null;
+  return `<div class="kpis">
+    ${kpi(`A pagar em ${esc(m.rotulo)}`, brlc(p.total), { destaque: 1, titulo: brl(p.total),
+      comp: comp(prev ? varPct(p.total, prev.pagar.total) : null, contra, { inverso: true, vazio: 'Sem mês anterior para comparar.' }),
+      sub: `Pago <b>${brlc(p.pago)}</b> (${pct(pagoPct, 0)}) · falta pagar <b>${brlc(p.aberto)}</b> em ${num(p.qtd_aberto)} de ${num(p.qtd)} conta(s)` +
+        empilhada([{ rotulo: 'Pago', valor: p.pago, cor: 'var(--neutro)' }, { rotulo: 'Falta pagar', valor: p.aberto, cor: 'var(--neutro-3)' }], brlc) })}
+    ${kpi(`A receber em ${esc(m.rotulo)}`, brlc(m.receber.total), { titulo: brl(m.receber.total), comp: comp(prev ? varPct(m.receber.total, prev.receber.total) : null, contra),
+      sub: `<b>${brlc(m.receber.lancadas)}</b> lançados (${num(m.receber.qtd)}) + <b>${brlc(m.receber.convenios)}</b> em faturas de convênio (${num(m.receber.qtd_convenios)})` })}
+    ${kpi(m.periodo ? 'Saldo previsto do período' : 'Saldo previsto do mês', brlc(m.saldo), { titulo: brl(m.saldo), classe: m.saldo < 0 ? 'ruim' : '',
+      comp: m.saldo >= 0 ? `<span class="delta sobe">▲ Receber maior que pagar</span>` : `<span class="delta desce">▼ Pagar maior que receber</span>`,
+      sub: (dSaldo != null ? comp(dSaldo, contra, { fmt: brlc }) + '<br>' : '') + 'A receber menos a pagar. Não conta o que ainda será vendido.' + (m.saldo < 0 ? ' <b>O motivo está explicado logo abaixo.</b>' : '') })}
+    ${kpi('Contas vencidas sem baixa', brlc(v.valor), { titulo: brl(v.valor), comp: v.qtd ? `<span class="delta desce">${num(v.qtd)} conta(s) em atraso</span>` : '<span class="delta sobe">Nenhuma em atraso</span>', sub: 'Todas as datas até hoje' })}
+    ${kpi('Taxa de cartão', pct(pt.taxa_cartao_pct, 2), { comp: comp(dTaxa, contra, { inverso: true, unidade: 'pp', d: 2 }), sub: `${brl(pt.taxa_cartao)} sobre ${brl(pt.bruto_cartao)} vendidos em ${esc(m.rotulo)}` })}
+  </div>`;
+}
+
+// quando o saldo do mes e negativo: o cartao so mostra a conta (a receber - a pagar), aqui vem o porque
+function saldoPorqueHtml(m) {
+  const s = m.saldo_motivos; if (!s) return '';
+  const p = m.pagar, r = m.receber, itens = [];
+  if (s.top.length) {
+    const lista = s.top.map(x => `${esc(bonito(x.nome))} <b>${brlc(x.valor)}</b> (${pct(x.pct, 0)})`).join(', ');
+    itens.push(`<li><b>O que mais pesa nas despesas:</b> ${lista}. Juntas são ${pct(soma(s.top, x => x.pct), 0)} do que vence no mês.${s.maior_cobre ? ' Só a maior já passa do que falta.' : ''}</li>`);
+  }
+  itens.push(`<li><b>Parte já foi paga:</b> <b>${brlc(p.pago)}</b> (${pct(p.total ? p.pago / p.total * 100 : 0, 0)}) já saiu do caixa e ainda falta pagar <b>${brlc(p.aberto)}</b> em ${num(p.qtd_aberto)} conta(s). O saldo soma as duas partes.</li>`);
+  itens.push(`<li><b>O que entra no “a receber”:</b> só o que já está lançado ou emitido, <b>${brlc(r.lancadas)}</b> em receitas lançadas (particulares, parcelas de cartão) e <b>${brlc(r.convenios)}</b> em ${num(r.qtd_convenios)} fatura(s) de convênio já enviadas${m.fechado && !r.convenios ? ' (nenhuma fatura em aberto vence neste mês, e as faturas já recebidas não entram na conta)' : ''}.</li>`);
+  const f = s.a_faturar;
+  if (f && f.falta > 0) itens.push(`<li><b>O que ainda não entrou na conta:</b> as vendas que vão acontecer no resto do mês e a produção de convênios que ainda não virou fatura. Em ${esc(f.ref)} foram produzidos <b>${brlc(f.produzido)}</b> com convênios e <b>${brlc(f.falta)}</b> ainda não têm fatura; quando forem emitidas, vencem nos meses seguintes.</li>`);
+  const x = s.proximo;
+  if (x && !m.fechado) itens.push(`<li><b>Mês seguinte:</b> ${esc(x.rotulo)} tem <b>${brlc(x.receber)}</b> a receber (${brlc(x.convenios)} em faturas de convênio) contra <b>${brlc(x.pagar)}</b> a pagar, saldo de <b>${x.saldo >= 0 ? '+' : '−'}${brlc(Math.abs(x.saldo))}</b>. ${x.saldo >= 0 ? 'Parte da diferença deste mês é só prazo: o convênio paga depois.' : 'Também fica negativo.'}</li>`);
+  return `<section><ul class="alertas"><li class="alerta n-info">${chip('info')}<div><span class="tit">Por que o saldo de ${esc(m.rotulo)} está negativo (−${brlc(s.falta)})</span>
+    <p>Em ${esc(m.rotulo)} vencem <b>${brlc(p.total)}</b> em despesas e há <b>${brlc(r.total)}</b> previstos a receber: faltam <b>${brlc(s.falta)}</b> para cobrir. Motivos:</p>
+    <ul class="motivos">${itens.join('')}</ul></div></li></ul></section>`;
+}
+
+// fluxo: a pagar x a receber nos proximos meses (linhas com o valor em cada ponto)
+function fluxoHtml() {
+  const f = D.fluxo; if (!f || !f.length) return '';
+  const rot = x => `${x.rotulo.split('/')[0].slice(0, 3)}/${x.ym.slice(2, 4)}`;
+  const tipX = i => { const x = f[i];
+    return `${x.rotulo}\nA pagar: ${brl(x.pagar)} (sem baixa: ${brl(x.pagar_aberto)})\nA receber: ${brl(x.receber)}\n  lançadas: ${brl(x.lancadas)}\n  faturas de convênio: ${brl(x.convenios)}\nSaldo: ${brl(x.saldo)}`; };
+  const g = linhas({ mr: 92, fmt: brlc, rotulosEm: f.length <= 9 ? 'todos' : undefined, aria: 'Despesas a pagar e receitas a receber por mês de vencimento', xRot: f.map((x, i) => ({ x: i, t: rot(x) })), tipX,
+    series: [
+      { nome: 'A pagar', cor: 'var(--neutro)', rotuloEmbaixo: true, pontos: f.map((x, i) => ({ x: i, y: x.pagar })) },
+      { nome: 'A receber', cor: 'var(--accent)', principal: true, pontos: f.map((x, i) => ({ x: i, y: x.receber })) }] });
+  return `<section><h2>Fluxo dos próximos meses</h2>
+    <p class="nota">O que vence em cada mês. As despesas incluem contratos e parcelas já lançados; as receitas incluem só o que já foi vendido (parcelas de cartão) e as faturas de convênio já emitidas, então os meses mais distantes tendem a mostrar mais a pagar do que a receber.</p>${g}</section>`;
+}
+
+// ====================== ANALISE ======================
+function composicaoGraf(m) {
+  const mk = lista => lista.map(i => ({ rotulo: bonito(i.nome), valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct), tip: `${bonito(i.nome)}\n${brl(i.valor)} (${pct(i.pct)})` }));
+  const rec = m.receber;
+  const formas = m.formas.map(i => ({ rotulo: bonito(i.nome), valor: i.valor, tip: `${bonito(i.nome)}\n${brl(i.valor)} (${pct(i.pct)})` }));
+  return `<section class="grid2">
+    <div><h2>Para onde vai o dinheiro</h2><p class="nota">Despesas com vencimento em ${esc(m.rotulo)}, por categoria (acima) e por empresa (abaixo).</p>
+      ${barras(mk(m.despesas_categoria), 'Nenhuma despesa vence neste mês.', '40%')}<div style="height:18px"></div>${barras(mk(m.despesas_empresa), '', '40%')}</div>
+    <div><h2>De onde vem</h2><p class="nota">A receber em ${esc(m.rotulo)}: origem (acima) e forma de pagamento das receitas lançadas (abaixo).</p>
+      ${donut([{ rotulo: 'Receitas lançadas (particular)', valor: rec.lancadas }, { rotulo: 'Faturas de convênio em aberto', valor: rec.convenios }], { fmt: brlc, vazio: 'Nada a receber neste mês.', centro: { num: rotEixo(rec.total), rot: 'R$ a receber' } })}
+      <div style="height:14px"></div>${donut(formas, { fmt: brlc, vazio: 'Nenhuma receita lançada vence neste mês.' })}</div></section>`;
+}
+function vencidasGraf() {
+  const v = D.vencidas; if (!v || !v.qtd) return '';
+  return `<section><h2>Contas vencidas sem baixa</h2><p class="nota">Despesas que já venceram e não têm Conta de pagamento registrada, de todos os meses, por tempo de atraso.</p>
+    ${barras(v.faixas.map(f => ({ rotulo: f.rotulo, valor: f.valor, texto: brlc(f.valor), extra: f.qtd + ' conta(s)', cor: 'var(--crit)', tip: `${f.rotulo}\n${brl(f.valor)} em ${f.qtd} conta(s)` })), '', '30%')}</section>`;
+}
+function proximosResumo() {
+  const p = D.proximos; if (!p || !p.lista.length) return '';
+  return `<section><h2>Próximos vencimentos</h2><p class="nota">Só contas sem baixa.</p><div class="kpis">
+    ${kpi('Vencem hoje', brlc(p.hoje.valor), { titulo: brl(p.hoje.valor), sub: `${num(p.hoje.qtd)} conta(s)` })}
+    ${kpi('Até 7 dias', brlc(p.sete.valor), { titulo: brl(p.sete.valor), sub: `${num(p.sete.qtd)} conta(s)` })}
+    ${kpi('Até 30 dias', brlc(p.trinta.valor), { titulo: brl(p.trinta.valor), sub: `${num(p.trinta.qtd)} conta(s)` })}</div></section>`;
+}
+
+// ====================== DETALHES ======================
+function listaContas(lista, comAtraso) {
+  return tabela([{ t: 'Lanç.' }, { t: 'Histórico', txt: 1 }, { t: 'Categoria' }, { t: 'Empresa' }, { t: 'Vencimento' }, ...(comAtraso ? [{ t: 'Atraso', n: 1 }] : []), { t: 'Valor', n: 1 }],
+    lista.map(c => [String(c.id), esc(bonito(c.historico)), esc(c.categoria || '—'), esc(c.empresa), dataBR(c.vencimento), ...(comAtraso ? [c.dias + ' dias'] : []), brl(c.valor)]));
+}
+function detalhes(m) {
+  const it = [];
+  const f = D.fluxo;
+  if (f && f.length) it.push(acordeao('Fluxo por mês', tabela([{ t: 'Mês' }, { t: 'A pagar', n: 1 }, { t: 'Desse total, sem baixa', n: 1 }, { t: 'Receitas lançadas', n: 1 }, { t: 'Faturas de convênio', n: 1 }, { t: 'Saldo', n: 1 }],
+    f.map(x => [esc(x.rotulo), brl(x.pagar), brl(x.pagar_aberto), brl(x.lancadas), brl(x.convenios), brl(x.saldo)])), { dica: `${f.length} meses` }));
+  const v = D.vencidas;
+  if (v && v.qtd) it.push(acordeao(`Contas vencidas: as ${v.lista.length} maiores`, listaContas(v.lista, true), { dica: `${num(v.qtd)} contas · ${brlc(v.valor)}` }));
+  const p = D.proximos;
+  if (p && p.lista.length) it.push(acordeao('Próximos vencimentos: lista', listaContas(p.lista, false), { dica: `${p.lista.length} contas` }));
+  if (m.maiores.length) it.push(acordeao(`Maiores despesas de ${esc(m.rotulo)}`, tabela([{ t: 'Lanç.' }, { t: 'Histórico', txt: 1 }, { t: 'Categoria' }, { t: 'Empresa' }, { t: 'Vencimento' }, { t: 'Valor', n: 1 }],
+    m.maiores.map(c => [String(c.id), esc(bonito(c.historico)), esc(c.categoria || '—'), esc(c.empresa), dataBR(c.vencimento), brl(c.valor)])), { dica: `${m.maiores.length} lançamentos` }));
+  if (m.particular.por_tipo.length) it.push(acordeao('Taxa por forma de pagamento', `<p class="nota">Vendas particulares de ${esc(m.rotulo)} (relatório de Recebimento Particular).</p>` + tabela([{ t: 'Forma' }, { t: 'Vendido', n: 1 }, { t: 'Taxa', n: 1 }, { t: '% da taxa', n: 1 }, { t: 'Líquido', n: 1 }],
+    m.particular.por_tipo.map(t => [esc(t.nome), brl(t.bruto), brl(t.taxa), t.taxa ? pct(t.taxa_pct, 2) : '0%', brl(t.liquido)])), { dica: pct(m.particular.taxa_cartao_pct, 2) + ' de taxa' }));
+  const c = D.convenio;
+  if (c) {
+    const linhas = D.creditos.length ? tabela([{ t: 'Recebido em' }, { t: 'Convênio' }, { t: 'Valor recebido', n: 1 }, { t: 'Impostos', n: 1 }, { t: 'Líquido', n: 1 }, { t: 'Glosa', n: 1 }],
+      D.creditos.map(x => [dataBR(x.data), esc(bonito(x.convenio)), brlOu(x.recebido), brlOu(x.impostos), brlOu(x.liquido), brlOu(x.glosa)])) : '<p class="vazio">Nenhum crédito de convênio identificado.</p>';
+    const ref = c.produzido ? `Em ${esc(c.ref)}: produzido com convênios <b>${brl(c.produzido)}</b> · créditos identificados <b>${brl(c.recebido)}</b> (${pct(c.recebido / c.produzido * 100)}).` : 'Abra o painel de Faturamento para comparar com o produzido.';
+    it.push(acordeao('Créditos de convênio', `<p class="nota">${ref}</p>${linhas}`, { dica: `${D.creditos.length} créditos` }));
+  }
+  if (D.invalidas && D.invalidas.length) it.push(acordeao('Dados para corrigir no Klingo', `<p class="nota">Estes lançamentos ficam de fora dos cálculos por vencimento até a data ser corrigida.</p>` + tabela([{ t: 'Lanç.' }, { t: 'Histórico', txt: 1 }, { t: 'Emissão' }, { t: 'Problema' }, { t: 'Valor', n: 1 }],
+    D.invalidas.map(x => [String(x.id), esc(bonito(x.historico)), dataBR(x.emissao), esc(x.alerta), brlOu(x.valor)])), { dica: `${D.invalidas.length} lançamentos` }));
+  return it.join('');
+}
+
+function render(ym) {
+  const m = D.meses[ym], prev = anteriorDe(D, CHAVES, ym);
+  const alertas = [...D.atencao, ...m.alertas].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período e o fluxo dos próximos meses' : 'Os números do mês e o fluxo dos próximos meses',
+      kpisHtml(m, prev) + saldoPorqueHtml(m) + fluxoHtml() + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente. Parte vale para hoje, parte para o mês escolhido.</p>${alertasTopo(alertas, ym)}</section>`) +
+    tier('Análise', 'Para onde vai e de onde vem o dinheiro', composicaoGraf(m) + vencidasGraf() + proximosResumo()) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+}
+
+if (!CHAVES.length) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar os relatórios no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

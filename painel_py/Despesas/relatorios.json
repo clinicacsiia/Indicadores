@@ -1,0 +1,39 @@
+{
+  "titulo": "Despesas",
+  "arquivo": "Despesas.xlsx",
+  "primeiro_mes": "2026-06",
+  "inicio_confiavel": "2026-09",
+  "relatorios": [
+    {
+      "id": 13505,
+      "aba": "Despesas",
+      "descricao": "Financeiro - Evolução das Despesas por Categoria e Mês - Mensal: cada lançamento com categoria (Despesa), fornecedor, descrição e valor BRUTO, pelo mês de COMPETÊNCIA (filtro Lançamento - Competência). Traz também os créditos (receitas): a coluna Categoria diz Credito ou Debito, e o painel usa só os débitos. Não tem identificador de lançamento (o #13509 tem)",
+      "periodo": "periodo0",
+      "meses_a_frente": 6,
+      "ordenar": ["Competência", "Categoria", "Despesa", "Valor"],
+      "numeros": ["Valor"],
+      "datas": {"Competência": "dd/mm/yyyy"}
+    },
+    {
+      "id": 13509,
+      "aba": "Líquido",
+      "descricao": "Financeiro - Despesas Detalhadas por Lançamento (Valor Líquido) - Mensal: as mesmas linhas do #13505, com o ID do lançamento e o valor LÍQUIDO (bruto menos retenções). Não diz se a linha é crédito ou débito: o painel cruza com o #13505. Mesmo filtro (Lançamento - Competência). Um mesmo ID pode aparecer em mais de uma linha (compra com várias categorias), por isso não há chave",
+      "periodo": "periodo0",
+      "meses_a_frente": 6,
+      "ordenar": ["Competência", "Despesa", "ID do Lançamento"],
+      "numeros": ["ID do Lançamento", "Valor Líquido"],
+      "datas": {"Competência": "dd/mm/yyyy"}
+    },
+    {
+      "id": 26,
+      "aba": "Produção",
+      "descricao": "Receita Produzida por Centro de Resultado (a mesma do painel Faturamento): cada atendimento com o médico, o procedimento, a operadora e o valor PRODUZIDO (faturado, não necessariamente recebido). Entra aqui só para o bloco de Repasse médico comparar o que cada médico produziu com o que a clínica lançou como Honorário Médico. Filtro de período próprio deste relatório (periodo)",
+      "periodo": "periodo",
+      "primeiro_mes": "2026-09",
+      "revisar_meses": 2,
+      "ordenar": ["Data"],
+      "numeros": ["Quantidade", "Valor"],
+      "datas": {"Data": "dd/mm/yyyy hh:mm"}
+    }
+  ]
+}

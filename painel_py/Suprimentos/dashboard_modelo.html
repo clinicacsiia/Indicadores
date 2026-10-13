@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suprimentos</title>
+<style>
+__CSS__
+  .tag { display: inline-flex; align-items: center; font-size: 12px; font-weight: 650; white-space: nowrap; }
+  .tag::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 6px; flex: none; }
+  .t-critico { --c: var(--crit); } .t-atencao { --c: var(--warn); } .t-info { --c: var(--neutro-2); } .t-ok { --c: var(--neutro-3); }
+  .minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 8px 40px; }
+  .minis > * { min-width: 0; }
+  .btn[hidden] { display: none; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 4px 0 14px; }
+  .filtros input[type=search], .calc input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--base); border-radius: 8px; padding: 6px 10px; min-width: 0; }
+  .filtros input[type=search] { flex: 1 1 220px; max-width: 360px; }
+  #tb-itens tr.clic { cursor: pointer; } #tb-itens tr.clic:hover td { background: var(--grid); } #tb-itens tr.sel td { background: var(--grid); }
+  #tb-itens .tag + .tag { margin-left: 10px; }
+  .micro { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px 20px; margin: 0 0 22px; }
+  .micro h3 { margin: 0 0 2px; font-size: 18px; } .micro .sub2 { color: var(--ink2); font-size: 13px; margin: 0 0 14px; }
+  .micro .grid2 { margin-top: 16px; }
+  .calc { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 14px; color: var(--ink2); }
+  .calc input { width: 130px; } .calc b { color: var(--ink); }
+  .ficha-vazia { color: var(--ink2); font-size: 14px; padding: 6px 0 14px; }
+  .achado { padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px; color: var(--ink2); } .achado:first-of-type { border-top: 0; }
+  .achado b.t { display: block; color: var(--ink); font-size: 15px; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Suprimentos</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Fontes:</b> relatório de Movimentações de Estoque (movimentações de estoque: compra, consumo, transferência, inventário, perda) e Solicitações de Estoque (solicitações: cada item que um setor pede ao estoque). Os dois são baixados desde fev/2026, porque o saldo e as pendências dependem de todo o histórico. Os meses do alto começam em set/2026.</li>
+        <li><b>Posição de hoje ou do mês?</b> Os cartões e as seções <b>Solicitações em…</b>, <b>Atividade por dia</b> e <b>Movimentações em…</b> seguem o mês escolhido. <b>Pedidos pendentes</b> e <b>Estoque</b> mostram a posição de hoje, de todos os meses.</li>
+        <li><b>Situação do pedido:</b> <b>Pendente</b> é o item marcado como pendente no Klingo (ainda não atendido). <b>Atendido</b> é o que saiu da fila com quantidade entregue. <b>Encerrado sem entrega</b> saiu da fila sem nenhuma quantidade entregue. Pedido pendente com mais de <span data-lim="pend_atencao"></span> dias vira atenção, e com mais de <span data-lim="pend_critica"></span>, crítico. Partimos de que “pendente = ainda não atendido”; se no Klingo o campo significar outra coisa, a leitura precisa ser ajustada.</li>
+        <li><b>Saldo do estoque</b> é a soma das quantidades consolidadas (entrada menos saída) de todas as movimentações. Inventário e compra entram como entrada; consumo, perda e a saída da transferência diminuem. Transferência entre estoques não muda o saldo total. “Principal” são os locais com PRINCIPAL no nome; os demais são estoques de setor.</li>
+        <li><b>Cobertura</b> é o estoque principal dividido pelo ritmo de pedidos por dia nos últimos <span data-lim="janela"></span> dias (quantidade solicitada, não consumida). Abaixo de <span data-lim="cobertura"></span> dias aparece como “Principal baixo”. É uma estimativa: não vale para item pedido raramente.</li>
+        <li><b>Situação do item:</b> <b>Zerado</b> = tem pedido e o saldo total é zero ou menor; <b>Pedidos &gt; estoque</b> = o que está pendente é maior que todo o saldo (principal e setores); <b>Sem estoque lançado</b> = o item é pedido mas nunca teve entrada, inventário ou saída; <b>Principal baixo</b> = cobertura menor que o mínimo.</li>
+        <li><b>Valor em estoque</b> é o que o Klingo registra (entradas menos saídas, com o valor unitário cadastrado). Só poucos itens têm custo cadastrado, então ele não é o valor real do estoque e o consumo não pode ser valorizado.</li>
+        <li><b>Procedimentos lançados</b> (gráfico de referência) vêm do relatório de Faturamento; servem só para comparar a atividade do dia com as baixas de consumo.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e o ritmo do mês), <b>Análise</b> (setores, pedidos pendentes, estoque e consumo em gráficos) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
+        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz todos os meses e guarda nos dados do portal: pendências atendidas, ajustes e novos lançamentos aparecem aqui.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const SIGLAS = /\b(rm|tc|csi|ped|ecg|usg|cx|pct|ml|und|rx|a3|a4)\b/gi;   // siglas continuam em maiúsculas
+const bonito = s => String(s ?? '').toLowerCase().replace(/(^|[\s/(*-])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase()).replace(SIGLAS, x => x.toUpperCase()).replace(/ (De|Da|Do|Das|Dos|E|Em|Com|Para|Por) /g, x => x.toLowerCase());
+const pessoa = s => bonito(String(s ?? '').replace(/\./g, ' '));
+const unid = u => String(u || '').toLowerCase();
+const qtd = (v, u) => `${num(v, Number.isInteger(v) ? 0 : 1)}${u ? ' ' + unid(u) : ''}`;
+const ORDEM_NIVEL = { critico: 0, atencao: 1, ok: 2, info: 3 };
+const SIT = { zerado: 'Zerado', falta: 'Pedidos > estoque', sem_lancamento: 'Sem estoque lançado', baixo: 'Principal baixo', ok: 'Ok' };
+const SIT_NIVEL = { zerado: 'critico', falta: 'atencao', sem_lancamento: 'atencao', baixo: 'info', ok: 'ok' };
+const tag = s => `<span class="tag t-${SIT_NIVEL[s]}">${SIT[s]}</span>`;
+const corPend = p => p >= 80 ? 'var(--crit)' : p >= 50 ? 'var(--serious)' : undefined;   // so colore o que passou do limite
+const CHAVES = chavesMeses(D);
+
+document.querySelectorAll('[data-lim]').forEach(el => { el.textContent = D.limites[el.dataset.lim]; });
+$('sub').textContent = `Fonte: relatórios de Movimentações de Estoque (movimentações) e Solicitações de Estoque (solicitações) do Klingo · dados de ${D.dados_em}`;
+
+// ====================== RESUMO ======================
+function kpisHtml(m, prev) {
+  const s = m.sol, p = D.pendentes, e = D.estoque, v = D.valor, mv = m.mov, t = s.linhas;
+  const porc = n => t ? n / t * 100 : 0;
+  const ultima = D.consumo.ultima ? `última baixa em ${dataBR(D.consumo.ultima)}` : 'nenhuma baixa registrada';
+  const ev = (D.evolucao || []).find(x => x.rotulo === (prev && prev.rotulo));   // % atendido do mes anterior (razao: vale mesmo com o mes aberto)
+  const atendPrev = ev && ev.linhas ? ev.atendidas / ev.linhas * 100 : null;
+  const dAtend = atendPrev != null && t ? porc(s.atendidas) - atendPrev : null;
+  return `<div class="kpis">
+    ${kpi(`Solicitações em ${esc(m.rotulo)}`, num(s.solicitacoes), { destaque: 1, comp: comp(dAtend, `no % atendido contra ${prev ? esc(prev.rotulo) : 'o mês anterior'}`, { unidade: 'pp', vazio: `${num(t)} itens pedidos por ${num(s.solicitantes)} pessoa(s)` }),
+      sub: `${num(t)} itens pedidos por ${num(s.solicitantes)} pessoa(s)` +
+        empilhada([{ rotulo: 'Atendidos', valor: s.atendidas, cor: 'var(--neutro)' }, { rotulo: 'Sem entrega', valor: s.encerradas, cor: 'var(--neutro-3)' }, { rotulo: 'Pendentes hoje', valor: s.pendentes, cor: 'var(--crit)' }]) })}
+    ${kpi('Itens pendentes hoje', num(p.linhas), { comp: p.mais_15 ? `<span class="delta desce">${num(p.mais_15)} há mais de ${D.limites.pend_atencao} dias</span>` : `<span class="delta sobe">Nenhum há mais de ${D.limites.pend_atencao} dias</span>`, sub: `${num(p.solicitacoes)} solicitações · todos os meses` })}
+    ${kpi(`Baixas de consumo em ${esc(m.rotulo)}`, num(mv.consumo_linhas), { sub: `${num(mv.consumo_itens)} itens diferentes · ${ultima}` })}
+    ${kpi('Itens que pedem atenção', num(e.n_atencao), { comp: `de ${num(e.n_itens)} itens (${pct(e.n_itens ? e.n_atencao / e.n_itens * 100 : 0, 0)})`, sub: `${num(e.contagem.sem_lancamento)} sem estoque lançado · ${num(e.contagem.zerado + e.contagem.falta)} com pedido maior que o estoque` })}
+    ${kpi('Valor em estoque no Klingo', brlc(v.total), { titulo: brl(v.total), sub: `custo cadastrado em ${num(v.itens_com_custo)} de ${num(v.itens)} itens` })}
+  </div>`;
+}
+
+// atividade por dia: uma linha simples por serie, cada uma na sua escala
+function atividadeHtml(m) {
+  if (m.periodo) {   // periodo de varios meses: no lugar do dia a dia (que so existe dentro de um mes), a atividade de cada mes
+    const ev = (D.evolucao || []).filter(x => (m.meses_do_periodo || []).includes(x.ym));
+    if (ev.length < 2) return '';
+    const graf = (titulo, campo) => `<div><h3 style="margin-bottom:6px">${titulo}</h3>${barras(ev.map(x => ({ rotulo: x.rotulo, valor: x[campo], texto: num(x[campo]), tip: `${x.rotulo}\n${titulo}: ${num(x[campo])}` })), '', '34%')}</div>`;
+    return `<section><h2>Atividade mês a mês no período</h2><p class="nota">${esc(m.rotulo)}: o que aconteceu em cada mês.</p><div class="grid2">${graf('Solicitações', 'solicitacoes')}${graf('Baixas de consumo (linhas)', 'consumo')}</div></section>`;
+  }
+  const dias = m.dias; if (!dias.length) return '';
+  const series = [['Solicitações criadas por dia', 'sol', 'var(--accent)'], ['Baixas de consumo por dia (linhas)', 'cons', 'var(--neutro)'], ['Transferências entre estoques por dia (linhas)', 'transf', 'var(--neutro)']];
+  if (D.tem_exames) series.push(['Procedimentos lançados no Faturamento por dia (referência)', 'exames', 'var(--neutro-2)']);
+  return `<section><h2>Atividade por dia em ${esc(m.rotulo)}</h2>
+    <p class="nota">Cada gráfico tem a sua escala. Se as baixas de consumo somem enquanto os procedimentos continuam, o estoque no Klingo deixou de acompanhar o uso.</p>
+    <div class="minis">${series.map(s => `<div>${miniLinha(s[0], dias, s[1], { cor: s[2] })}</div>`).join('')}</div></section>`;
+}
+
+// ====================== ANALISE ======================
+function solicitacoesGraf(m) {
+  const s = m.sol;
+  if (!s.linhas) return `<section><h2>Solicitações em ${esc(m.rotulo)}</h2><p class="vazio">Nenhuma solicitação neste mês.</p></section>`;
+  const setores = barras(s.setores.map(x => {
+    const pp = x.pendentes / x.linhas * 100;
+    return { rotulo: bonito(x.nome), valor: x.linhas, texto: num(x.linhas), extra: `${pct(pp, 0)} pend.`, cor: corPend(pp),
+      tip: `${bonito(x.nome)}\n${num(x.solicitacoes)} solicitações, ${num(x.linhas)} itens\nAtendidos: ${num(x.atendidas)}\nPendentes: ${num(x.pendentes)}\nSem entrega: ${num(x.encerradas)}` };
+  }), '', '40%');
+  const itens = barras(s.itens.map(x => ({ rotulo: bonito(x.nome), valor: x.pedidos, texto: num(x.pedidos) + ' pedidos', extra: qtd(x.qtd, x.un),
+    tip: `${bonito(x.nome)}\n${num(x.pedidos)} pedidos · ${qtd(x.qtd, x.un)} pedidas\nEntregue: ${qtd(x.atendida, x.un)} · pendente: ${qtd(x.pendente, x.un)}` })), '', '44%');
+  return `<section class="grid2"><div><h2>Solicitações por setor</h2><p class="nota">Itens pedidos pelos setores em ${esc(m.rotulo)}. A barra fica cinza; só vira laranja ou vermelha quando 50% ou 80% do que o setor pediu continua pendente.</p>${setores}</div>
+    <div><h2>Itens mais pedidos</h2><p class="nota">Por número de pedidos; a quantidade está na unidade de cada item.</p>${itens}</div></section>`;
+}
+function pendentesGraf() {
+  const p = D.pendentes; if (!p || !p.linhas) return '';
+  const faixas = barras(p.faixas.map((f, i) => ({ rotulo: f.rotulo, valor: f.qtd, texto: num(f.qtd), extra: `${num(f.solicitacoes)} solic.`, cor: ['', '', 'var(--warn)', 'var(--serious)', 'var(--crit)'][i] || undefined,
+    tip: `${f.rotulo}\n${num(f.qtd)} itens em ${num(f.solicitacoes)} solicitações` })), 'Nada pendente.', '34%');
+  return `<section><h2>Pedidos pendentes: há quanto tempo esperam</h2>
+    <p class="nota"><b>${num(p.linhas)}</b> de ${num(p.total_linhas)} itens pedidos ainda constam como pendentes, em ${num(p.solicitacoes)} das ${num(p.solicitacoes_total)} solicitações. Em ${num(p.sem_nenhum_atendido)} solicitações nenhum item foi atendido. Posição de hoje, todos os meses.</p>${faixas}</section>`;
+}
+function estoqueGraf() {
+  const e = D.estoque; if (!e || !e.itens.length) return '';
+  const c = e.contagem;
+  const fatias = [{ rotulo: 'Ok', valor: c.ok, cor: 'var(--neutro-3)' }, { rotulo: 'Principal baixo', valor: c.baixo, cor: 'var(--neutro-2)' },
+    { rotulo: 'Sem estoque lançado', valor: c.sem_lancamento, cor: 'var(--warn)' }, { rotulo: 'Zerado ou pedido maior que o estoque', valor: c.zerado + c.falta, cor: 'var(--crit)' }];
+  return `<section class="grid2"><div><h2>Situação do estoque</h2><p class="nota">${num(e.n_itens)} itens (posição de hoje). Como o consumo nem sempre é baixado, o saldo pode estar acima do real.</p>${donut(fatias, { centro: { num: num(e.n_atencao), rot: 'pedem atenção' } })}</div>
+    <div><h2>Estoque por local</h2><p class="nota">Itens com saldo maior que zero em cada local de armazenagem.</p>${barras(e.por_local.map(x => ({ rotulo: bonito(x.nome), valor: x.com_saldo, texto: num(x.com_saldo) + (x.com_saldo === 1 ? ' item' : ' itens'), extra: `${num(x.zerados)} zerados`,
+      tip: `${bonito(x.nome)}\n${num(x.com_saldo)} itens com saldo · ${num(x.zerados)} zerados\n${num(x.movimentos)} movimentações` })), '', '44%')}</div></section>`;
+}
+function consumoGraf(m) {
+  const v = m.mov;
+  if (!v.linhas) return `<section><h2>Movimentações em ${esc(m.rotulo)}</h2><p class="vazio">Nenhuma movimentação de estoque neste mês.</p></section>`;
+  const mk = (lista, campo) => lista.map(i => ({ rotulo: bonito(i.nome), valor: i[campo], texto: num(i[campo]) + ' baixas', extra: i.un !== undefined ? qtd(i.qtd, i.un) : `${num(i.itens)} itens`,
+    tip: `${bonito(i.nome)}\n${num(i[campo])} baixas${i.un !== undefined ? '\nQuantidade: ' + qtd(i.qtd, i.un) : ''}` }));
+  const tipos = barras(v.tipos.map(x => ({ rotulo: x.nome, valor: x.linhas, texto: num(x.linhas), extra: x.valor ? brlc(x.valor) : '', tip: `${x.nome}\n${num(x.linhas)} linhas${x.valor ? '\nValor registrado ' + brl(x.valor) : ''}` })), '', '40%');
+  const consumo = v.consumo_linhas ? `${barras(mk(v.consumo_top, 'baixas'), '', '44%')}<div style="height:16px"></div>${barras(mk(v.consumo_setores, 'baixas'), '', '44%')}` : '<p class="vazio">Nenhuma baixa de consumo neste mês.</p>';
+  return `<section class="grid2"><div><h2>Movimentações por tipo</h2><p class="nota">${num(v.linhas)} movimentações em ${esc(m.rotulo)}: ${num(v.consumo_linhas)} baixas de consumo, ${num(v.transferencias)} transferências entre estoques.</p>${tipos}</div>
+    <div><h2>O que mais foi consumido</h2><p class="nota">Por número de baixas (itens acima, setores abaixo).</p>${consumo}</div></section>`;
+}
+
+// ====================== DETALHES ======================
+function detalhes(m) {
+  const it = [];
+  const dias = m.dias;
+  if (dias.length) {
+    const cols = [{ t: 'Dia' }, { t: 'Solicitações', n: 1 }, { t: 'Baixas de consumo', n: 1 }, { t: 'Transferências', n: 1 }, ...(D.tem_exames ? [{ t: 'Procedimentos', n: 1 }] : [])];
+    it.push(acordeao('Atividade por dia: tabela', tabela(cols, dias.map(d => [dataBR(d.d), num(d.sol), num(d.cons), num(d.transf), ...(D.tem_exames ? [d.exames == null ? VAZIO : num(d.exames)] : [])])), { dica: `${dias.length} dias` }));
+  }
+  const e2 = D.evolucao;
+  if (e2 && e2.length) {
+    const linhas = e2.map(x => [esc(x.rotulo), num(x.solicitacoes), num(x.linhas), num(x.atendidas), num(x.pendentes), num(x.encerradas), x.linhas ? pct(x.atendidas / x.linhas * 100, 0) : '—', num(x.consumo), num(x.transferencias), num(x.compras), num(x.inventario)]);
+    const tot = ['Total', ...[1, 2, 3, 4, 5].map(i => num(e2.reduce((s, x) => s + [0, x.solicitacoes, x.linhas, x.atendidas, x.pendentes, x.encerradas][i], 0))),
+      pct(e2.reduce((s, x) => s + x.atendidas, 0) / Math.max(e2.reduce((s, x) => s + x.linhas, 0), 1) * 100, 0), ...['consumo', 'transferencias', 'compras', 'inventario'].map(c => num(e2.reduce((s, x) => s + x[c], 0)))];
+    it.push(acordeao('Mês a mês', `<p class="nota">Todos os meses com registro. A situação dos pedidos é a de hoje: um pedido de setembro que ainda aparece pendente continua contando como pendente.</p>` +
+      tabela([{ t: 'Mês' }, { t: 'Solicitações', n: 1 }, { t: 'Itens pedidos', n: 1 }, { t: 'Atendidos', n: 1 }, { t: 'Pendentes', n: 1 }, { t: 'Sem entrega', n: 1 }, { t: '% atendido', n: 1 }, { t: 'Baixas de consumo', n: 1 }, { t: 'Transferências', n: 1 }, { t: 'Compras e doações', n: 1 }, { t: 'Inventário', n: 1 }], linhas, tot), { dica: `${e2.length} meses` }));
+  }
+  const s = m.sol;
+  if (s.linhas) {
+    it.push(acordeao(`Quem mais pede em ${esc(m.rotulo)}`, tabela([{ t: 'Quem pediu' }, { t: 'Solicitações', n: 1 }, { t: 'Itens', n: 1 }, { t: 'Atendidos', n: 1 }, { t: 'Pendentes', n: 1 }],
+      s.solicitantes_lista.map(x => [esc(pessoa(x.nome)), num(x.solicitacoes), num(x.linhas), num(x.atendidas), num(x.pendentes)])), { dica: `${s.solicitantes_lista.length} pessoas` }));
+    it.push(acordeao(`Itens mais pedidos em ${esc(m.rotulo)}: tabela`, tabela([{ t: 'Item', txt: 1 }, { t: 'Pedidos', n: 1 }, { t: 'Quantidade pedida', n: 1 }, { t: 'Entregue', n: 1 }, { t: 'Ainda pendente', n: 1 }],
+      s.itens.map(x => [esc(bonito(x.nome)), num(x.pedidos), qtd(x.qtd, x.un), qtd(x.atendida, x.un), qtd(x.pendente, x.un)])), { dica: `${s.itens.length} itens` }));
+  }
+  const p = D.pendentes;
+  if (p && p.linhas) {
+    it.push(acordeao('Pendentes: situação por setor (todos os meses)', tabela([{ t: 'Setor' }, { t: 'Itens pedidos', n: 1 }, { t: 'Atendidos', n: 1 }, { t: 'Pendentes', n: 1 }, { t: 'Sem entrega', n: 1 }, { t: '% pendente', n: 1 }],
+      p.setores.map(x => [esc(bonito(x.nome)), num(x.linhas), num(x.atendidas), num(x.pendentes), num(x.encerradas), pct(x.pct_pend, 0)])), { dica: `${p.setores.length} setores` }));
+    it.push(acordeao(`Pendentes: os ${p.lista.length} pedidos mais antigos`, tabela([{ t: 'Solic.' }, { t: 'Pedido em' }, { t: 'Item', txt: 1 }, { t: 'Quantidade', n: 1 }, { t: 'Setor' }, { t: 'Quem pediu' }, { t: 'Espera', n: 1 }],
+      p.lista.map(x => [`#${x.id}`, dataBR(x.data), esc(bonito(x.item)), qtd(x.qtd, x.un), esc(bonito(x.setor)), esc(pessoa(x.solicitante)), `${x.dias} dias`])), { dica: `${p.lista.length} pedidos` }));
+  }
+  const e = D.estoque;
+  if (e && e.itens.length) {
+    const linha = x => [esc(bonito(x.item)), esc(bonito(x.grupo || '')), qtd(x.principal, x.un), qtd(x.setores, x.un), x.pendente ? qtd(x.pendente, x.un) : '—',
+      x.demanda ? num(x.demanda, x.demanda < 10 ? 1 : 0) : '—', x.cobertura == null ? '—' : (x.cobertura > 999 ? '999+' : num(x.cobertura, 1)) + ' dias', tag(x.situacao)];
+    const cols = [{ t: 'Item', txt: 1 }, { t: 'Grupo' }, { t: 'Estoque principal', n: 1 }, { t: 'Nos setores', n: 1 }, { t: 'Pedido em aberto', n: 1 }, { t: `Pedidos por dia (${e.janela} d)`, n: 1 }, { t: 'Cobertura', n: 1 }, { t: 'Situação' }];
+    const atencao = e.itens.filter(x => x.situacao !== 'ok');
+    it.push(acordeao('Estoque: itens que pedem atenção', atencao.length ? tabela(cols, atencao.slice(0, 25).map(linha)) + (atencao.length > 25 ? `<p class="nota" style="margin-top:8px">Mostrando 25 de ${num(atencao.length)}; a lista completa está no próximo bloco.</p>` : '') : '<p class="vazio">Nenhum item com problema.</p>', { dica: `${num(atencao.length)} itens` }));
+    it.push(acordeao('Estoque: todos os itens', tabela(cols, e.itens.map(linha)), { dica: `${num(e.itens.length)} itens` }));
+    it.push(acordeao('Estoque: por local de armazenagem', `<p class="nota">Itens com saldo maior que zero, itens que já tiveram movimento e hoje estão zerados, e total de movimentações.</p>` + tabela([{ t: 'Local' }, { t: 'Itens com saldo', n: 1 }, { t: 'Itens zerados', n: 1 }, { t: 'Movimentações', n: 1 }],
+      e.por_local.map(x => [esc(bonito(x.nome)), num(x.com_saldo), num(x.zerados), num(x.movimentos)])), { dica: `${e.por_local.length} locais` }));
+  }
+  const v = m.mov;
+  if (v.linhas) {
+    it.push(acordeao(`Movimentações em ${esc(m.rotulo)}: por tipo`, `<p class="nota">“Valor registrado” é o que o Klingo guarda; a maioria das linhas está sem custo.</p>` + tabela([{ t: 'Movimento' }, { t: 'Linhas', n: 1 }, { t: 'Valor registrado', n: 1 }], v.tipos.map(x => [esc(x.nome), num(x.linhas), x.valor ? brl(x.valor) : VAZIO])), { dica: `${v.tipos.length} tipos` }));
+    const compras = v.compras.length ? tabela([{ t: 'Data' }, { t: 'Tipo' }, { t: 'Item', txt: 1 }, { t: 'Fornecedor', txt: 1 }, { t: 'Quantidade', n: 1 }, { t: 'Valor', n: 1 }, { t: 'Local' }],
+      v.compras.map(x => [dataBR(x.data), esc(x.tipo), esc(bonito(x.item)), x.fornecedor ? esc(x.fornecedor) : VAZIO, qtd(x.qtd, x.un), x.valor ? brl(x.valor) : VAZIO, esc(bonito(x.local))])) : '<p class="vazio">Nenhuma compra ou doação neste mês.</p>';
+    const inv = v.inventarios.length ? tabela([{ t: 'Dia' }, { t: 'Local' }, { t: 'Itens contados', n: 1 }, { t: 'Zerados antes', n: 1 }],
+      v.inventarios.map(x => [dataBR(x.dia), esc(bonito(x.local)), num(x.contados), num(x.zerados)])) : '<p class="vazio">Nenhum inventário neste mês.</p>';
+    it.push(acordeao(`Compras e doações em ${esc(m.rotulo)}`, compras, { dica: `${v.compras.length} lançamentos` }));
+    it.push(acordeao(`Inventários em ${esc(m.rotulo)}`, `<p class="nota">Contagem física lançada no sistema: cada item contado vira uma entrada (e o saldo anterior é zerado).</p>${inv}`, { dica: `${v.inventarios.length} inventário${v.inventarios.length === 1 ? '' : 's'}` }));
+  }
+  const c = D.conferencia;
+  if (c && c.length) it.push(acordeao('Conferência e qualidade dos dados', `<p class="nota">Se as contas internas fecham e o que ainda precisa ser corrigido no Klingo.</p>${alertasHtml(c)}`, { dica: `${c.length} pontos` }));
+  return it.join('');
+}
+
+// ====================== ITEM A ITEM ======================
+const FLAG = { custo_confira: ['atencao', 'Custo a confirmar'], baixa_zero: ['atencao', 'Baixas zeradas'], sem_baixa: ['atencao', 'Entregue sem baixa'],
+  sem_lancamento: ['atencao', 'Sem estoque lançado'], embalagem: ['info', 'Controlado em caixa'], sem_custo: ['info', 'Sem custo'] };
+const FILTROS = { todos: ['Todos os itens', () => true], consumo: ['Com consumo registrado', x => x.baixas > 0], problema: ['Consumo que não aparece', x => x.flags.some(f => ['baixa_zero', 'sem_baixa', 'sem_lancamento'].includes(f))],
+  custo: ['Com custo', x => x.custo != null], semcusto: ['Sem custo', x => x.custo == null], caixa: ['Controlados em caixa ou pacote', x => x.em_embalagem], comprado: ['Já comprados', x => x.compra_qtd > 0 || x.compras.length > 0] };
+const reais = v => v == null ? VAZIO : Math.abs(v) >= 1 ? brl(v) : 'R$ ' + num(v, Math.abs(v) < 0.01 ? 4 : 3);
+const tagFlag = f => `<span class="tag t-${FLAG[f][0]}">${FLAG[f][1]}</span>`;
+const textoFlags = x => x.flags.filter(f => f !== 'sem_custo' || x.flags.length === 1).slice(0, 2).map(tagFlag).join('') || '<span class="tag t-ok">Ok</span>';
+const minimo = x => x.em_embalagem ? 'unidade' : unid(x.un);
+let ITEM_SEL = null, ITEM_VER_TODOS = false;
+
+function itensResumoHtml() {
+  const r = D.itens.resumo, t = r.itens;
+  const confira = r.custo_confira.length ? `; o custo de ${r.custo_confira.map(i => esc(bonito(i))).join(', ')} precisa ser confirmado` : '';
+  return `<div class="kpis">
+    ${kpi('Itens com custo', `${num(r.com_custo)} de ${num(t)}`, { destaque: 1, sub: pct(t ? r.com_custo / t * 100 : 0, 0) + ' do cadastro' })}
+    ${kpi('Baixas sem quantidade', pct(r.baixas ? r.baixas_zero_total / r.baixas * 100 : 0, 0), { sub: `${num(r.baixas_zero_total)} de ${num(r.baixas)} baixas de consumo` })}
+    ${kpi('Consumo com valor conhecido', brlc(r.valor_consumo_ok), { titulo: brl(r.valor_consumo_ok), sub: 'só dos itens que têm custo' })}
+  </div>`;
+}
+
+function itensAchadosHtml() {
+  const a = D.itens.achados.filter(x => !/sem nenhuma baixa/.test(x.titulo)).slice(0, 3); if (!a.length) return '';
+  return `<section><h2>O que mais chama a atenção</h2>${a.map(x => `<div class="achado"><b class="t">${esc(x.titulo)}</b>${x.texto}</div>`).join('')}</section>`;
+}
+
+function exameCorpo() {
+  const e = D.exame;
+  const base = '';
+  const linhas = e.linhas.map(r => [esc(bonito(r.item)) + (r.confira ? ' <span class="tag t-atencao">custo a confirmar</span>' : ''), qtd(r.qtd, r.un), num(r.por_exame, r.por_exame < 1 ? 2 : 1) + ' ' + unid(r.un), r.custo == null ? VAZIO : reais(r.custo), r.valor == null ? VAZIO : brl(r.valor), r.valor == null ? VAZIO : reais(r.valor / e.atendimentos)]);
+  return base + `<p class="nota">Setor ${e.setor}, de ${dataBR(e.de)} a ${dataBR(e.ate)} (dias com baixa de consumo): <b>${num(e.atendimentos)}</b> atendimentos, ticket médio de <b>${brl(e.ticket)}</b>.
+    Ordem de grandeza apenas: o Klingo guarda o consumo por setor, não por procedimento, e as baixas não são lançadas dia a dia.</p>
+    <div class="kpis">${kpi('Custo de material conhecido', brl(e.custo_conhecido), { sub: `${num(e.itens_com_custo)} de ${num(e.itens_total)} itens consumidos têm custo` })}
+    ${kpi('Por atendimento', brl(e.custo_por_exame), { comp: `${pct(e.ticket ? e.custo_por_exame / e.ticket * 100 : 0, 1)} do ticket médio`, sub: 'só o que já tem custo; o real é maior' })}
+    ${e.a_confirmar ? kpi('A confirmar', brl(e.a_confirmar), { sub: 'custo que parece estar por frasco, não por mL; não entra nas contas ao lado' }) : ''}</div>
+    ${tabela([{ t: 'Item', txt: 1 }, { t: 'Consumo', n: 1 }, { t: 'Por atendimento', n: 1 }, { t: 'Custo da unidade', n: 1 }, { t: 'Valor', n: 1 }, { t: 'Por atendimento (R$)', n: 1 }], linhas)}`;
+}
+
+function comprasCorpo() {
+  const c = D.itens.compras;
+  if (!c.length) return '<p class="vazio">Nenhuma compra registrada.</p>';
+  const linhas = c.map(x => [dataBR(x.data), esc(x.tipo), esc(bonito(x.item)), x.fornecedor ? esc(x.fornecedor) : VAZIO, qtd(x.qtd, x.un), x.valor ? brl(x.valor) : VAZIO, x.custo_unit ? reais(x.custo_unit) : VAZIO,
+    qtd(x.saldo, x.un), qtd(x.consumo, x.un), x.baixas ? `${num(x.baixas_zero)} de ${num(x.baixas)}` : '—']);
+  return `<p class="nota">Toda compra e doação registrada. “Saldo” e “consumo” são do item inteiro. Compra sem valor ou sem baixa mostra que custo e uso não estão sendo acompanhados.</p>` +
+    tabela([{ t: 'Data' }, { t: 'Tipo' }, { t: 'Item', txt: 1 }, { t: 'Fornecedor', txt: 1 }, { t: 'Comprado', n: 1 }, { t: 'Valor', n: 1 }, { t: 'Custo da unidade', n: 1 }, { t: 'Saldo hoje', n: 1 }, { t: 'Consumo registrado', n: 1 }, { t: 'Baixas zeradas', n: 1 }], linhas);
+}
+
+function microItem(x) {
+  if (!x) return `<div class="micro"><p class="ficha-vazia">Escolha um item na lista abaixo (ou digite o nome na busca) para ver a ficha dele: estoque, custo de cada unidade, consumo por setor e por mês, compras.</p></div>`;
+  const u = unid(x.un), min = minimo(x);
+  const emb = x.em_embalagem ? ` · ${x.embalagem_txt}` : '';
+  const sub = [x.grupo ? bonito(x.grupo) : '', `controlado em ${u}${emb}`].filter(Boolean).join(' · ');
+  const k1 = kpi('Em estoque hoje', qtd(x.saldo, x.un), { sub: `principal ${qtd(x.principal, x.un)} · setores ${qtd(x.setores, x.un)}` + (x.em_embalagem ? `<br>= <b>${num(x.saldo * x.fator)}</b> unidades` : '') });
+  const k2 = kpi(x.em_embalagem ? 'Custo da caixa e de cada unidade' : `Custo de 1 ${u}`, x.custo == null ? VAZIO : (x.em_embalagem ? `${reais(x.custo)} · ${reais(x.custo_min)}` : reais(x.custo)),
+    { sub: x.custo == null ? 'Sem custo no Klingo' : `fonte: ${esc(x.custo_fonte)}${x.custo_confira ? ' <span class="tag t-atencao">a confirmar</span>' : ''}` });
+  const k3 = kpi('Consumo registrado', qtd(x.consumo, x.un), { sub: x.baixas ? `${num(x.baixas)} baixas, ${num(x.baixas_zero)} sem quantidade` + (x.em_embalagem ? `<br>= <b>${num(x.consumo * x.fator)}</b> unidades` : '') : 'nenhuma baixa de consumo' });
+  const k4 = kpi('Valor do consumo / do estoque', x.valor_consumo == null ? VAZIO : brl(x.valor_consumo), { sub: x.valor_estoque == null ? 'sem custo para valorizar' : `estoque: ${brl(x.valor_estoque)}` });
+  const k5 = kpi('Pedido × entregue', qtd(x.entregue, x.un), { sub: `de ${qtd(x.pedido, x.un)} pedidos em ${num(x.pedidos)} solicitações · pendente ${qtd(x.pendente, x.un)}` + (x.baixado_pct != null ? `<br>baixado: ${pct(x.baixado_pct, 0)} do entregue` : '') });
+  const setores = x.por_setor.length ? barras(x.por_setor.map(s => ({ rotulo: bonito(s.nome), valor: s.qtd, texto: qtd(s.qtd, x.un), extra: `${num(s.baixas)} baixas`, tip: `${bonito(s.nome)}\n${qtd(s.qtd, x.un)} em ${num(s.baixas)} baixas${x.custo != null ? '\nValor ' + brl(s.qtd * x.custo) : ''}` })), '', '40%') : '<p class="vazio">Nenhuma baixa de consumo.</p>';
+  const meses = x.por_mes.length ? tabela([{ t: 'Mês' }, { t: 'Consumo', n: 1 }, { t: 'Baixas', n: 1 }], x.por_mes.map(r => [esc(r.ym.slice(5) + '/' + r.ym.slice(0, 4)), qtd(r.qtd, x.un), num(r.baixas)])) : '';
+  const tipos = x.tipos.length ? tabela([{ t: 'Movimento' }, { t: 'Quantidade', n: 1 }, { t: 'Linhas', n: 1 }], x.tipos.map(r => [esc(r.nome), qtd(r.qtd, x.un), num(r.linhas)])) : '';
+  const compras = x.compras.length ? tabela([{ t: 'Data' }, { t: 'Tipo' }, { t: 'Fornecedor', txt: 1 }, { t: 'Quantidade', n: 1 }, { t: 'Valor', n: 1 }], x.compras.map(c => [dataBR(c.data), esc(c.tipo), c.fornecedor ? esc(c.fornecedor) : VAZIO, qtd(c.qtd, x.un), c.valor ? brl(c.valor) : VAZIO])) : '<p class="vazio">Nenhuma compra ou doação registrada.</p>';
+  const calc = `<div class="calc">${x.custo == null || x.custo_confira ? `Quanto custa 1 ${x.em_embalagem ? (x.embalagem_txt.split(' ')[0]) : u}? <input type="number" min="0" step="any" id="calc-preco" placeholder="R$"> <span id="calc-res"></span>` : ''}
+    <div style="margin-top:6px">Para valer em todo o painel, peça a um administrador para digitar o preço em <b>${esc(D.itens.arquivo_custos)}</b> (menu da conta › Custos dos itens) e clique em Atualizar agora.</div></div>`;
+  return `<div class="micro"><h3>${esc(bonito(x.item))}</h3><p class="sub2">${esc(sub)} ${x.flags.filter(f => f !== 'embalagem').map(tagFlag).join(' ')}</p>
+    <div class="kpis">${k1}${k2}${k3}${k4}</div>${calc}
+    <h2 style="margin-top:16px">Consumo por setor</h2>${setores}
+    ${acordeao('Mais detalhes deste item', `<div style="margin-bottom:12px">${k5}</div><h2>Consumo por mês</h2>${meses || '<p class="vazio">—</p>'}<h2 style="margin-top:18px">Movimentos</h2>${tipos}<h2 style="margin-top:18px">Compras e doações</h2>${compras}`)}</div>`;
+}
+
+function listaItensHtml() {
+  return `<div class="filtros"><input type="search" id="q-item" placeholder="Buscar item (ex.: grampo, luva, ultravist)" aria-label="Buscar item">
+    <label class="mes-pick">Mostrar <select id="f-item">${Object.entries(FILTROS).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select></label>
+    <span class="nota" id="n-item" style="margin:0"></span></div>
+    <div class="tab-wrap"><table><thead><tr><th>Item</th><th class="n">Estoque</th><th class="n">Custo de 1 unidade</th><th class="n">Consumo registrado</th><th>Leitura</th></tr></thead><tbody id="tb-itens"></tbody></table></div>
+    <p><button type="button" class="btn" id="btn-todos-itens" hidden></button></p>`;
+}
+
+function itensTier() {
+  if (!D.itens || !D.itens.lista.length) return '';
+  const corpo = `<section>${itensResumoHtml()}</section>` + itensAchadosHtml() +
+    `<section><h2>Cada item</h2><p class="nota">Clique em um item para ver o custo de cada unidade e o consumo. Preços digitados em <b>${esc(D.itens.arquivo_custos)}</b> entram aqui.</p><div id="ficha">${microItem(null)}</div>${listaItensHtml()}</section>` +
+    `<section>${acordeao('Compras: o que foi comprado × consumido', comprasCorpo(), { dica: `${D.itens.compras.length} lançamentos` })}${D.exame ? acordeao('Material por atendimento (RM/TC)', exameCorpo(), { dica: 'ordem de grandeza' }) : ''}</section>`;
+  return tier('Item a item', 'Custo e consumo de cada item, do grampo ao contraste', corpo);
+}
+
+function desenharItens() {
+  const tb = $('tb-itens'); if (!tb) return;
+  const q = $('q-item').value.trim().toLowerCase(), f = $('f-item').value;
+  const lista = D.itens.lista.filter(x => FILTROS[f][1](x) && (!q || (x.item + ' ' + (x.grupo || '')).toLowerCase().includes(q)));   // ja vem do maior valor de consumo para o menor
+  const LIM = 12, mostra = ITEM_VER_TODOS ? lista : lista.slice(0, LIM);
+  tb.innerHTML = mostra.map(x => `<tr class="clic${x.item === ITEM_SEL ? ' sel' : ''}" data-item="${esc(x.item)}"><td class="txt">${esc(bonito(x.item))}${x.em_embalagem ? `<br><small style="color:var(--muted)">${esc(x.embalagem_txt)}</small>` : ''}</td>
+    <td class="n">${qtd(x.saldo, x.un)}</td><td class="n">${x.custo == null ? VAZIO : reais(x.em_embalagem ? x.custo_min : x.custo)}</td>
+    <td class="n">${x.baixas ? qtd(x.consumo, x.un) : VAZIO}</td><td>${textoFlags(x)}</td></tr>`).join('') || `<tr><td colspan="5" class="txt">Nenhum item com esse filtro.</td></tr>`;
+  $('n-item').textContent = `${num(lista.length)} itens`;
+  const b = $('btn-todos-itens'); b.hidden = lista.length <= LIM; b.textContent = ITEM_VER_TODOS ? `Mostrar só os ${LIM} primeiros` : `Mostrar todos os ${num(lista.length)} itens`;
+}
+function abrirItem(nome) {
+  ITEM_SEL = nome;
+  const x = D.itens.lista.find(i => i.item === nome);
+  $('ficha').innerHTML = microItem(x);
+  const inp = $('calc-preco');
+  if (inp && x) inp.addEventListener('input', () => {
+    const p = parseFloat(inp.value.replace(',', '.'));
+    $('calc-res').innerHTML = p > 0 ? `→ ${x.em_embalagem ? `cada unidade custa <b>${reais(p / x.fator)}</b>; ` : ''}estoque de hoje: <b>${brl(x.saldo * p)}</b>; consumo registrado: <b>${brl(x.consumo * p)}</b>` : '';
+  });
+  desenharItens();
+  $('ficha').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function ligarItens() {
+  if (!$('tb-itens')) return;
+  ['q-item', 'f-item'].forEach(id => $(id).addEventListener('input', () => { ITEM_VER_TODOS = false; desenharItens(); }));
+  $('btn-todos-itens').addEventListener('click', () => { ITEM_VER_TODOS = !ITEM_VER_TODOS; desenharItens(); });
+  $('tb-itens').addEventListener('click', e => { const tr = e.target.closest('tr[data-item]'); if (tr) abrirItem(tr.dataset.item); });
+  if (ITEM_SEL) abrirItem(ITEM_SEL); else desenharItens();
+}
+
+function render(ym) {
+  const m = D.meses[ym], prev = anteriorDe(D, CHAVES, ym);
+  const alertas = [...D.atencao, ...m.alertas].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período e a atividade de cada mês' : 'Os números do mês e o ritmo da atividade',
+      kpisHtml(m, prev) + atividadeHtml(m) + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente. Parte vale para hoje, parte para o mês escolhido.</p>${alertasTopo(alertas, ym)}</section>`) +
+    tier('Análise', 'Setores, pedidos pendentes, estoque e consumo', solicitacoesGraf(m) + pendentesGraf() + estoqueGraf() + consumoGraf(m)) +
+    itensTier() +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+  ligarItens();
+}
+
+if (!CHAVES.length) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar os relatórios no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

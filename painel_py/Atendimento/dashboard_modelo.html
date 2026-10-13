@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atendimento</title>
+<style>
+__CSS__
+  .tag { display: inline-flex; align-items: center; font-size: 12px; font-weight: 650; white-space: nowrap; margin-right: 10px; }
+  .tag::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 6px; flex: none; }
+  .tag:last-child { margin-right: 0; }
+  .t-critico, .t-atrasado { --c: var(--crit); } .t-atencao { --c: var(--warn); } .t-info, .t-ritmo { --c: var(--neutro-2); } .t-ok, .t-batida { --c: var(--neutro); }
+  td.rank, th.rank { color: var(--muted); width: 1%; text-align: right; font-variant-numeric: tabular-nums; }
+  .sub-aviso { font-size: 13px; color: var(--ink2); margin: 10px 0 0; border-left: 2px solid var(--neutro-2); padding-left: 10px; }
+  .minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 8px 40px; }
+  .minis > * { min-width: 0; }
+  .faixa-visao { margin: 0 0 18px; padding: 10px 14px; border-left: 4px solid var(--accent); background: var(--grid); border-radius: 0 6px 6px 0; font-size: 14px; color: var(--ink); }
+  .faixa-visao small { display: block; margin-top: 3px; color: var(--ink2); font-size: 12.5px; }
+  .mes-pick select { max-width: 280px; }
+  .mes-pick[hidden] { display: none; }
+  @media print {
+    header .acoes, .aviso, details.ajuda, .btn, #tip { display: none !important; }
+    .faixa-visao { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .kpi, .alerta, .barra, tr { break-inside: avoid; }
+    thead { display: table-header-group; }
+    h1, h2, h3 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Atendimento</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick" id="visao-pick" hidden>Responsável <select id="visao"></select></label>
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+      <button class="btn" id="btn-imprimir" type="button" title="Imprime (ou salva em PDF) o que está na tela, já com o responsável escolhido">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg>
+        <span>Imprimir</span>
+      </button>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <div class="faixa-visao" id="faixa-visao" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Fontes:</b> relatório de Atendimentos do Klingo (uma linha por procedimento atendido: setor, profissional ou equipamento, convênio, horários, usuário e valor) e relatório de Fluxo do Paciente (uma linha por etapa do fluxo de cada atendimento, com o Check-In). Os dois são ligados por data do registro, profissional e convênio, porque nenhum traz o número do atendimento. As <b>metas</b> vêm do painel de Metas (<b>metas.json</b> e a base das Metas); este painel só lê, não muda nenhuma meta. O relatório não traz o paciente nem o número do atendimento: para achar um registro no Klingo, use a data e a hora do registro.</li>
+        <li><b>Atendimento</b> = uma linha do relatório (um procedimento), igual ao que o painel de Metas conta. <b>Espera e duração</b> são medidas uma vez por execução (mesmo registro, usuário, profissional, início e fim), para um paciente com vários exames seguidos não pesar várias vezes.</li>
+        <li><b>Espera</b> = do <b>Check-In</b> (chegada do paciente) até o início da etapa <b>Em Atendimento</b>, do relatório de Fluxo do Paciente. Sem o fluxo, a espera cai para o início do atendimento menos a hora do registro. Ela se divide em <b>recepção</b> (Check-In até começar o Cadastro) e <b>fila para ser chamado</b> (tempo na etapa Chamado). <b>Duração</b> = do início de Em Atendimento ao fim de Finalizado (é o Início e o Fim do relatório de Atendimentos; conferido: 94% e 96% dos horários batem com o fluxo). <b>Tempo na clínica</b> = Check-In até o fim de Finalizado. Usei a <b>mediana</b> (metade fica abaixo) e o <b>90%</b> (o valor que só 1 em cada 10 ultrapassa), porque poucos casos absurdos distorcem a média. O campo “Duração” que o Klingo calcula e as colunas calculadas do relatório de Fluxo do Paciente (“Espera após Check-In” e “Duração da Etapa”) não batem com os horários e <b>não são usados</b>; o painel recalcula tudo dos horários.</li>
+        <li><b>Etapa Em Atendimento de segundos:</b> em boa parte dos atendimentos, quem atende abre e fecha essa etapa quase junto; então ela não mede o exame, e por isso a duração usa Em Atendimento mais Finalizado. Combinar o uso da etapa com a equipe é o que faria a duração do exame aparecer sozinha.</li>
+        <li><b>O que conta como problema de registro:</b> sem horário de início ou de fim (atendimentos de hoje não entram), início e fim no mesmo minuto (menos de 1 min entre os dois), valor R$ 0,00 e horário incoerente (início mais de 5 min antes do registro, ou mais de <span data-lim="espera_valida_max_min" data-h="1"></span> h depois; fim antes do início ou duração acima de <span data-lim="exame_valido_max_min" data-h="1"></span> h). Valor zero pode ser cortesia: o painel só aponta. <b>Usuário responsável</b> é a coluna do relatório com quem abriu o atendimento; o início e o fim podem ter sido marcados por outra pessoa, então as tabelas por usuário dizem onde olhar, não quem errou.</li>
+        <li><b>Prioridade:</b> os alertas vêm do mais urgente para o menos urgente (crítico, atenção, informação) e, dentro de cada nível, do que atinge mais atendimentos.</li>
+        <li><b>Receita por profissional</b> = soma do valor dos atendimentos de cada um no período; o ranking mostra quem mais traz receita. Aparelhos ficam em tabela à parte.</li>
+        <li><b>Revisão das metas:</b> o realizado do mês fechado (ou a projeção, a partir do 5º dia útil) acima de <span data-lim="meta_baixa_pct"></span>% da meta sugere meta baixa; abaixo de <span data-lim="meta_alta_pct"></span>% sugere meta alta ou pouca demanda.</li>
+        <li><b>Limites:</b> espera aceitável <span data-lim="espera_meta_min"></span> min e crítica <span data-lim="espera_critica_min"></span> min,, problema de registro em atenção a partir de <span data-lim="problema_atencao_pct"></span>% e crítico a partir de <span data-lim="problema_critico_pct"></span>%. Foram escolhidos por mim e podem ser mudados em <b>Atendimento\parametros.json</b>. Os cartões do alto comparam com esses limites (“contra a meta”) e com o mês anterior.</li>
+        <li><b>Responsável:</b> o seletor do alto separa o painel por pessoa (quem cuida de cada setor, em <b>Atendimento\responsaveis.json</b>): <b>Juliana</b> fica com a recepção da ressonância e tomografia (CSI 2), <b>Carla</b> com a pediatria e <b>Luzia</b> com o CSI 1. Ao escolher uma pessoa, <b>tudo</b> é recalculado só com os setores dela: números, gráficos, tabelas, metas e alertas. A escolha vale também para <b>Imprimir</b> e para o PDF do portal, que traz uma seção por pessoa. O call center não aparece nos relatórios do Klingo usados aqui; por isso a visão da Juliana cobre só a recepção da ressonância. Nas visões por pessoa o botão “Marcar como resolvido” fica desligado: o alerta é da clínica inteira e só deve ser marcado na visão <b>Todos</b>.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e o ritmo dos dias), <b>Análise</b> (erros de registro, metas, esperas, fluxo e receita em gráficos) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
+        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, baixa de novo os 3 últimos meses (horários e valores podem ser corrigidos depois) e guarda nos dados do portal. As metas só se atualizam no menu Metas.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const L = D.limites;
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const SIGLAS = /\b(rm|tc|csi|ped|ecg|usg|rx|eeg)\b/gi;   // siglas continuam em maiúsculas
+const bonito = s => String(s ?? '').toLowerCase().replace(/(^|[\s/(*-])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase()).replace(SIGLAS, x => x.toUpperCase()).replace(/ (De|Da|Do|Das|Dos|E|Em|Com|Para|Por) /g, x => x.toLowerCase());
+const pessoa = s => bonito(String(s ?? '').replace(/\./g, ' '));
+const ORDEM_NIVEL = { critico: 0, atencao: 1, ok: 2, info: 3 };
+const CHAVES = chavesMeses(D);
+// ---- responsavel: '' = clinica inteira (Todos); senao o id de uma pessoa, e tudo vem recalculado so com os setores dela (D.por_visao)
+const VISOES = D.visoes || [];
+let VISAO = '';
+const visaoAtual = () => VISOES.find(v => v.id === VISAO) || null;
+const mesesDaVisao = () => VISAO ? (D.por_visao[VISAO] || {}) : D.meses;
+const lerPreferencia = () => { try { return localStorage.getItem('atendimento.visao') || ''; } catch (e) { return ''; } };
+const guardarPreferencia = v => { try { localStorage.setItem('atendimento.visao', v); } catch (e) { /* sem armazenamento: so nao lembra */ } };
+const mn = v => v == null ? '—' : v < 100 ? `${num(v, 0)} min` : `${num(v / 60, 1)} h`;
+const corEspera = v => v == null ? 'var(--muted)' : v > L.espera_critica_min ? 'var(--crit)' : v > L.espera_meta_min ? 'var(--serious)' : undefined;   // cinza ate o limite aceitavel
+const classeEspera = v => v == null ? '' : v > L.espera_critica_min ? 'ruim' : v > L.espera_meta_min ? 'medio' : '';
+const classePct = p => p >= L.problema_critico_pct ? 'ruim' : p >= L.problema_atencao_pct ? 'medio' : '';
+const celPct = p => `<span class="${classePct(p)}">${pct(p, 1)}</span>`;
+const corPct = p => p >= L.problema_critico_pct ? 'var(--crit)' : p >= L.problema_atencao_pct ? 'var(--serious)' : undefined;
+const STATUS_META = { batida: 'Batida', ritmo: 'No ritmo', atencao: 'Atenção', atrasado: 'Atrasada' };
+const corMeta = s => s === 'atrasado' ? 'var(--crit)' : s === 'atencao' ? 'var(--warn)' : undefined;
+const tagMeta = s => `<span class="tag t-${s}">${STATUS_META[s]}</span>`;
+const SITUACAO = { espera: ['atencao', 'Espera alta'], registro: ['atencao', 'Registro incompleto'] };
+const tagsSituacao = ls => ls.length ? ls.map(s => `<span class="tag t-${SITUACAO[s][0]}">${SITUACAO[s][1]}</span>`).join('') : '<span class="tag t-ok">Ok</span>';
+const diaNum = d => Number(d.d.slice(8));
+const deltaTxt = d => d == null ? VAZIO : `<span class="delta ${d >= 0 ? 'sobe' : 'desce'}">${d >= 0 ? '▲ +' : '▼ −'}${num(Math.abs(d), 0)}%</span>`;
+
+document.querySelectorAll('[data-lim]').forEach(el => {
+  const v = L[el.dataset.lim];
+  el.textContent = el.dataset.h ? num(v / 60, 0) : v;
+});
+$('sub').textContent = `Fonte: relatórios de Atendimentos e Fluxo do Paciente do Klingo e metas do painel de Metas · dados de ${D.dados_em}`;
+
+// ====================== RESUMO ======================
+function kpisHtml(m, prev) {
+  const k = m.kpis, t = m.tipos.filter(x => x.qtd > 0), pk = prev ? prev.kpis : null, contra = prev ? 'contra ' + prev.rotulo : '';
+  const mp = m.periodo ? 'período' : 'mês', antes = m.periodo ? 'o período anterior' : 'o mês anterior';
+  const topo = t.length ? `Mais comum: <b>${esc(t[0].nome.toLowerCase())}</b> (${num(t[0].qtd)})` : 'Nenhum problema encontrado';
+  const mt = m.metas;
+  const dMetas = k.metas_pct != null && mt && !mt.fechado && mt.esperado_pct != null ? k.metas_pct - mt.esperado_pct : null;
+  return `<div class="kpis">
+    ${kpi(`Atendimentos em ${esc(m.rotulo)}`, num(k.n), { destaque: 1, comp: k.delta_ritmo == null ? (m.fechado ? (m.periodo ? 'Período fechado' : 'Mês fechado') : `Ainda cedo para comparar com ${antes}.`) : comp(k.delta_ritmo, 'no ritmo por dia útil contra ' + antes),
+      sub: `${k.ritmo == null ? '' : `<b>${num(k.ritmo, 0)}</b> por dia útil · `}${m.fechado ? (m.periodo ? 'Período fechado' : 'Mês fechado') : `${num(m.uteis_decorridos, 1)} de ${m.uteis_total} dias úteis`} · ${num(k.profissionais)} profissionais e ${num(k.equipamentos)} equipamentos · ${num(k.usuarios)} pessoas registram` })}
+    ${kpi('Receita dos atendimentos', brlc(k.receita), { titulo: brl(k.receita), comp: pk ? comp(varPct(k.ticket, pk.ticket), 'no ticket contra ' + antes) : '', sub: `Ticket médio <b>${k.ticket == null ? '—' : brl(k.ticket)}</b>` })}
+    ${kpi('Espera (mediana)', mn(k.esp_med), { classe: classeEspera(k.esp_med), comp: k.esp_med == null ? '' : comp(k.esp_med - L.espera_meta_min, `contra a meta de ${L.espera_meta_min} min`, { inverso: true, fmt: v => mn(v) }),
+      sub: `${m.espera.real ? 'Check-In até o início do atendimento · ' : ''}90% esperam até <b>${mn(k.esp_p90)}</b> · ${num(k.esp_n)} medidos` })}
+    ${kpi('Duração (mediana)', mn(k.exa_med), { comp: pk && pk.exa_med ? comp(varPct(k.exa_med, pk.exa_med), contra, { inverso: true }) : '', sub: `90% até <b>${mn(k.exa_p90)}</b> · Em Atendimento até o fim de Finalizado. O campo do Klingo (${mn(k.klingo_dur_med)}) não bate com os horários` })}
+    ${kpi('Registros com problema', pct(k.problemas_pct, 1), { classe: classePct(k.problemas_pct), comp: comp(k.problemas_pct - L.problema_atencao_pct, `contra o limite de atenção (${L.problema_atencao_pct}%)`, { inverso: true, unidade: 'pp' }), sub: `<b>${num(k.problemas)}</b> de ${num(k.n)} atendimentos · ${topo}` })}
+    ${kpi('Metas de atendimento', k.metas_pct == null ? '—' : pct(k.metas_pct, 0), { comp: dMetas != null ? comp(dMetas, 'contra o esperado até hoje', { unidade: 'pp', d: 0 }) : '', sub: k.metas_total == null ? 'Sem dados das Metas neste mês' : `<b>${k.metas_ok}</b> de ${k.metas_total} metas no ritmo ou batidas` })}
+  </div>`;
+}
+
+// ritmo dos dias: atendimentos e espera, uma linha por grafico (rotulo na ponta, sem eixo de valores)
+function ritmoHtml(m, base) {
+  if (m.periodo) {   // periodo de varios meses: no lugar do dia a dia (que so existe dentro de um mes), cada mes lado a lado
+    const ms = (m.meses_do_periodo || []).map(y => base[y]).filter(Boolean);
+    if (ms.length < 2) return '';
+    const graf = (titulo, valor, texto, cor) => `<div><p class="graf-tit">${titulo}</p>${barras(ms.map(x => ({ rotulo: x.rotulo, valor: valor(x) || 0, texto: texto(x), cor: cor ? cor(x) : undefined, tip: `${x.rotulo}\n${titulo}: ${texto(x)}` })), '', '34%')}</div>`;
+    return `<section><h2>Mês a mês no período</h2><p class="nota">${esc(m.rotulo)}: atendimentos por dia útil (o último mês, se ainda não terminou, é parcial) e espera mediana.</p>
+      <div class="minis">${graf('Atendimentos por dia útil', x => x.kpis.ritmo, x => x.kpis.ritmo == null ? '—' : num(x.kpis.ritmo, 0))}${graf('Espera mediana', x => x.kpis.esp_med, x => mn(x.kpis.esp_med), x => corEspera(x.kpis.esp_med))}</div></section>`;
+  }
+  const dias = m.dias; if (!dias.length) return '';
+  const n = dias.length, xRot = dias.filter((d, i) => i === 0 || i === n - 1 || diaNum(d) % 5 === 0).map(d => ({ x: diaNum(d), t: String(diaNum(d)) }));
+  const tipA = x => { const d = dias.find(z => diaNum(z) === x); return `${dataBR(d.d)}${d.dom ? ' (sem expediente)' : ''}\n${num(d.n)} atendimentos\nReceita: ${brl(d.receita)}`; };
+  const tipE = x => { const d = dias.find(z => diaNum(z) === x); return `${dataBR(d.d)}\nEspera (mediana): ${mn(d.esp_med)}\nMeta: ${L.espera_meta_min} min`; };
+  const expediente = dias.filter(d => !d.dom);
+  const ga = linhas({ W: 520, H: 230, ml: 24, mr: 64, fmt: v => num(v), xRot, tipX: tipA, aria: 'Atendimentos por dia',
+    series: [{ cor: 'var(--accent)', principal: true, marcaPico: true, pontos: expediente.map(d => ({ x: diaNum(d), y: d.n })) }] });
+  const ge = linhas({ W: 520, H: 230, ml: 24, mr: 92, fmt: v => mn(v), xRot, tipX: tipE, aria: 'Espera mediana por dia',
+    series: [{ nome: `Meta ${L.espera_meta_min} min`, cor: 'var(--neutro-2)', traco: true, pontos: [{ x: diaNum(dias[0]), y: L.espera_meta_min }, { x: diaNum(dias[n - 1]), y: L.espera_meta_min }] },
+      { cor: 'var(--neutro)', principal: true, marcaPico: true, pontos: dias.filter(d => d.esp_med != null).map(d => ({ x: diaNum(d), y: d.esp_med })) }] });
+  return `<section><h2>Ritmo dos dias em ${esc(m.rotulo)}</h2><p class="nota">Dias sem expediente (domingo ou feriado) ficam fora da linha de atendimentos. A linha tracejada da espera é a meta aceitável.</p>
+    <div class="minis"><div><p class="graf-tit">Atendimentos por dia</p>${ga}</div><div><p class="graf-tit">Espera mediana por dia</p>${ge}</div></div></section>`;
+}
+
+// ====================== ANALISE ======================
+function errosGraf(m) {
+  const tipos = barras(m.tipos.map(t => ({ rotulo: t.nome, valor: t.qtd, texto: num(t.qtd), extra: pct(t.pct, 1), cor: t.cor, tip: `${t.nome}\n${num(t.qtd)} atendimentos (${pct(t.pct, 1)})` })), 'Nenhum problema.', '44%');
+  const setores = barras([...m.setores].sort((a, b) => b.pct - a.pct).map(s => ({ rotulo: s.nome, valor: s.pct, texto: pct(s.pct, 1), extra: `${num(s.problemas)} de ${num(s.n)}`, cor: corPct(s.pct), tip: `${s.nome}\n${num(s.problemas)} de ${num(s.n)} atendimentos com problema (${pct(s.pct, 1)})` })), '', '40%');
+  return `<section class="grid2"><div><h2>Onde mais se erra em ${esc(m.rotulo)}</h2><p class="nota">Problemas de registro por tipo: um atendimento pode ter mais de um.</p>${tipos}<p class="sub-aviso">Valor zero pode ser cortesia ou retorno: o painel só aponta, quem decide é a gestão.</p></div>
+    <div><h2>Registros com problema, por setor</h2><p class="nota">% dos atendimentos do setor. Fica laranja a partir de ${L.problema_atencao_pct}% e vermelho a partir de ${L.problema_critico_pct}%.</p>${setores}</div></section>`;
+}
+function metasGraf(m) {
+  const mt = m.metas;
+  if (!mt) return `<section><h2>Metas de atendimento</h2><p class="vazio">O painel de Metas ainda não tem dados de ${esc(m.rotulo)}. Abra o menu Metas e use <b>Atualizar agora</b>.</p></section>`;
+  const itens = [...mt.itens].sort((a, b) => a.pct - b.pct);
+  return `<section><h2>Metas de atendimento em ${esc(m.rotulo)}</h2>
+    <p class="nota">${mt.fechado ? 'Mês fechado.' : `${pct(mt.esperado_pct, 0)} do mês já passou (${num(mt.uteis_decorridos, 1)} de ${mt.uteis_total} dias úteis); a marca preta é onde cada barra deveria estar hoje.`} Da mais atrasada para a mais folgada. As metas são as do painel de Metas.</p>
+    ${barras(itens.map(i => ({ rotulo: `${i.nome} (${i.grupo})`, valor: i.pct, texto: pct(i.pct, 0), extra: `${num(i.realizado)} de ${num(i.meta)}`, cor: corMeta(i.status), marca: mt.fechado ? 100 : mt.esperado_pct,
+      tip: `${i.nome}\nFeito ${num(i.realizado)} de ${num(i.meta)} (${pct(i.pct, 0)})\nFaltam ${num(i.faltam)}${i.por_dia ? '\nPrecisa de ~' + num(i.por_dia) + ' por dia útil' : ''}` })), '', '40%', { max: Math.max(100, ...itens.map(i => i.pct)) })}</section>`;
+}
+function esperaGraf(m) {
+  const e = m.espera;
+  const bar = (ls, larg) => barras(ls.filter(r => r.esp_med != null).map(r => ({ rotulo: bonito(r.nome), valor: r.esp_med, texto: mn(r.esp_med), extra: `${num(r.n)} atend.`, cor: corEspera(r.esp_med),
+    tip: `${r.nome}\nEspera mediana ${mn(r.esp_med)}, 90% até ${mn(r.esp_p90)}\n${num(r.n)} atendimentos` })), 'Sem dados.', larg);
+  const pior = ls => [...ls].sort((a, b) => (b.esp_med ?? -1) - (a.esp_med ?? -1));
+  return `<section><h2>Espera em ${esc(m.rotulo)}</h2>
+    <p class="nota">Espera = ${e.real ? 'do Check-In (chegada do paciente) ao início do atendimento' : 'do registro ao início do atendimento'}, mediana. Sempre do pior para o melhor. A barra fica cinza até ${L.espera_meta_min} min, laranja acima disso e vermelha acima de ${L.espera_critica_min} min.</p>
+    <div class="grid2"><div><h3>Por setor</h3>${bar(pior(e.setor), '40%')}</div><div><h3>Por dia da semana</h3>${bar(pior(e.semana), '40%')}</div></div>
+    <div class="grid2" style="margin-top:28px"><div><h3>Por hora do ${e.real ? 'Check-In' : 'registro'}</h3>${bar(pior(e.hora), '22%')}</div><div><h3>Por especialidade</h3><p class="nota">Com ao menos 10 atendimentos medidos.</p>${bar(pior(e.esp).slice(0, 10), '44%')}</div></div></section>`;
+}
+function fluxoGraf(m) {
+  const f = m.fluxo;
+  if (!f) return `<section><h2>Fluxo do paciente</h2><p class="vazio">O relatório de Fluxo do Paciente ainda não tem dados de ${esc(m.rotulo)}. Use <b>Atualizar agora</b>.</p></section>`;
+  const k = f.kpis, t = k.esp_total;
+  const cartao = (rot, r, sub) => kpi(rot, mn(r.med), { classe: classeEspera(r.med), sub });
+  const kp = `<div class="kpis">
+    ${cartao('Espera até ser atendido', t, `Check-In até o início do atendimento · 90% até <b>${mn(t.p90)}</b> · <b>${t.acima == null ? '—' : pct(t.acima, 0)}</b> esperam mais de ${L.espera_meta_min} min`)}
+    ${cartao('Na recepção até o cadastro', k.esp_recep, `Check-In até começar o cadastro · 90% até <b>${mn(k.esp_recep.p90)}</b>`)}
+    ${cartao('Fila para ser chamado', k.esp_chamado, `Tempo na etapa Chamado · 90% até <b>${mn(k.esp_chamado.p90)}</b> · <b>${k.esp_chamado.acima == null ? '—' : pct(k.esp_chamado.acima, 0)}</b> acima de ${L.espera_meta_min} min`)}
+    ${kpi('Tempo na clínica', mn(k.permanencia.med), { sub: `Check-In até o fim de Finalizado · 90% até <b>${mn(k.permanencia.p90)}</b>` })}
+    ${kpi('Atendimentos no fluxo', num(k.visitas), { sub: `${num(k.sem_checkin)} sem Check-In · ${num(k.sem_final)} sem Finalizado · ${num(k.aberta)} com etapa aberta por mais de um dia` })}
+    ${kpi('Em Atendimento com menos de 1 min', k.ea_n ? pct(k.ea_curta / k.ea_n * 100, 0) : '—', { classe: k.ea_n && k.ea_curta / k.ea_n * 100 >= 30 ? 'ruim' : '', sub: `${num(k.ea_curta)} de ${num(k.ea_n)}: a etapa é aberta e fechada quase junta` })}
+  </div>`;
+  const etapas = barras(f.etapas.filter(e => e.horas > 0).map(e => ({ rotulo: e.nome, valor: e.horas, texto: `${num(e.horas, 0)} h`, extra: pct(e.pct_tempo, 0),
+    tip: `${e.nome}\n${num(e.horas, 0)} horas acumuladas (${pct(e.pct_tempo, 0)} do tempo)\nMediana ${mn(e.med)}, 90% até ${mn(e.p90)}` })), 'Sem dados.', '34%', { destaque: 0 });
+  const setores = barras([...f.setores].filter(s => s.total != null).sort((a, b) => b.total - a.total).map(s => ({ rotulo: s.nome, valor: s.total, texto: mn(s.total), extra: `${num(s.n)} atend.`, cor: corEspera(s.total),
+    tip: `${s.nome}\nEspera total ${mn(s.total)} (90% até ${mn(s.total_p90)})\nRecepção ${mn(s.recep)} · fila ${mn(s.chamado)}` })), 'Sem dados.', '40%');
+  return `<section><h2>Fluxo do paciente em ${esc(m.rotulo)}</h2>
+    <p class="nota">Do relatório de Fluxo do Paciente, que registra cada etapa do atendimento. Os tempos são recalculados dos horários, porque as colunas calculadas do Klingo vêm erradas. Etapa aberta por mais de um dia fica fora das médias.</p>
+    ${kp}<div class="grid2" style="margin-top:28px"><div><h3>Onde o tempo é gasto</h3><p class="nota">Horas acumuladas de todos os pacientes em cada etapa.</p>${etapas}</div>
+    <div><h3>Espera total por setor</h3><p class="nota">Do setor com mais espera para o com menos (mediana).</p>${setores}</div></div></section>`;
+}
+function pessoasGraf(m) {
+  const prof = m.profissionais.filter(l => l.receita > 0).sort((a, b) => b.receita - a.receita);
+  if (!prof.length) return '';
+  return `<section><h2>Receita por profissional: quem mais traz receita</h2>
+    <p class="nota">Receita dos atendimentos de cada profissional no período, do maior para o menor. <b>${bonito(prof[0].nome)}</b> é quem mais traz receita (${brl(prof[0].receita)}).</p>
+    ${barras(prof.map(l => ({ rotulo: bonito(l.nome), valor: l.receita, texto: brl(l.receita), extra: `${num(l.n)} atendimentos · ${bonito(l.esp)}`,
+      tip: `${bonito(l.nome)} (${bonito(l.esp)})\n${brl(l.receita)} em ${num(l.n)} atendimentos (ticket ${brl(l.ticket)})` })), '', '34%')}</section>`;
+}
+function volumeGraf(m) {
+  const mk = lista => lista.map(r => ({ rotulo: r.nome, valor: r.n, texto: num(r.n), extra: pct(r.pct, 1), tip: `${r.nome}\n${num(r.n)} atendimentos (${pct(r.pct, 1)})\nReceita ${brl(r.receita)} · ticket ${brl(r.ticket)}` }));
+  return `<section class="grid2"><div><h2>Atendimentos por setor</h2><p class="nota">Participação em ${esc(m.rotulo)}.</p>${donut(m.setores.map(s => ({ rotulo: s.nome, valor: s.n, tip: `${s.nome}\n${num(s.n)} atendimentos · receita ${brl(s.receita)}` })), { centro: { num: num(m.kpis.n), rot: 'atendimentos' } })}</div>
+    <div><h2>Convênios e procedimentos</h2><p class="nota">Os mais atendidos do mês.</p>${barras(mk(m.convenios), '', '44%')}<div style="height:16px"></div>${barras(mk(m.procedimentos), '', '44%')}</div></section>`;
+}
+
+// ====================== DETALHES ======================
+function detalhes(m) {
+  const it = [];
+  const us = m.usuarios.filter(u => u.problemas > 0);
+  const linhaU = (u, i) => [`<span class="rank">${i + 1}</span>`, esc(pessoa(u.nome)), esc(u.setor), num(u.n), num(u.problemas), celPct(u.pct), num(u.sem_horario), num(u.fim_junto), num(u.valor_zero), num(u.incoerente)];
+  const colsU = [{ t: '#', n: 1 }, { t: 'Usuário responsável' }, { t: 'Setor principal' }, { t: 'Atendimentos', n: 1 }, { t: 'Com problema', n: 1 }, { t: '% com problema', n: 1 }, { t: 'Sem horário', n: 1 }, { t: 'Início e fim juntos', n: 1 }, { t: 'Valor R$ 0,00', n: 1 }, { t: 'Horário incoerente', n: 1 }];
+  it.push(acordeao('Registros com problema: por usuário responsável', `<p class="nota">Coluna Usuário Responsável do relatório: quem abriu o atendimento no Klingo. O início e o fim podem ter sido marcados por outra pessoa (o profissional); por isso, os números apontam onde olhar, não quem errou.</p>` +
+    (us.length ? tabela(colsU, us.map(linhaU)) : '<p class="vazio">Nenhum problema de registro neste mês.</p>'), { dica: `${us.length} pessoas` }));
+  it.push(acordeao('Registros com problema: por setor', tabela([{ t: 'Setor' }, { t: 'Atendimentos', n: 1 }, { t: 'Com problema', n: 1 }, { t: '% com problema', n: 1 }],
+    [...m.setores].sort((a, b) => b.problemas - a.problemas).map(s => [esc(s.nome), num(s.n), num(s.problemas), celPct(s.pct)])), { dica: `${m.setores.length} setores` }));
+  const mt = m.metas;
+  if (mt) {
+    const porGrupo = {};
+    mt.itens.forEach(i => { const g = porGrupo[i.grupo] = porGrupo[i.grupo] || { meta: 0, real: 0, itens: 0 }; g.meta += i.meta; g.real += i.realizado; g.itens++; });
+    const conf = Object.fromEntries(mt.conferencia.map(c => [c.nome, c]));
+    const grupos = tabela([{ t: 'Setor' }, { t: 'Metas', n: 1 }, { t: 'Meta total', n: 1 }, { t: 'Realizado nas metas', n: 1 }, { t: '% (limitado à meta)', n: 1 }, { t: 'Situação' }, { t: 'Todos os atendimentos', n: 1 }, { t: 'Base das Metas', n: 1 }, { t: 'Diferença', n: 1 }],
+      mt.grupos.map(g => { const a = porGrupo[g.nome] || { meta: 0, real: 0, itens: 0 }, c = conf[g.nome] || {};
+        return [esc(g.nome), num(a.itens), num(a.meta), num(a.real), pct(g.pct, 0), tagMeta(g.status), c.n_atend == null ? VAZIO : num(c.n_atend), c.n_metas == null ? VAZIO : num(c.n_metas),
+          c.dif == null ? VAZIO : `<span class="${Math.abs(c.dif) > 5 ? 'ruim' : ''}">${c.dif >= 0 ? '+' : '−'}${num(Math.abs(c.dif), 1)}%</span>`]; }));
+    const leitura = i => i.leitura === 'baixa' ? '<span class="tag t-info">Meta possivelmente baixa</span>' : i.leitura === 'alta' ? '<span class="tag t-atencao">Meta alta ou pouca demanda</span>' : '';
+    const itens = tabela([{ t: '#', n: 1 }, { t: 'Setor' }, { t: 'Meta', txt: 1 }, { t: 'Meta (qtd)', n: 1 }, { t: 'Realizado', n: 1 }, { t: '% da meta', n: 1 }, { t: 'Faltam', n: 1 }, { t: 'Por dia útil para bater', n: 1 }, { t: 'Média por dia útil até agora', n: 1 }, { t: 'Situação' }, { t: mt.fechado ? 'Revisão (pelo realizado)' : 'Revisão (pela projeção)' }],
+      mt.itens.map((i, n) => [`<span class="rank">${n + 1}</span>`, esc(i.grupo), esc(i.nome), num(i.meta), num(i.realizado), pct(i.pct, 0), i.faltam ? num(i.faltam) : '—', i.por_dia ? num(i.por_dia) : '—', i.media_dia == null ? VAZIO : num(i.media_dia, 1), tagMeta(i.status), leitura(i)]));
+    const fora = mt.fora.length ? tabela([{ t: 'Unidade' }, { t: 'Especialidade' }, { t: 'Procedimento', txt: 1 }, { t: 'Atendimentos', n: 1 }],
+      mt.fora.map(f => [esc(bonito(String(f.Unidade).split(' - ').pop())), esc(bonito(f.Especialidade)), esc(f.Procedimento), num(f.qtd)])) : '<p class="vazio">Todos os atendimentos entram em alguma meta.</p>';
+    it.push(acordeao('Metas: por setor', grupos, { dica: `${mt.grupos.length} setores` }));
+    it.push(acordeao('Metas: cada meta, em ordem de prioridade', `<p class="nota">Do mais atrasado (maior falta) ao que já foi batido. A coluna de revisão compara a meta com o volume real.</p>${itens}`, { dica: `${mt.itens.length} metas` }));
+    it.push(acordeao('Metas: atendimentos que não entram em nenhuma meta', `<p class="nota"><b>${num(mt.total_fora)}</b> de ${num(mt.total_atendimentos)} (${pct(mt.fora_pct, 1)}) na base das Metas. Os maiores primeiro: se algum deve ter meta, a regra é incluída no metas.json.</p>${fora}`, { dica: `${num(mt.total_fora)} atendimentos` }));
+  }
+  const colsP = [{ t: '#', n: 1 }, { t: 'Profissional' }, { t: 'Especialidade' }, { t: 'Setor' }, { t: 'Atendimentos', n: 1 }, { t: 'Dias', n: 1 }, { t: 'Por dia', n: 1 },
+    { t: 'Receita', n: 1 }, { t: 'Ticket', n: 1 }, { t: 'Espera (mediana)', n: 1 }, { t: 'Duração (mediana)', n: 1 }, { t: '% com problema', n: 1 }, { t: 'Situação' }];
+  const nome = l => esc(l.equip ? l.nome : bonito(l.nome));
+  const linhaP = (l, i) => [`<span class="rank">${i + 1}</span>`, nome(l), esc(bonito(l.esp)), esc(l.setor), num(l.n), num(l.dias), num(l.por_dia, 1),
+    brl(l.receita), brl(l.ticket),
+    `<span class="${classeEspera(l.esp_med)}">${mn(l.esp_med)}</span>`, mn(l.exa_med), celPct(l.pct), tagsSituacao(l.situacoes)];
+  if (m.profissionais.length) it.push(acordeao('Receita: todos os profissionais', `<p class="nota">A ordem é da maior para a menor receita.</p>${tabela(colsP, m.profissionais.map(linhaP))}`, { dica: `${m.profissionais.length} profissionais` }));
+  if (m.equipamentos.length) it.push(acordeao('Receita: equipamentos e salas', `<p class="nota">A coluna do relatório mistura pessoas e aparelhos; aqui ficam os aparelhos e salas.</p>${tabela(colsP, m.equipamentos.map(linhaP))}`, { dica: `${m.equipamentos.length} equipamentos` }));
+  const e = m.espera;
+  const tab = (ls, rot) => tabela([{ t: rot }, { t: 'Atendimentos', n: 1 }, { t: 'Espera (mediana)', n: 1 }, { t: '90% esperam até', n: 1 }, { t: `Acima de ${L.espera_meta_min} min`, n: 1 }, { t: 'Duração (mediana)', n: 1 }, { t: '90% até', n: 1 }],
+    ls.map(r => [esc(bonito(r.nome)), num(r.n), `<span class="${classeEspera(r.esp_med)}">${mn(r.esp_med)}</span>`, mn(r.esp_p90), r.esp_acima == null ? VAZIO : pct(r.esp_acima, 0), mn(r.exa_med), mn(r.exa_p90)]));
+  it.push(acordeao('Espera e duração: por setor', tab(e.setor, 'Setor'), { dica: `${e.setor.length} setores` }));
+  it.push(acordeao('Espera e duração: por especialidade', `<p class="nota">Especialidades com ao menos 10 atendimentos medidos.</p>${tab(e.esp, 'Especialidade')}`, { dica: `${e.esp.length} especialidades` }));
+  const f = m.fluxo;
+  if (f) {
+    it.push(acordeao('Fluxo: cada etapa', tabela([{ t: '#', n: 1 }, { t: 'Etapa' }, { t: 'Registros', n: 1 }, { t: 'Mediana', n: 1 }, { t: '90% até', n: 1 }, { t: 'Horas acumuladas', n: 1 }, { t: '% do tempo', n: 1 }, { t: 'Abertas por mais de 1 dia', n: 1 }],
+      f.etapas.map((x, i) => [`<span class="rank">${i + 1}</span>`, esc(x.nome), num(x.n), mn(x.med), mn(x.p90), num(x.horas, 0), pct(x.pct_tempo, 0), x.abertas ? `<span class="ruim">${num(x.abertas)}</span>` : '0'])), { dica: `${f.etapas.length} etapas` }));
+    it.push(acordeao('Fluxo: por setor', tabela([{ t: 'Setor' }, { t: 'Atendimentos', n: 1 }, { t: 'Recepção (mediana)', n: 1 }, { t: 'Fila para ser chamado', n: 1 }, { t: '90% até', n: 1 }, { t: 'Espera total', n: 1 }, { t: '90% até', n: 1 }, { t: 'Tempo na clínica', n: 1 }, { t: 'Em Atendimento < 1 min', n: 1 }],
+      f.setores.map(s => [esc(s.nome), num(s.n), mn(s.recep), `<span class="${classeEspera(s.chamado)}">${mn(s.chamado)}</span>`, mn(s.chamado_p90), `<span class="${classeEspera(s.total)}">${mn(s.total)}</span>`, mn(s.total_p90), mn(s.perm), s.ea_curta == null ? VAZIO : pct(s.ea_curta, 0)])), { dica: `${f.setores.length} setores` }));
+    const filas = f.filas.length ? tabela([{ t: 'Fila' }, { t: 'Atendimentos', n: 1 }, { t: 'Tempo para ser chamado', n: 1 }, { t: '90% até', n: 1 }, { t: `Acima de ${L.espera_meta_min} min`, n: 1 }, { t: 'Espera total', n: 1 }],
+      f.filas.map(x => [esc(bonito(x.nome)), num(x.n), `<span class="${classeEspera(x.chamado)}">${mn(x.chamado)}</span>`, mn(x.chamado_p90), x.acima == null ? VAZIO : pct(x.acima, 0), mn(x.total)])) : '<p class="vazio">Nenhuma fila com 10 ou mais atendimentos.</p>';
+    it.push(acordeao('Fluxo: por fila', `<p class="nota">Tempo na etapa Chamado das filas com nome no Klingo (RM, TC, densitometria, pré-exame, triagem). Da mais demorada para a mais rápida.</p>${filas}`, { dica: `${f.filas.length} filas` }));
+  }
+  const dias = m.dias;
+  if (dias.length) it.push(acordeao('Dia a dia: tabela', tabela([{ t: 'Dia' }, { t: 'Atendimentos', n: 1 }, { t: 'Receita', n: 1 }, { t: 'Espera (mediana)', n: 1 }, { t: 'Com problema', n: 1 }],
+    dias.map(d => [dataBR(d.d) + (d.dom ? ' <small style="color:var(--muted)">sem expediente</small>' : ''), num(d.n), brl(d.receita), `<span class="${classeEspera(d.esp_med)}">${mn(d.esp_med)}</span>`, num(d.problemas)])), { dica: `${dias.length} dias` }));
+  it.push(acordeao('Setores: volume, ritmo e variação', tabela([{ t: 'Setor' }, { t: 'Atendimentos', n: 1 }, { t: 'Por dia útil', n: 1 }, { t: 'Mês anterior', n: 1 }, { t: 'Variação', n: 1 }, { t: 'Receita', n: 1 }],
+    m.setores.map(x => [esc(x.nome), num(x.n), x.ritmo == null ? VAZIO : num(x.ritmo, 0), x.ritmo_ant == null ? VAZIO : num(x.ritmo_ant, 0), deltaTxt(x.delta), brl(x.receita)])), { dica: `${m.setores.length} setores` }));
+  const top = (lista, rot) => tabela([{ t: rot, txt: 1 }, { t: 'Atendimentos', n: 1 }, { t: '% do total', n: 1 }, { t: 'Receita', n: 1 }, { t: 'Ticket', n: 1 }, { t: 'Variação', n: 1 }], lista.map(r => [esc(r.nome), num(r.n), pct(r.pct, 1), brl(r.receita), brl(r.ticket), deltaTxt(r.delta)]));
+  if (m.convenios.length) it.push(acordeao('Convênios: os 10 maiores', `<p class="nota">A variação compara o ritmo por dia útil com o do mês anterior.</p>${top(m.convenios, 'Convênio')}`, { dica: `${m.convenios.length} convênios` }));
+  if (m.procedimentos.length) it.push(acordeao('Procedimentos: os 10 maiores', `<p class="nota">A variação compara o ritmo por dia útil com o do mês anterior.</p>${top(m.procedimentos, 'Procedimento')}`, { dica: `${m.procedimentos.length} procedimentos` }));
+  return it.join('');
+}
+
+function faixaVisao(ym) {
+  const v = visaoAtual(), f = $('faixa-visao');
+  window.NOME_VISAO = v ? `${v.nome} · ${v.area}` : '';
+  document.title = v ? `Atendimento · ${v.nome}` : 'Atendimento';
+  f.hidden = !v;
+  window.PAINEL_FILTRADO = !!v;   // painel_base.js: sem "marcar como resolvido" nas visoes por pessoa
+  if (!v) return;
+  f.innerHTML = `Visão de <b>${esc(v.nome)}</b>: ${esc(v.area)} · setor${v.setores.length > 1 ? 'es' : ''} <b>${esc(v.setores.join(', '))}</b> · ${esc(D.meses[ym].rotulo)}` +
+    `<small>Todos os números abaixo (atendimentos, esperas, fluxo, metas, alertas e tabelas) consideram só esses setores.${v.obs ? ' ' + esc(v.obs) : ''}</small>`;
+}
+
+function render(ym) {
+  faixaVisao(ym);
+  const base = mesesDaVisao(), m = base[ym];
+  if (!m) {
+    $('conteudo').innerHTML = `<div class="card"><h2>Sem atendimentos em ${esc(D.meses[ym].rotulo)}</h2><p class="nota">Nenhum atendimento dos setores de ${esc(visaoAtual().nome)} neste mês.</p></div>`;
+    return;
+  }
+  const meses = Object.keys(base).filter(k => !ehPeriodo(k)).sort().reverse(), prev = m.periodo ? (base[m.chave_anterior] || null) : (base[meses[meses.indexOf(ym) + 1]] || null);
+  const alertas = [...m.alertas].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);   // ordem estavel: dentro de cada nivel, a prioridade que veio do servidor
+  const dd = m.dias.length ? `<div class="minis">${miniLinha('Receita por dia (R$)', m.dias.filter(d => !d.dom), 'receita', { cor: 'var(--neutro)', fmt: brlc })}${miniLinha('Registros com problema por dia', m.dias, 'problemas', { cor: 'var(--crit)' })}</div>` : '';
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período e cada mês' : 'Os números do mês e o ritmo dos dias',
+      kpisHtml(m, prev) + ritmoHtml(m, base) + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente: “Prioridade 1” é o primeiro a resolver. Dentro de cada nível, vem antes o que atinge mais atendimentos.</p>${alertasTopo(alertas, ym)}</section>`) +
+    tier('Análise', 'Erros de registro, metas, esperas, fluxo e receita',
+      errosGraf(m) + metasGraf(m) + esperaGraf(m) + fluxoGraf(m) + pessoasGraf(m) + volumeGraf(m) + (dd ? `<section><h2>Mais dia a dia</h2>${dd}</section>` : '')) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+}
+
+if (!CHAVES.length || !D.tem_dados) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar o relatório no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  if (VISOES.length) {
+    $('visao').innerHTML = '<option value="">Todos (clínica inteira)</option>' + VISOES.map(v => `<option value="${esc(v.id)}">${esc(v.nome)} — ${esc(v.area)}</option>`).join('');
+    $('visao-pick').hidden = false;
+    // o endereco manda (?visao=carla, ou todos): e assim que o PDF do portal pede cada pessoa; sem ele, vale a ultima escolha deste navegador
+    const pedida = new URLSearchParams(location.search).get('visao');
+    const inicial = pedida != null ? (pedida === 'todos' ? '' : pedida) : lerPreferencia();
+    VISAO = VISOES.some(v => v.id === inicial) ? inicial : '';
+    $('visao').value = VISAO;
+    $('visao').addEventListener('change', e => {
+      VISAO = e.target.value; guardarPreferencia(VISAO);
+      try { const u = new URL(location.href); u.searchParams.set('visao', VISAO || 'todos'); history.replaceState(null, '', u); } catch (e2) { /* sem history: so nao muda o endereco */ }
+      render(window.PERIODO_CHAVE);   // o periodo escolhido no De/Ate (painel_base.js)
+    });
+  }
+  iniciarPeriodo(D, render);
+}
+$('btn-imprimir').addEventListener('click', () => print());
+let abertosParaImprimir = [];
+addEventListener('beforeprint', () => { abertosParaImprimir = [...document.querySelectorAll('details.acord:not([open])')]; abertosParaImprimir.forEach(d => { d.open = true; }); });   // as tabelas dos Detalhes saem no papel
+addEventListener('afterprint', () => { abertosParaImprimir.forEach(d => { d.open = false; }); abertosParaImprimir = []; });
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

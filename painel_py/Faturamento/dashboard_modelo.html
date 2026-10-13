@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faturamento</title>
+<style>
+__CSS__
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Faturamento</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Receita produzida</b> é o que foi realizado no mês (atendimentos e procedimentos), com o valor da tabela de cada convênio ou do particular. Vem do relatório de Faturamento. Não é dinheiro que já entrou.</li>
+        <li><b>Faturas em aberto</b> são as faturas de convênio emitidas e ainda não baixadas (relatório de Faturas em Aberto), na posição de hoje, qualquer que seja o mês escolhido no alto.</li>
+        <li><b>Ciclo da fatura</b> (relatório de Faturas Emitidas): <b>A enviar</b> (emitida, ainda não saiu) → <b>Enviada</b> (saiu e aguarda pagamento) → <b>Movimentada</b> (já houve baixa no Klingo); <b>Cancelada</b> sai do ciclo. “Faturas a enviar”, prazos e cancelamentos mostram a posição de hoje; “Do produzido à fatura” usa a competência (mês em que começa o período da fatura): mostra o mês escolhido ou, se ele ainda está em andamento, o último mês fechado.</li>
+        <li><b>Faltam faturar</b> = produzido do convênio menos o faturado (nunca negativo). Só gera alerta em mês já fechado e quando passa de 10% do produzido. Faturas esperando envio há mais de 7 dias geram atenção e há mais de 30 dias, crítico.</li>
+        <li><b>Recebido, glosa e saldo</b> vêm do controle de produção por convênio (relatório de Produção por Convênio) e só aparecem quando o convênio foi baixado no Klingo.</li>
+        <li><b>Comparação com o mês anterior:</b> em mês aberto, compara só os dias já completos (por isso só aparece a partir do 6º dia); em mês fechado, compara os totais. Setas verdes e vermelhas aparecem só nas comparações e nos alertas.</li>
+        <li><b>Projeção:</b> média por dia útil (segunda a sábado, sem feriados do arquivo de Metas) vezes os dias úteis do mês. Só aparece com 3 dias úteis completos.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e o ritmo do mês), <b>Análise</b> (gráficos que cruzam convênio, fatura e prazo) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
+        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz os meses e guarda nos dados do portal: o que mudou no Klingo muda aqui também, e os meses antigos continuam guardados.</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const brlOu = v => v == null ? VAZIO : brl(v);
+const SIGLAS = ['SUS', 'GEAP', 'CASSI', 'TRT'];   // siglas continuam em maiúsculas
+const reSiglas = new RegExp('\\b(' + SIGLAS.map(x => x[0] + x.slice(1).toLowerCase()).join('|') + ')\\b', 'g');
+const bonito = s => String(s).toLowerCase().replace(/(^|[\s/(-])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase()).replace(reSiglas, m => m.toUpperCase());
+const brlz = v => v ? brl(v) : VAZIO;
+const CHAVES = chavesMeses(D);
+
+$('sub').textContent = `Fonte: relatórios de Faturamento, Produção por Convênio, Faturas em Aberto e Faturas Emitidas do Klingo · dados de ${D.dados_em}`;
+
+// ====================== RESUMO ======================
+function kpisHtml(m, prev) {   // prev: mes (ou periodo) anterior, so para razoes (particular %, ticket), que nao dependem de o mes estar completo
+  const k = m.kpi, ab = D.aberto, fg = D.faturas, fr = m.funil_ref, ae = fg.tem ? fg.a_enviar : null;
+  const antes = m.periodo ? 'o período anterior' : 'o mês anterior';
+  let compReceita = k.variacao != null ? comp(k.variacao, 'contra ' + k.ref_txt)
+    : m.periodo ? (m.fechado ? 'Sem dados do período anterior para comparar.' : 'Período em andamento: ainda sem comparação.')
+    : (m.fechado ? 'Mês fechado.' : 'Ainda cedo para comparar com o mês anterior.');
+  let subReceita = '';
+  if (!m.fechado && m.periodo) {
+    subReceita = 'O último mês do período ainda não terminou: os números são parciais.';
+  } else if (!m.fechado) {
+    subReceita = k.projecao != null
+      ? `Projeção para fechar o mês: <b>${brlc(k.projecao)}</b> (média de ${brlc(k.ritmo)} por dia útil).`
+      : `${k.uteis_completos} de ${k.uteis_total} dias úteis completos: ainda cedo para projetar.`;
+  }
+  const rec = k.ref_prod ? k.ref_rec / k.ref_prod * 100 : null;
+  const dPart = prev && prev.kpi.particular_pct != null && k.particular_pct != null ? k.particular_pct - prev.kpi.particular_pct : null;
+  const dTicket = prev ? varPct(k.ticket, prev.kpi.ticket) : null;
+  const vencPct = ab.total ? ab.vencido_valor / ab.total * 100 : 0;
+  return `<div class="kpis">
+    ${kpi(`Receita produzida em ${esc(m.rotulo)}`, brlc(k.receita), { destaque: 1, titulo: brl(k.receita), comp: compReceita, sub: subReceita })}
+    ${kpi('Faturas em aberto (hoje)', brlc(ab.total), { titulo: brl(ab.total), comp: ab.vencido_valor ? `<span class="delta desce">${brlc(ab.vencido_valor)} vencido</span> (${pct(vencPct, 0)} do total)` : '<span class="delta sobe">Nada vencido</span>', sub: `${num(ab.qtd)} fatura(s)${ab.vencido_qtd ? ` · ${num(ab.vencido_qtd)} vencida(s)` : ''}` })}
+    ${ae ? kpi('Faturas a enviar (hoje)', brlc(ae.valor), { titulo: brl(ae.valor), comp: ae.acima_atencao.qtd ? `<span class="delta desce">${num(ae.acima_atencao.qtd)} esperando há mais de ${ae.limite_atencao} dias</span>` : `<span class="delta sobe">Nenhuma esperando há mais de ${ae.limite_atencao} dias</span>`, sub: `${num(ae.qtd)} fatura(s) emitidas e não enviadas` }) : ''}
+    ${fr.tem && fr.produzido ? kpi('Produzido ainda sem fatura', brlc(fr.falta), { titulo: brl(fr.falta), comp: `<b>${pct(fr.pct_falta, 0)}</b> dos ${brlc(fr.produzido)} produzidos`, sub: `convênios em ${esc(fr.rotulo)}` }) : ''}
+    ${kpi('Recebido dos convênios', pct(rec), { comp: `de ${brlc(k.ref_prod)} produzidos em ${esc(k.ref_rotulo)}` })}
+    ${kpi('Particular na receita', pct(k.particular_pct, 0), { comp: comp(dPart, 'contra ' + antes, { unidade: 'pp' }), sub: `${brlc(k.particular)} · convênios ${pct(k.particular_pct == null ? null : 100 - k.particular_pct, 0)}` })}
+    ${kpi('Procedimentos realizados', num(k.procedimentos), { comp: comp(dTicket, 'no ticket médio contra ' + antes), sub: `Ticket médio <b>${k.ticket == null ? '—' : brl(k.ticket)}</b> · ${num(k.pacientes)} pacientes` })}
+  </div>`;
+}
+
+// ritmo: receita acumulada no mes x mes anterior (linha, rotulo na ponta, sem eixo de valores)
+// periodo de varios meses: no lugar do ritmo diario (que so existe dentro de um mes), a receita de cada mes
+function evolucaoPeriodoHtml(m) {
+  const ms = (m.meses_do_periodo || []).map(y => D.meses[y]).filter(x => x && x.tem_dados);
+  if (ms.length < 2) return '';
+  return `<section><h2>Receita mês a mês no período</h2><p class="nota">Receita produzida em cada mês de ${esc(m.rotulo)}.</p>${barras(ms.map(x => ({ rotulo: x.rotulo, valor: x.kpi.receita, texto: brlc(x.kpi.receita), extra: x.fechado ? '' : 'parcial',
+    tip: `${x.rotulo}\n${brl(x.kpi.receita)}${x.fechado ? '' : '\nmês ainda em andamento'}` })), '', '30%')}</section>`;
+}
+function ritmoHtml(m) {
+  if (m.periodo) return evolucaoPeriodoHtml(m);
+  const dias = m.dias, N = dias.length;
+  if (!m.tem_dados) return '';
+  const ult = [...dias].reverse().find(d => d.acum != null);
+  const tipX = x => { const d = dias.find(z => z.d === x);
+    return `Dia ${d.d}${d.parcial ? ' (hoje, parcial)' : ''}\n${m.rotulo}: ${d.acum == null ? '—' : brl(d.acum) + ' acumulado' + (d.v ? ' (dia: ' + brl(d.v) + ')' : '')}` + (m.tem_ant ? `\n${m.rotulo_ant}: ${brl(d.acum_ant)} acumulado` : ''); };
+  const g = linhas({ mr: 124, fmt: brlc, aria: 'Receita acumulada por dia no mês e no mês anterior', xRot: [1, 5, 10, 15, 20, 25, N].map(d => ({ x: d, t: String(d) })), tipX,
+    series: [
+      ...(m.tem_ant ? [{ nome: m.rotulo_ant, cor: 'var(--neutro-2)', traco: true, pontos: dias.map(d => ({ x: d.d, y: d.acum_ant })) }] : []),
+      { nome: m.rotulo, cor: 'var(--accent)', principal: true, pontos: dias.map(d => ({ x: d.d, y: d.acum })) }] });
+  return `<section><h2>Ritmo da receita no mês</h2>
+    <p class="nota">Receita produzida somada dia a dia${m.tem_ant ? ', contra o mesmo caminho no mês anterior (linha tracejada)' : ''}. ${ult && m.tem_ant ? `Linha azul acima da tracejada = mês mais forte.` : ''}</p>${g}</section>`;
+}
+
+// ====================== ANALISE ======================
+function funilGraf(m) {
+  const f = m.funil_ref;   // mes fechado: o escolhido, ou o anterior quando o escolhido ainda esta em andamento
+  if (!f || !f.tem || !f.produzido) return '';
+  const base = f.produzido;
+  const item = (rotulo, v, tip) => ({ rotulo, valor: v, texto: brlc(v), extra: pct(v / base * 100, 0), tip: `${rotulo}\n${brl(v)} (${pct(v / base * 100, 1)} do produzido)\n${tip}` });
+  const grafico = barras([
+    item('Produzido com convênios', f.produzido, 'Relatório de Produção por Convênio: o que foi realizado no mês, pela tabela de cada convênio.'),
+    item('Faturado (faturas emitidas)', f.faturado, 'Faturas não canceladas cujo período começa neste mês (relatório de Faturas Emitidas).'),
+    item('Enviado ao convênio', f.enviado, 'Faturas com status Enviada ou Movimentada.'),
+    item('Recebido', f.recebido, 'Baixas registradas no Klingo (relatório de Produção por Convênio).'),
+  ], '', '36%', { destaque: 0 });
+  const resumo = `Faltam faturar <b>${brl(f.falta)}</b> (${pct(f.pct_falta, 0)} do produzido). Das faturas já emitidas, <b>${brl(f.a_enviar)}</b> ainda estão <b>a enviar</b>.`;
+  const andamento = m.fechado ? '' : `<p class="nota" style="margin:8px 0 0">${esc(m.rotulo)} ainda está em andamento (${brlc(m.funil.produzido)} produzidos, ${brlc(m.funil.faturado)} já faturados): é normal só faturar depois que o período fecha. Por isso este gráfico mostra o último mês fechado.</p>`;
+  return `<div><h2 style="font-size:16px">Do produzido à fatura</h2><p class="nota">Quanto do produzido em <b>${esc(f.rotulo)}</b> com convênios já virou fatura, foi enviado e foi recebido.</p>${grafico}<p class="nota" style="margin:12px 0 0">${resumo}</p>${andamento}</div>`;
+}
+const ehResto = n => /^(demais|outros)/i.test(n);   // linha "Demais ..." que o gerador cria para o que passou do top: fica por ultimo
+function composicaoGraf(m) {
+  const tipo = i => ({ rotulo: bonito(i.nome), valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct), tip: `${bonito(i.nome)}\n${brl(i.valor)} (${pct(i.pct)} da receita)` });
+  const part = m.pagadores.filter(i => /^particular$/i.test(i.nome)), conv = m.pagadores.filter(i => !/^particular$/i.test(i.nome));
+  const convOrd = [...conv.filter(i => !ehResto(i.nome)), ...conv.filter(i => ehResto(i.nome))];
+  const fatias = [{ rotulo: 'Particular', valor: soma(part, i => i.valor) }, { rotulo: 'Convênios', valor: soma(conv, i => i.valor) }];
+  return `<section class="grid2">
+    <div><h2>Quem paga</h2><p class="nota">Receita produzida: particular contra convênios (acima) e cada convênio (abaixo).</p>
+      ${donut(fatias, { fmt: brlc, centro: { num: rotEixo(m.kpi.receita), rot: 'R$ produzidos' } })}<div style="height:10px"></div>${barras(convOrd.map(tipo), 'Nenhum convênio no mês.', '42%')}</div>
+    <div><h2>Onde a receita é gerada</h2><p class="nota">Por unidade (acima) e por categoria de exame (abaixo).</p>
+      ${donut(m.unidades.map(i => ({ rotulo: bonito(i.nome), valor: i.valor, tip: `${bonito(i.nome)}\n${brl(i.valor)} (${pct(i.pct)} da receita)` })), { fmt: brlc, centro: { num: rotEixo(m.kpi.receita), rot: 'R$ produzidos' } })}
+      <div style="height:10px"></div>${barras([...m.categorias.filter(i => !ehResto(i.nome)), ...m.categorias.filter(i => ehResto(i.nome))].map(tipo), 'Sem categorias.', '42%')}</div></section>`;
+}
+function posicaoGraf() {
+  const ab = D.aberto, fg = D.faturas, a = fg.tem ? fg.a_enviar : null;
+  const vencido = ab.qtd ? `<div><h2 style="font-size:16px">Faturas em aberto, por vencimento</h2><p class="nota">Posição de hoje (${dataBR(D.hoje)}), pelo vencimento.</p>${barras(ab.faixas.map(f => ({ rotulo: f.rotulo, valor: f.valor, texto: brlc(f.valor), extra: f.qtd + ' fat.', cor: f.cor, tip: `${f.rotulo}\n${brl(f.valor)} em ${f.qtd} fatura(s)` })), '', '40%')}</div>` : '';
+  const enviar = a && a.qtd ? `<div><h2 style="font-size:16px">Faturas a enviar, há quanto tempo esperam</h2><p class="nota">Dias desde a emissão da fatura.</p>${barras(a.faixas.map(f => ({ rotulo: f.rotulo, valor: f.valor, texto: brlc(f.valor), extra: f.qtd + ' fat.', cor: f.cor, tip: `${f.rotulo} desde a emissão\n${brl(f.valor)} em ${f.qtd} fatura(s)` })), '', '40%')}</div>` : '';
+  if (!vencido && !enviar) return `<section><h2>Faturas em aberto</h2><p class="vazio">Nenhuma fatura em aberto ou esperando envio.</p></section>`;
+  return `<section class="grid2">${vencido}${enviar}</section>`;
+}
+function prazosGraf() {
+  const fg = D.faturas;
+  if (!fg.tem || !fg.prazos.qtd) return '';
+  const p = fg.prazos;
+  const dias = v => v == null ? '—' : (v < 1 ? 'No mesmo dia' : num(v, 0) + (Math.round(v) === 1 ? ' dia' : ' dias'));
+  const etapas = `<div class="kpis">
+    ${kpi('Fim do período → emissão', dias(p.fim_emissao), { sub: 'Mediana: quanto o faturamento demora a emitir depois que o período acaba.' })}
+    ${kpi('Emissão → envio', dias(p.emissao_envio), { sub: `<b>${pct(p.no_mesmo_dia, 0)}</b> das faturas saem no mesmo dia.` })}
+    ${kpi('Envio → vencimento', dias(p.pagamento), { sub: `Mediana${p.pagamento_pond != null ? `; ponderada pelo valor: <b>${num(p.pagamento_pond, 0)} dias</b>` : ''}.` })}</div>`;
+  const mkOp = o => ({ rotulo: bonito(o.nome), valor: o.mediana, texto: num(o.mediana, 0) + ' dias', extra: `${o.qtd} fat.`,
+    tip: `${bonito(o.nome)}\nVence ${num(o.mediana, 0)} dias após o envio (mediana)\nVariação: ${o.minimo} a ${o.maximo} dias\n${o.qtd} fatura(s) · ${brl(o.valor)}` });
+  const barrasOp = barras(p.por_operadora.map(mkOp), '', '36%');
+  return `<section><h2>Prazos: quanto tempo o dinheiro demora</h2>
+    <p class="nota">Calculado com as ${num(p.qtd)} faturas já enviadas. O vencimento é a data combinada na fatura, não o dia em que o convênio de fato pagou.</p>
+    ${etapas}<h3 style="margin-top:24px">Prazo de pagamento por convênio</h3><p class="nota">Dias entre o envio e o vencimento, do mais lento ao mais rápido.</p>${barrasOp}</section>`;
+}
+function cancelGraf() {
+  const fg = D.faturas;
+  if (!fg.tem) return '';
+  const c = fg.cancelamento;
+  const conv = barras(c.por_convenio.map(o => ({ rotulo: bonito(o.nome), valor: o.pct, texto: pct(o.pct, 0), extra: `${o.canceladas} de ${o.total}`,
+    tip: `${bonito(o.nome)}\n${o.canceladas} de ${o.total} faturas canceladas (${pct(o.pct, 0)})` })), 'Nenhum convênio com cancelamentos.', '36%');
+  return `<section><h2>Emissão e cancelamentos</h2>
+    <p class="nota"><b>${num(c.canceladas)}</b> de ${num(c.total)} faturas emitidas foram canceladas (<b>${pct(c.pct, 0)}</b>). Cancelar para refazer uma fatura pode ser parte normal do trabalho (corrigir guia, trocar o período): use para entender o processo. O relatório só informa a quantidade, não o valor das canceladas.</p>
+    <h3>Taxa de cancelamento por convênio</h3><p class="nota">Só convênios com ${c.minimo_convenio} faturas ou mais.</p>${conv}</section>`;
+}
+
+// ====================== DETALHES (tudo recolhido) ======================
+function detalhes(m) {
+  const itens = [];
+  if (m.tem_dados && m.dias.length) {
+    const dias = m.dias;
+    itens.push(acordeao('Receita por dia', tabela([{ t: 'Dia' }, { t: 'Receita do dia', n: 1 }, { t: 'Acumulado no mês', n: 1 }, { t: 'Acumulado em ' + m.rotulo_ant, n: 1 }],
+      dias.filter(d => d.v != null).map(d => [String(d.d) + (d.parcial ? ' (hoje, parcial)' : ''), brl(d.v), brl(d.acum), d.acum_ant == null ? '—' : brl(d.acum_ant)])), { dica: `${dias.filter(d => d.v != null).length} dias` }));
+  }
+  if (m.convenios.length) {
+    const t = f => soma(m.convenios, x => x[f] || 0);
+    const linhas = m.convenios.map(c => [esc(bonito(c.nome)), num(c.guias), brl(c.produzido), pct(c.pct), brlOu(c.recebido), brlOu(c.glosa), brlOu(c.saldo), brlOu(c.aberto), c.vencido ? `<b>${brl(c.vencido)}</b>` : VAZIO]);
+    const cols = [{ t: 'Convênio' }, { t: 'Guias', n: 1 }, { t: 'Produzido', n: 1 }, { t: '% do total', n: 1 }, { t: 'Recebido', n: 1 }, { t: 'Glosa', n: 1 }, { t: 'A receber (saldo)', n: 1 }, { t: 'Faturas em aberto', n: 1 }, { t: 'Vencido', n: 1 }];
+    itens.push(acordeao('Convênios: do produzido ao recebido', `<p class="nota">Ordenado pelo que foi produzido em ${esc(m.rotulo)}. “Faturas em aberto” e “Vencido” mostram a posição de hoje, de todos os meses.</p>` +
+      tabela(cols, linhas, ['Total', num(t('guias')), brl(t('produzido')), '100%', brl(t('recebido')), brl(t('glosa')), brl(t('saldo')), brl(t('aberto')), brl(t('vencido'))]), { dica: `${m.convenios.length} convênios` }));
+  }
+  const f = m.funil_ref;
+  if (f && f.tem && f.produzido) {
+    const cols = [{ t: 'Convênio' }, { t: 'Produzido', n: 1 }, { t: 'Faturado', n: 1 }, { t: '% faturado', n: 1 }, { t: 'Falta faturar', n: 1 }, { t: 'A enviar', n: 1 }, { t: 'Faturas', n: 1 }, { t: 'Canceladas', n: 1 }];
+    const linha = c => [esc(bonito(c.nome)), brlz(c.produzido), brlz(c.faturado), c.pct_faturado == null ? VAZIO : pct(c.pct_faturado, 0), c.falta ? `<b>${brl(c.falta)}</b>` : VAZIO, brlz(c.a_enviar), c.faturas ? num(c.faturas) : VAZIO, c.canceladas ? num(c.canceladas) : VAZIO];
+    const t = x => soma(f.por_convenio, c => c[x] || 0);
+    const rodape = ['Total', brl(t('produzido')), brl(t('faturado')), pct(f.produzido ? t('faturado') / f.produzido * 100 : null, 0), brl(t('falta')), brl(t('a_enviar')), num(t('faturas')), num(t('canceladas'))];
+    itens.push(acordeao(`Do produzido à fatura, por convênio (${esc(f.rotulo)})`, `<p class="nota">Ordenado pelo que ainda falta faturar.</p>${tabela(cols, f.por_convenio.map(linha), rodape)}`, { dica: `${f.por_convenio.length} convênios` }));
+  }
+  const ab = D.aberto;
+  if (ab.qtd) {
+    const conv = tabela([{ t: 'Convênio' }, { t: 'Em aberto', n: 1 }, { t: 'Faturas', n: 1 }, { t: 'Vencido', n: 1 }, { t: 'Maior atraso', n: 1 }],
+      ab.por_convenio.slice(0, 12).map(c => [esc(bonito(c.nome)), brl(c.valor), num(c.qtd), c.vencido_valor ? `<b>${brl(c.vencido_valor)}</b>` : VAZIO, c.maior_atraso ? c.maior_atraso + ' dias' : VAZIO]));
+    const venc = ab.lista_vencidas.length ? `<h3 style="margin-top:20px">As ${ab.lista_vencidas.length} faturas vencidas mais antigas</h3>${tabela(
+      [{ t: 'Convênio' }, { t: 'Nº do lote' }, { t: 'Emitida em' }, { t: 'Vencimento' }, { t: 'Atraso', n: 1 }, { t: 'Valor', n: 1 }],
+      ab.lista_vencidas.map(x => [esc(bonito(x.convenio)), esc(x.lote || '—'), dataBR(x.fatura_em), dataBR(x.vencimento), x.dias + ' dias', brlOu(x.valor)]))}` : '';
+    itens.push(acordeao('Faturas em aberto: por convênio e vencidas', conv + venc, { dica: `${num(ab.qtd)} faturas · ${brlc(ab.total)}` }));
+  }
+  const fg = D.faturas;
+  if (fg.tem && fg.a_enviar.qtd) {
+    const a = fg.a_enviar, prazos = fg.prazos;
+    const mesmoDia = prazos.no_mesmo_dia != null ? ` O normal é sair no mesmo dia: ${num(prazos.no_mesmo_dia, 0)}% das faturas enviadas saíram no dia da emissão.` : '';
+    const semValor = a.sem_valor ? ` Há ainda ${a.sem_valor} fatura(s) “A enviar” sem valor, que ficam fora destes totais.` : '';
+    const op = tabela([{ t: 'Convênio' }, { t: 'A enviar', n: 1 }, { t: 'Faturas', n: 1 }, { t: 'Espera máx.', n: 1 }, { t: 'Já enviadas', n: 1 }, { t: 'Prazo de pagamento', n: 1 }],
+      a.por_operadora.slice(0, 12).map(o => [esc(bonito(o.nome)), brl(o.valor), num(o.qtd), o.espera_max + (o.espera_max === 1 ? ' dia' : ' dias'), o.enviadas_antes ? num(o.enviadas_antes) : '<b>nenhuma</b>', o.prazo == null ? VAZIO : num(o.prazo) + ' dias']));
+    const lista = a.lista.length ? `<h3 style="margin-top:20px">As ${a.lista.length} faturas esperando há mais tempo</h3>${tabela([{ t: 'Fatura', n: 1 }, { t: 'Convênio' }, { t: 'Emitida em' }, { t: 'Espera', n: 1 }, { t: 'Valor', n: 1 }, { t: 'Emitida por' }],
+      a.lista.map(x => [num(x.id), esc(bonito(x.operadora)), dataBR(x.emitida), x.dias + (x.dias === 1 ? ' dia' : ' dias'), brl(x.valor), esc(x.usuario || '—')]))}` : '';
+    itens.push(acordeao('Faturas a enviar: por convênio e as mais antigas', `<p class="nota">Posição de hoje (${dataBR(D.hoje)}): faturas emitidas e ainda não enviadas ao convênio. É dinheiro já faturado cujo prazo de pagamento ainda não começou.${mesmoDia}${semValor} “Já enviadas” mostra se o convênio já recebeu alguma fatura.</p>${op}${lista}`, { dica: `${num(a.qtd)} faturas · ${brlc(a.valor)}` }));
+  }
+  if (fg.tem && fg.prazos.qtd) {
+    const p = fg.prazos;
+    itens.push(acordeao('Prazo de pagamento: todos os convênios', tabela([{ t: 'Convênio' }, { t: 'Mediana (dias)', n: 1 }, { t: 'Mínimo', n: 1 }, { t: 'Máximo', n: 1 }, { t: 'Faturas', n: 1 }, { t: 'Valor', n: 1 }],
+      p.por_operadora.map(o => [esc(bonito(o.nome)), num(o.mediana, 0), num(o.minimo), num(o.maximo), num(o.qtd), brl(o.valor)])), { dica: `${p.por_operadora.length} convênios` }));
+  }
+  if (fg.tem) {
+    const c = fg.cancelamento;
+    const usu =tabela([{ t: 'Emitida por' }, { t: 'Emitidas', n: 1 }, { t: 'Canceladas', n: 1 }, { t: '%', n: 1 }, { t: 'Valor faturado', n: 1 }], c.por_usuario.map(u => [esc(u.nome), num(u.emitidas), num(u.canceladas), pct(u.pct, 0), brl(u.valor)]));
+    const mes = tabela([{ t: 'Mês de emissão' }, { t: 'Emitidas', n: 1 }, { t: 'Canceladas', n: 1 }, { t: '%', n: 1 }], c.por_mes.map(x => [esc(x.rotulo), num(x.total), num(x.canceladas), pct(x.pct, 0)]));
+    itens.push(acordeao('Cancelamentos: por usuário e por mês', `<h3>Por usuário</h3>${usu}<h3 style="margin-top:20px">Por mês</h3>${mes}`, { dica: `${pct(c.pct, 0)} canceladas` }));
+  }
+  if (m.procedimentos.length) {
+    itens.push(acordeao('Procedimentos que mais faturam', tabela([{ t: 'Procedimento', txt: 1 }, { t: 'Categoria' }, { t: 'Qtd.', n: 1 }, { t: 'Receita', n: 1 }, { t: 'Ticket', n: 1 }],
+      m.procedimentos.map(p => [esc(bonito(p.nome)), esc(bonito(p.categoria || '')), num(p.qtd), brl(p.receita), p.ticket == null ? '—' : brl(p.ticket)])), { dica: `${m.procedimentos.length} procedimentos` }));
+  }
+  const conf = conferenciaHtml(m);
+  if (conf) itens.push(acordeao('Conferência entre relatórios', conf));
+  return itens.join('');
+}
+function conferenciaHtml(m) {
+  const cards = [];
+  const c = m.conferencia;
+  if (c.relatorio13329) {
+    const ok = Math.abs(c.diferenca_pct) <= 2;
+    cards.push(`<div><p style="margin:0">${chip(ok ? 'ok' : 'atencao')}</p>
+      <p class="nota" style="margin-top:8px">Receita de convênios no relatório de Faturamento: <b>${brl(c.relatorio26)}</b> · Produzido no relatório de Produção por Convênio: <b>${brl(c.relatorio13329)}</b> · diferença de <b>${brl(c.diferenca)}</b> (${num(c.diferenca_pct, 1)}%).
+      ${ok ? 'Os dois relatórios contam a mesma produção.' : 'Os dois relatórios deveriam contar a mesma produção: vale investigar a diferença.'}</p></div>`);
+  }
+  const f = D.conferencia_faturas;
+  if (f && f.tem) {
+    const mv = f.movimentada_em_aberto;
+    const ok = f.lotes_batem === f.lotes_13328 && !f.so_no_13328 && !f.valor_diferente && !mv.qtd;
+    const dif = [f.so_no_13328 ? `${f.so_no_13328} lote(s) só aparecem no relatório de Faturas em Aberto` : '', f.valor_diferente ? `${f.valor_diferente} com valor diferente` : ''].filter(Boolean);
+    cards.push(`<div><p style="margin:0">${chip(ok ? 'ok' : 'atencao')}</p>
+      <p class="nota" style="margin-top:8px">Faturas enviadas × faturas em aberto, lote a lote: <b>${num(f.lotes_batem)} de ${num(f.lotes_13328)}</b> lotes batem em valor${dif.length ? ' (' + dif.join('; ') + ')' : ''}.
+      ${mv.qtd ? `Atenção: <b>${mv.qtd}</b> fatura(s) com status “Movimentada” (${brl(mv.valor)}) ainda constam como em aberto no relatório de Faturas em Aberto.` : 'As duas visões contam as mesmas faturas.'}</p></div>`);
+  }
+  return cards.length ? `<div class="grid2">${cards.join('')}</div>` : '';
+}
+
+function render(ym) {
+  const m = D.meses[ym];
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período e a receita de cada mês' : 'Os números do mês e o ritmo da receita',
+      kpisHtml(m, anteriorDe(D, CHAVES, ym)) + ritmoHtml(m) + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente.</p>${alertasTopo(m.alertas, ym)}</section>`) +
+    tier('Análise', 'Do produzido ao recebido, quem paga e quanto tempo demora',
+      (funilGraf(m) ? `<section>${funilGraf(m)}</section>` : '') + composicaoGraf(m) + posicaoGraf() + prazosGraf() + cancelGraf()) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+}
+
+if (!CHAVES.length) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar os relatórios no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>
