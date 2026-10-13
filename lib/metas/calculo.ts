@@ -31,6 +31,8 @@ export type LinhaAtendimento = {
   procedimento: string | null;
   operadora: string | null;
   qtd: number;
+  /** Dia do atendimento (AAAA-MM-DD). Ausente em respostas antigas da função. */
+  dia?: string | null;
 };
 
 export type Situacao = "batida" | "ritmo" | "atencao" | "atrasado";
@@ -62,8 +64,12 @@ export type ResultadoGrupo = {
 
 export type ForaDasMetas = { unidade: string; especialidade: string; procedimento: string; qtd: number };
 
+export type PontoDia = { d: number; esp: number; n?: number; pct?: number };
+
 export type ResultadoMes = {
   mes: string;
+  /** % das metas cumprido ao fim de cada dia, contra o esperado pelos dias úteis (vazio sem a coluna "dia"). */
+  serie: PontoDia[];
   fechado: boolean;
   diasUteis: number;
   diasDecorridos: number;
@@ -254,6 +260,13 @@ export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendime
   const esperado = totalUteis ? (decorridos / totalUteis) * 100 : 0;
   const ajustes = cfg.metas_por_mes?.[mes] ?? {};
 
+  const ndias = diasDoMes(ano, numMes);
+  const temDia = linhas.some((l) => l.dia);
+  const diaDe = (l: LinhaAtendimento) => Number((l.dia ?? "").slice(8, 10)) || 0;
+  const porItemDia: { meta: number; dias: number[] }[] = [];
+  const atendDia = new Array<number>(ndias + 1).fill(0);
+  for (const l of linhas) if (diaDe(l) >= 1 && diaDe(l) <= ndias) atendDia[diaDe(l)] += l.qtd;
+
   const preparadas = linhas.map(preparar);
   const contagem = new Array<number>(preparadas.length).fill(0);
   const avisos: string[] = [];
@@ -274,14 +287,18 @@ export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendime
       let realizado = 0;
       let sus = 0;
       let semConvenio = 0;
+      const diasItem = new Array<number>(ndias + 1).fill(0);
       preparadas.forEach((l, i) => {
         if (!filtro(l)) return;
         contagem[i] += 1;
+        const dd = diaDe(l.original);
+        if (dd >= 1 && dd <= ndias) diasItem[dd] += l.original.qtd;
         realizado += l.original.qtd;
         if (l.sus) sus += l.original.qtd;
         if (l.semConvenio) semConvenio += l.original.qtd;
       });
       const meta = Number(ajustes[`${g.id}/${it.id}`] ?? it.meta);
+      porItemDia.push({ meta, dias: diasItem });
       const pct = meta ? (realizado / meta) * 100 : 0;
       const situacao = situacaoDe(pct, esperado);
       const faltam = Math.max(meta - realizado, 0);
@@ -340,7 +357,25 @@ export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendime
   const fora = [...foraMapa.values()].sort((a, b) => b.qtd - a.qtd);
 
   const geralPct = somaMeta ? (somaCap / somaMeta) * 100 : 0;
+
+  const serie: PontoDia[] = [];
+  if (temDia) {
+    const ate = fechado ? ndias : Math.min(Number(agora.hoje.slice(8, 10)), ndias);
+    const acum = porItemDia.map(() => 0);
+    for (let d = 1; d <= ndias; d++) {
+      const espD = totalUteis ? (uteis.filter((u) => Number(u.slice(8)) <= d).length / totalUteis) * 100 : 0;
+      const ponto: PontoDia = { d, esp: espD };
+      porItemDia.forEach((it, k) => (acum[k] += it.dias[d]));
+      if (d <= ate) {
+        ponto.n = atendDia[d];
+        ponto.pct = somaMeta ? (porItemDia.reduce((s, it, k) => s + Math.min(acum[k], it.meta), 0) / somaMeta) * 100 : 0;
+        if (d === ate && !fechado) ponto.esp = esperado;
+      }
+      serie.push(ponto);
+    }
+  }
   return {
+    serie,
     mes,
     fechado,
     diasUteis: totalUteis,
