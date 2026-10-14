@@ -16,7 +16,9 @@ PADRAO_MES = re.compile(r"^\d{4}-\d\d$")
 
 class BancoSimulado:
     def __init__(self):
-        self.dados, self.mes, self.paginas, self.pendencias, self.atualizacoes, self.custos = [], {}, {}, {}, [], []
+        self.dados, self.mes, self.paginas, self.avisos, self.atualizacoes, self.custos = [], {}, {}, [], [], []
+        self.avisos_sync = []        # (painel, escopos, versao, alertas) de cada chamada de aviso_sincronizar
+        self.falhar_avisos = False   # a sincronizacao responde erro (o painel tem de abrir do mesmo jeito)
         self.relatorios, self.colunas, self.execucoes, self.linhas_dw = [], [], [], []   # a coleta unica do banco (dim_relatorio, dim_relatorio_coluna, sync_relatorio_runs, linhas vigentes)
         self.usuarios = {}   # token -> {"id","email"}
         self.perfis = {}     # id -> {"role","permissions"}
@@ -146,19 +148,14 @@ def criar_supabase(banco: BancoSimulado):
                         for k in [k for k, p in banco.paginas.items() if _casa(p, f) and ("or" not in params or _ou(p, params["or"]))]:
                             del banco.paginas[k]
                         return self._enviar(204)
-                if tabela == "painel_pendencia":
-                    if self.command == "GET":
-                        f = _filtros(params)
-                        return self._enviar(200, [p for p in banco.pendencias.values() if _casa(p, f)])
-                    if self.command == "POST":
-                        for p in self._corpo():
-                            banco.pendencias[(p["painel"], p["chave"])] = p
-                        return self._enviar(201)
-                    if self.command == "DELETE":
-                        f = _filtros(params)
-                        for k in [k for k, p in banco.pendencias.items() if _casa(p, f)]:
-                            del banco.pendencias[k]
-                        return self._enviar(204)
+                if tabela == "aviso" and self.command == "GET":
+                    return self._enviar(200, [a for a in banco.avisos if _casa(a, _filtros(params))])
+                if tabela == "aviso_sincronizar":
+                    if banco.falhar_avisos:
+                        return self._enviar(400, {"message": "aviso_sincronizar falhou de mentira"})
+                    c = self._corpo()
+                    banco.avisos_sync.append((c["p_painel"], c["p_escopos"], c["p_versao"], c["p_alertas"]))
+                    return self._enviar(200, {"novos": len(c["p_alertas"]), "total": len(c["p_alertas"])})
                 if tabela == "dim_relatorio":
                     return self._enviar(200, [r for r in banco.relatorios if _casa(r, _filtros(params))])
                 if tabela == "dim_relatorio_coluna":

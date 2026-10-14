@@ -155,6 +155,18 @@ def montar_pagina(painel: str, periodo: tuple[str, str] | None) -> str:
     return codigo.gerar(*(periodo or (None, None)), devolver_html=True)
 
 
+def registrar_avisos(painel: str, versao: int) -> None:
+    """Leva para a aba Avisos os alertas da pagina que acabou de ser montada (ver avisos.py). Falhar aqui nunca impede de abrir o painel."""
+    import avisos
+    import painel_comum as pc
+    try:
+        payload = pc.payload_montado()
+        if payload:
+            avisos.sincronizar(painel, payload, versao)
+    except Exception as e:
+        print(f">>> AVISO: não consegui atualizar os avisos de {painel}: {type(e).__name__}: {e}", flush=True)
+
+
 def garantir_pagina(painel: str, periodo: tuple[str, str] | None = None, guardar: bool = True) -> str:
     """HTML do painel: o guardado se os dados e o dia ainda valem; senao calcula (e guarda para os proximos)."""
     chave = "padrao" if not periodo else f"{periodo[0]}..{periodo[1]}"
@@ -164,6 +176,8 @@ def garantir_pagina(painel: str, periodo: tuple[str, str] | None = None, guardar
     if pronta and pronta["dados_versao"] == versao and pronta["dia"] == hoje.isoformat() and _marca_layout() in pronta["html"]:
         return pronta["html"]
     html = montar_pagina(painel, periodo)
+    if not periodo:   # os avisos descrevem a posicao de hoje; um recorte de periodo mostra so uma parte dos dados
+        registrar_avisos(painel, versao)
     if guardar:
         try:
             arm.gravar_pagina(painel, chave, html, versao, hoje)
@@ -329,30 +343,14 @@ def rota_atualizar(h) -> None:
 
 
 def rota_pendencias(h) -> None:
+    """GET /api/pendencias?id=<painel>: o que a aba Avisos sabe dos alertas deste painel (fechados com justificativa, resolvidos, que voltaram).
+    A pagina do painel mostra isso junto de cada alerta. Fechar um aviso e feito na aba Avisos (exige justificativa), nao aqui."""
     def fazer():
-        q = _consulta(h)
-        painel = q.get("id", "")
-        u = conferir_acesso(h.headers, painel)
-        if h.command == "GET":
-            return responder(h, 200, {"ok": True, "resolvidas": arm.listar_pendencias(painel)})
-        if h.headers.get("X-Painel") != "1":
-            raise Negado(403, "Pedido recusado.")
-        acao = q.get("acao", "")
-        if acao not in ("resolver", "reabrir"):
-            raise Negado(404, "Ação desconhecida.")
-        try:
-            tam = int(h.headers.get("Content-Length") or 0)
-            dados = json.loads(h.rfile.read(min(tam, 65536)) or b"{}")
-        except ValueError:
-            raise Negado(400, "Pedido inválido.")
-        chave = str(dados.get("chave", ""))[:200]
-        if not chave:
-            raise Negado(400, "Falta a chave do alerta.")
-        if acao == "resolver":
-            arm.marcar_pendencia(painel, chave, str(dados.get("titulo", ""))[:300], u["email"], int(dados.get("versao") or 0))
-        else:
-            arm.desmarcar_pendencia(painel, chave)
-        responder(h, 200, {"ok": True, "resolvidas": arm.listar_pendencias(painel)})
+        painel = _consulta(h).get("id", "")
+        conferir_acesso(h.headers, painel)
+        if h.command != "GET":
+            raise Negado(405, "Para fechar um alerta use a aba Avisos: lá é preciso justificar.")
+        responder(h, 200, {"ok": True, "avisos": arm.listar_avisos(painel)})
     tratar(h, fazer)
 
 

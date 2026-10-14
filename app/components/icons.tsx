@@ -33,6 +33,13 @@ export const IconMetas = (p: IconProps) => (
   </Icon>
 );
 
+export const IconAviso = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z" />
+    <path d="M10 20.5a2 2 0 0 0 4 0" />
+  </Icon>
+);
+
 export const IconConfig = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 7h10" />

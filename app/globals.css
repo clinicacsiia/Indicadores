@@ -1658,3 +1658,364 @@ select {
   border: 0;
   background: transparent;
 }
+
+/* ───────── Avisos (pendências de todos os painéis) ───────── */
+
+.nav-contador {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--side-ink-strong);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.nav-contador[data-critico="true"] {
+  background: #d93a30;
+  color: #fff;
+}
+
+.avisos-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.avisos-numero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border-left: 4px solid var(--line-strong);
+}
+.avisos-numero[data-tom="critico"] {
+  border-left-color: var(--danger);
+}
+.avisos-numero[data-tom="atencao"] {
+  border-left-color: var(--warn);
+}
+.avisos-numero[data-tom="ok"] {
+  border-left-color: var(--ok);
+}
+.avisos-numero-valor {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.avisos-numero-rotulo {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.avisos-filtros {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.avisos-filtro-grupo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.avisos-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.avisos-filtro:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.avisos-filtro[aria-current="true"] {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+}
+.avisos-filtro-n {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.avisos-grupo {
+  margin-bottom: 28px;
+}
+.avisos-grupo-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.avisos-grupo-n {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.avisos-grupo-link {
+  margin-left: auto;
+  color: var(--brand);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.avisos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.aviso {
+  padding: 16px 18px;
+  border-left: 4px solid var(--line-strong);
+  scroll-margin-top: 16px;
+}
+.aviso[data-nivel="critico"] {
+  border-left-color: var(--danger);
+}
+.aviso[data-nivel="atencao"] {
+  border-left-color: var(--warn);
+}
+.aviso[data-status="justificado"],
+.aviso[data-status="resolvido"] {
+  border-left-color: var(--ok);
+}
+.aviso:target {
+  box-shadow: 0 0 0 2px var(--focus), var(--shadow-md);
+}
+.aviso-topo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.aviso-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.aviso-nivel {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+.aviso-nivel[data-nivel="critico"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.aviso-nivel[data-nivel="atencao"] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.aviso-escopo {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.aviso-selo {
+  padding: 2px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.aviso-selo[data-tom="alerta"] {
+  border-color: transparent;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.aviso-titulo {
+  font-size: 17px;
+  line-height: 1.3;
+}
+.aviso-texto {
+  color: var(--ink-2);
+}
+.aviso-meta {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+.aviso-nota {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--ok-soft);
+  color: var(--ink);
+  font-size: 14px;
+}
+.aviso-nota[data-tom="alerta"] {
+  background: var(--warn-soft);
+}
+.aviso-nota p + p {
+  margin-top: 6px;
+}
+.aviso-nota-fim {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.aviso-justificativa {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.aviso-reabrir {
+  margin-top: 8px;
+}
+.aviso-bloco,
+.aviso-fechar {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.aviso-bloco > summary,
+.aviso-fechar > summary {
+  cursor: pointer;
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 650;
+}
+.aviso-guia {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  font-size: 14px;
+}
+.aviso-guia h4 {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.aviso-guia ol {
+  margin: 0;
+  padding-left: 20px;
+}
+.aviso-guia li + li {
+  margin-top: 4px;
+}
+.aviso-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.aviso-conta {
+  color: var(--ink-3);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.aviso-tabela {
+  max-height: 320px;
+  margin-top: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.aviso-tabela th,
+.aviso-tabela td {
+  text-align: left;
+}
+.aviso-tabela th.num,
+.aviso-tabela td.num {
+  text-align: right;
+}
+.aviso-resolve {
+  color: var(--ink-2);
+}
+.aviso-fechar-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+}
+.aviso-textarea {
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.45;
+}
+.aviso-ajuda {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+.aviso-erro {
+  color: var(--danger);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.aviso-fechar-acoes {
+  display: flex;
+  gap: 8px;
+}
+.aviso-historico {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+  font-size: 13.5px;
+}
+.aviso-historico li {
+  padding-left: 12px;
+  border-left: 2px solid var(--line-strong);
+}
+.aviso-historico li[data-tipo="reapareceu"],
+.aviso-historico li[data-tipo="nao_corrigido"],
+.aviso-historico li[data-tipo="piorou"] {
+  border-left-color: var(--danger);
+}
+.aviso-historico li[data-tipo="sumiu"],
+.aviso-historico li[data-tipo="confirmado"],
+.aviso-historico li[data-tipo="justificado"] {
+  border-left-color: var(--ok);
+}
+.aviso-historico-quando {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  margin-right: 8px;
+}
+.aviso-historico-tipo {
+  font-weight: 650;
+}
+.aviso-historico-quem {
+  color: var(--ink-2);
+}
+.aviso-historico p {
+  margin-top: 2px;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .aviso {
+    padding: 14px;
+  }
+  .avisos-grupo-titulo {
+    flex-wrap: wrap;
+  }
+}
