@@ -1433,6 +1433,21 @@ select {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
 }
+.coleta-grupo > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 24px;
+  padding: 16px 20px;
+  cursor: pointer;
+}
+.coleta-grupo[open] > summary {
+  padding-bottom: 12px;
+}
+.coleta-grupo-corpo {
+  padding: 0 20px 20px;
+}
 .status-card {
   display: flex;
   flex-direction: column;
