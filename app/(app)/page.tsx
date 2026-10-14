@@ -43,7 +43,7 @@ export default async function Home() {
   const relatorios = (data ?? []) as StatusRelatorio[];
   const renovando = ((renovandoRes.data ?? []) as PainelRenovando[]).flatMap((r) => {
     const painel = PAINEIS.find((p) => p.id === r.painel);
-    return painel ? [{ ...r, nome: painel.nome }] : [];
+    return painel && podeVerPainel(profile, painel.id) ? [{ ...r, nome: painel.nome }] : [];
   });
   const paineisDisponiveis = PAINEIS.filter((p) => podeVerPainel(profile, p.id));
   const ehAdmin = profile?.role === "admin";

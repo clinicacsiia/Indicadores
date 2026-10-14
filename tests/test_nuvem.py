@@ -40,7 +40,8 @@ def setUpModule():
     import extrair_laudo as ex
     ex.API_EXTERNA = kurl + "/api/info/relatorio"
     BANCO.novo_usuario("tok-admin", "csiadmin@csi.local", "admin")
-    BANCO.novo_usuario("tok-viewer", "ana@csi.local", "viewer", {"despesas": True, "faturamento": False})
+    BANCO.novo_usuario("tok-viewer", "ana@csi.local", "viewer", {"despesas": True, "faturamento": False, "dados_financeiros": True})
+    BANCO.novo_usuario("tok-sem-fin", "caio@csi.local", "viewer", {"despesas": True, "faturamento": True, "atendimento": True, "dados_financeiros": False})   # tem os paineis, mas nao os dados financeiros
     BANCO.novo_usuario("tok-sem", "bia@csi.local", "viewer", {})
     for nome in ("painel", "atualizar", "estado", "pendencias", "renovar"):   # as funcoes da Vercel, carregadas do jeito que a Vercel as carrega
         spec = importlib.util.spec_from_file_location(f"api_{nome}", RAIZ / "api" / f"{nome}.py")
@@ -87,6 +88,43 @@ class AcessoTest(unittest.TestCase):
     def test_painel_inexistente(self):
         self.assertEqual(chamar("painel", "/api/painel?id=../../etc", token="tok-admin")[0], 404)
         self.assertEqual(chamar("painel", "/api/painel?id=metas", token="tok-admin")[0], 404)   # Metas tem aba propria no site
+
+    def test_painel_so_de_dinheiro_exige_dados_financeiros(self):
+        # tem a permissao do painel, mas nao "Dados financeiros": Faturamento/Financeiro/Despesas/Indicadores nem abrem (pagina, estado, avisos, renovacao)
+        for painel in ("despesas", "faturamento"):
+            self.assertEqual(chamar("painel", f"/api/painel?id={painel}", token="tok-sem-fin")[0], 403)
+            self.assertEqual(chamar("estado", f"/api/estado?id={painel}", token="tok-sem-fin")[0], 403)
+            self.assertEqual(chamar("pendencias", f"/api/pendencias?id={painel}", token="tok-sem-fin")[0], 403)
+            self.assertEqual(chamar("renovar", f"/api/renovar?id={painel}", token="tok-sem-fin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})[0], 403)
+        self.assertIn("Dados financeiros", chamar("painel", "/api/painel?id=despesas", token="tok-sem-fin")[1])
+        # o admin sempre ve
+        self.assertEqual(chamar("painel", "/api/painel?id=despesas", token="tok-admin")[0], 200)
+
+    def test_painel_misto_sem_dados_financeiros_vem_sem_os_valores(self):
+        import json as _json
+        import re as _re
+        dados = {"meses": {"2026-10": {"kpis": {"n": 3, "receita": 1234.5, "ticket": 411.5},
+                                      "profissionais": [{"nome": "A", "n": 2, "receita": 1000.0}],
+                                      "alertas": [{"titulo": "Receita concentrada em um profissional: R$ 12.000", "nivel": "atencao", "id": "ate_receita_x"},
+                                                  {"titulo": "Atendimentos sem Check-In", "nivel": "atencao", "id": "ate_sem_checkin"}]}}}
+        html = ("<!doctype html><html><head><title>t</title></head><body><script id=\"dados\" type=\"application/json\">"
+                + _json.dumps(dados) + "</script></body></html>")
+        import portal_nuvem as pn
+        original = pn.pagina_para_abrir
+        pn.pagina_para_abrir = lambda painel, periodo: (html, False, 0)
+        try:
+            _, com = chamar("painel", "/api/painel?id=atendimento", token="tok-admin")
+            _, sem = chamar("painel", "/api/painel?id=atendimento", token="tok-sem-fin")
+        finally:
+            pn.pagina_para_abrir = original
+        self.assertIn("window.PAINEL_SEM_FIN=false", com)
+        self.assertIn("1234.5", com)
+        self.assertIn("window.PAINEL_SEM_FIN=true", sem)
+        for proibido in ("1234.5", "411.5", "1000.0", "receita", "ticket", "Receita concentrada", "12.000"):
+            self.assertNotIn(proibido, sem)
+        corpo = _json.loads(_re.search(r'<script id="dados" type="application/json">(.*?)</script>', sem, _re.S).group(1))
+        self.assertEqual([a["id"] for a in corpo["meses"]["2026-10"]["alertas"]], ["ate_sem_checkin"])   # o alerta de dinheiro sumiu, o outro ficou
+        self.assertEqual(corpo["meses"]["2026-10"]["kpis"], {"n": 3})
 
     def test_viewer_sem_permissao_nega(self):
         self.assertEqual(chamar("painel", "/api/painel?id=faturamento", token="tok-viewer")[0], 403)   # permissao false
@@ -409,7 +447,7 @@ class RenovacaoTest(unittest.TestCase):
         def jwt(sub):
             corpo = base64.urlsafe_b64encode(json.dumps({"sub": sub}).encode()).decode().rstrip("=")
             return f"cabecalho.{corpo}.assinatura"
-        uid = BANCO.novo_usuario(jwt("uid-do-token-admin"), "ana2@csi.local", "viewer", {"despesas": True})
+        uid = BANCO.novo_usuario(jwt("uid-do-token-admin"), "ana2@csi.local", "viewer", {"despesas": True, "dados_financeiros": True})
         BANCO.usuarios[jwt("uid-do-token-admin")]["id"] = "uid-do-token-admin"   # o id do JWT bate com o do Supabase
         BANCO.perfis["uid-do-token-admin"] = BANCO.perfis[uid]
         status, _ = chamar("estado", "/api/estado?id=despesas", token=jwt("uid-do-token-admin"))

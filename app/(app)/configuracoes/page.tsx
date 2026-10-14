@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, type Profile } from "@/lib/supabase/profile";
 import { signOut } from "@/app/actions";
 import { IconAlerta, IconSair } from "@/app/components/icons";
-import { PAINEIS } from "@/lib/paineis";
+import { PAINEIS, PERMISSAO_FINANCEIRA } from "@/lib/paineis";
 import { NovoUsuarioForm } from "./NovoUsuarioForm";
 import { SolicitacaoForm } from "./SolicitacaoForm";
 import { UsuarioForm } from "./UsuarioForm";
@@ -46,7 +46,7 @@ export default async function ConfiguracoesPage() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Configurações</h1>
           <p className="page-lede">
-            Aprove pedidos de acesso, adicione ou exclua usuários, redefina senhas e escolha quais telas cada um pode ver (Metas e painéis). Cada usuário é salvo separadamente; os painéis começam bloqueados para quem não é administrador.
+            Aprove pedidos de acesso, adicione ou exclua usuários, redefina senhas e escolha quais telas cada um pode ver (Metas e painéis) e se pode ver dados financeiros (receitas, despesas e valores em R$). Cada usuário é salvo separadamente; os painéis começam bloqueados para quem não é administrador.
           </p>
         </div>
       </header>
@@ -132,6 +132,7 @@ export default async function ConfiguracoesPage() {
                 email={usuario.email ?? ""}
                 role={usuario.role}
                 veMetas={usuario.permissions?.metas !== false}
+                veFinanceiro={usuario.permissions?.[PERMISSAO_FINANCEIRA] === true}
                 paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome, liberado: usuario.permissions?.[p.id] === true }))}
                 ehVoce={usuario.id === profile.id}
               />

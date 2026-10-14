@@ -396,6 +396,47 @@ def anotar(painel: str, alertas: list[dict], escopo: str = "") -> list[dict]:
     return alertas
 
 
+# ---------------------------------------------------------------- dinheiro: quem pode ver o alerta
+# "Dados financeiros" (Configuracoes): sem essa permissao o usuario nao ve receita, despesa nem valores em R$. Vale para os alertas tambem (na pagina do
+# painel e na aba Avisos): um alerta de dinheiro mostraria justamente o que a permissao esconde. O modulos.json diz o que cada painel e:
+# "total" (so dinheiro: todo alerta dele e sensivel) ou "parcial" (misto: so os alertas de dinheiro, abaixo).
+SENSIVEIS_PARCIAIS = {"cesta_menor_fat", "cesta_ticket_queda", "cesta_valor_zero", "sup_valor_concentrado", "sup_sem_custo"}
+# problema de CADASTRO que cita "R$ 0,00" mas nao mostra dinheiro (so quantos registros estao com valor zerado): continua visivel
+LIBERADOS = {"ate_valor_zero"}
+# o resto e pego pelo texto: citar R$, receita, ticket, custo (que nao seja "centro de custo")... Errar para o lado de esconder: pior ficar sem um aviso
+_TEXTO_DINHEIRO = re.compile(r"R\$|receita|ticket|faturament|glosa|(?<!centro de )custo|pre[cç]o|despesa|compras?\b|pagamento|reais\b", re.I)
+_COLUNA_DINHEIRO = re.compile(r"R\$|valor|receita|ticket|custo|pre[cç]o|total", re.I)
+
+
+def financeiro_do_painel(painel: str) -> str | None:
+    """'total', 'parcial' ou None ("nenhum"), conforme o modulos.json. Painel sem o campo conta como 'total'."""
+    import json
+    from pathlib import Path
+    cfg = json.loads((Path(__file__).parent / "modulos.json").read_text(encoding="utf-8-sig"))
+    modulo = next((m for m in cfg["modulos"] if m["id"] == painel), None)
+    if modulo is None or modulo.get("tipo") != "relatorios":   # as Metas tem tela propria e nao passam por aqui
+        return None
+    modo = modulo.get("financeiro", "total")   # sem o campo: so dinheiro (mesma regra de portal_nuvem.modo_financeiro)
+    return None if modo == "nenhum" else modo
+
+
+def sensivel(painel: str, alerta: dict) -> bool:
+    """O alerta mostra dinheiro (ou e de um painel so de dinheiro)? Entao so quem tem 'Dados financeiros' pode ve-lo."""
+    modo = financeiro_do_painel(painel)
+    if modo == "total":
+        return True
+    if modo != "parcial":
+        return False
+    if alerta.get("id") in LIBERADOS:
+        return False
+    if alerta.get("id") in SENSIVEIS_PARCIAIS:
+        return True
+    itens = alerta.get("itens") if isinstance(alerta.get("itens"), dict) else {}
+    colunas = " ".join(str(c) for c in itens.get("colunas", []))
+    texto = " ".join(re.sub(r"<[^>]+>", " ", str(alerta.get(k) or "")) for k in ("titulo", "texto"))
+    return bool(_TEXTO_DINHEIRO.search(texto) or _COLUNA_DINHEIRO.search(colunas))
+
+
 def persistente(ident: str) -> bool:
     """O alerta pode ser aceito com justificativa (so reabre se piorar)?"""
     return ident in PERSISTENTES

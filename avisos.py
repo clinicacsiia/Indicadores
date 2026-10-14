@@ -48,7 +48,7 @@ def janela(payload: dict) -> list[str]:
     return meses[max(0, fim - JANELA_MESES):fim]
 
 
-def coletar(payload: dict) -> tuple[list[dict], list[str]]:
+def coletar(payload: dict, painel: str = "") -> tuple[list[dict], list[str]]:
     """(alertas, escopos) do que o painel mostra agora. Alertas sao os que tem guia e nao sao do nivel 'ok'; escopos, onde a conferencia vale."""
     meses_janela = janela(payload)
     escopos = ["", *meses_janela]
@@ -72,6 +72,7 @@ def coletar(payload: dict) -> tuple[list[dict], list[str]]:
             "chave": chave, "tipo": a["id"], "escopo": escopo, "titulo": str(a["titulo"])[:300], "texto": texto_simples(a.get("texto")),
             "nivel": a["nivel"], "persistente": gp.persistente(a["id"]), "guia": a["guia"],
             "itens": itens, "itens_total": int(itens["total"]) if itens and itens.get("total") is not None else None,
+            "sensivel": gp.sensivel(painel, a),   # mostra dinheiro: so quem tem "Dados financeiros" ve na aba Avisos
         }
     return list(por_chave.values()), escopos
 
@@ -80,5 +81,5 @@ def sincronizar(painel: str, payload: dict, versao: int) -> dict | None:
     """Registra os avisos do painel. Sem meses no payload (painel sem dados) nao ha o que conferir: devolve None e nada e dado como resolvido."""
     if not payload.get("meses"):
         return None
-    alertas, escopos = coletar(payload)
+    alertas, escopos = coletar(payload, painel)
     return arm.sincronizar_avisos(painel, escopos, versao, alertas)

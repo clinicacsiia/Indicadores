@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCurrentProfile } from "@/lib/supabase/profile";
-import { PAINEIS, podeVerPainel } from "@/lib/paineis";
+import { PAINEIS, podeVerPainel, veDadosFinanceiros } from "@/lib/paineis";
 import { IconAlerta } from "@/app/components/icons";
 import { PainelFrame } from "./PainelFrame";
 
@@ -27,10 +27,16 @@ export default async function PainelPage({ params, searchParams }: Props) {
 
   const profile = await getCurrentProfile();
   if (!podeVerPainel(profile, id)) {
+    // o painel está liberado, mas só tem dinheiro e a pessoa não tem "Dados financeiros": a mensagem diz o que falta
+    const faltaFinanceiro = painel.financeiro === "total" && profile?.permissions?.[id] === true && !veDadosFinanceiros(profile);
     return (
       <section className="panel empty">
         <h2>Sem acesso a {painel.nome}</h2>
-        <p>Peça a um administrador para liberar este painel em Configurações.</p>
+        <p>
+          {faltaFinanceiro
+            ? "Este painel mostra receitas, despesas e valores em R$. Peça a um administrador para liberar “Dados financeiros” em Configurações."
+            : "Peça a um administrador para liberar este painel em Configurações."}
+        </p>
       </section>
     );
   }

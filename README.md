@@ -104,6 +104,19 @@ botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?
   `painel_base.js` fala com `/api/*` quando a página traz `window.PAINEL_NUVEM`.
 - **Permissões:** cada painel é uma chave em `profiles.permissions` (id do painel). Administrador vê todos; os demais só os
   marcados em **Configurações**. Painel novo nasce **bloqueado** (dado financeiro e, em alguns, de paciente).
+- **Dados financeiros:** em **Configurações > Dados sensíveis**, a chave `profiles.permissions.dados_financeiros` (não pode ser
+  `financeiro`: é o id de um painel) libera receitas, despesas e valores em R$. Administrador sempre vê. Sem ela:
+  - os painéis só de dinheiro (`"financeiro": "total"` no `modulos.json`: Faturamento, Financeiro, Despesas, Indicadores) **nem abrem**
+    (`conferir_acesso` no servidor, `podeVerPainel` no site, que também os tira do menu e do Início);
+  - os painéis mistos (`"financeiro": "parcial"`: Atendimento, Cesta, Suprimentos) abrem **sem os valores em R$**. Esconder com CSS/JS não
+    bastaria (o valor continua no código da página), então `sigilo.py` REMOVE do JSON da página os campos de dinheiro (`CHAVES` e `RAIZ`, por
+    painel) e os alertas de dinheiro antes de entregar; o modelo (`SEM_FIN`, `fin()`, `{fin: 1}` em `kpi`/`tabela`/`acordeao`, `data-fin`)
+    só deixa de desenhar o que sobrou sem dado. **Painel misto novo ou gráfico novo com dinheiro:** acrescente o campo em `sigilo.py` e marque o
+    pedaço no modelo; `tests/test_sigilo.py` falha se sobrar campo ou valor em R$ no JSON ou na tela;
+  - os avisos que falam de dinheiro (`guia_pendencias.sensivel`: todo aviso dos painéis só de dinheiro e, nos mistos, os que citam R$,
+    receita, ticket, custo etc.) ficam invisíveis na aba Avisos e em `/api/pendencias` (`aviso.sensivel` + RLS `can_view_aviso`); a regra de antes
+    segue por cima: o aviso só aparece se o painel dele estiver liberado.
+  Quem já via Faturamento, Financeiro, Despesas ou Indicadores ficou com a permissão marcada (migration `20261016120000_dados_financeiros.sql`).
 - **Atualização (do banco):** os painéis **não consultam mais o Klingo**. Uma coleta só (Edge Function `sync-relatorios-dw`,
   pg_cron a cada 5 min) guarda os relatórios em `fact_relatorio_linha`; `fonte_banco.py` copia dali para `painel_dados`, no
   formato que os geradores já liam. O relatório dos painéis é coletado **por mês** (`dim_relatorio.granularidade = 'mes'`,
@@ -193,7 +206,9 @@ Todas as abas (Início, Metas, Configurações e os 7 painéis em Python) seguem
 `python -m unittest discover -s tests -v` — sobe um Supabase e um Klingo simulados (`tests/mock_nuvem.py`) e confere login,
 permissões, atualização (mês substituído, não somado), tipos das colunas, página pronta guardada e invalidada, avisos e
 corte por tempo. A regra da aba Avisos dentro do banco (novo / resolvido / voltou / justificado, permissões e RLS) é testada num
-Postgres de verdade: `createdb avisos_teste && psql -v ON_ERROR_STOP=1 -d avisos_teste -f supabase/tests/avisos.sql`. Os 7 painéis também foram gerados de ponta a ponta com dados de mentira e o botão **Atualizar agora**
+Postgres de verdade: `createdb avisos_teste && psql -v ON_ERROR_STOP=1 -d avisos_teste -f supabase/tests/avisos.sql` (inclui "Dados financeiros": o preenchimento
+da permissão, `aviso.sensivel` e quem vê/fecha o aviso de dinheiro). `tests/test_sigilo.py` gera Atendimento, Cesta e Suprimentos COM DADOS
+(`tests/paineis_de_mentira.py`) e confere que a versão sem dinheiro não leva campo nem valor em R$, no JSON e (se houver Chromium) na tela. Os 7 painéis também foram gerados de ponta a ponta com dados de mentira e o botão **Atualizar agora**
 foi exercitado no Chromium. **Não foi testado:** o deploy na Vercel de verdade (funções Python junto do Next.js, tamanho do
 pacote com pandas, tempo da carga inicial) nem o Klingo/Supabase reais — confira o primeiro deploy e o log das funções.
 
@@ -201,7 +216,8 @@ pacote com pandas, tempo da carga inicial) nem o Klingo/Supabase reais — confi
 
 Todas as pendências dos painéis num lugar só (menu **Avisos**, com o contador de abertos). Cada alerta com guia que um painel calcula
 (os mesmos de "Como achar o problema") vira um **aviso**. **O administrador vê tudo; os demais só os avisos dos painéis liberados
-em Configurações** (RLS: `can_view_painel`, a mesma regra de `profiles.permissions.<painel>`).
+em Configurações** (RLS: `can_view_painel`, a mesma regra de `profiles.permissions.<painel>`), e os avisos que falam de dinheiro só
+para quem tem **Dados financeiros** (`can_view_aviso`).
 
 **Como os avisos nascem e se atualizam.** Quando a página de um painel é refeita (dados novos, novo dia ou **Atualizar agora**),
 `portal_nuvem.registrar_avisos` pega os alertas dela (`avisos.py`) e chama `aviso_sincronizar` no Supabase. Só a página padrão
