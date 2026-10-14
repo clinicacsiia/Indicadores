@@ -3,7 +3,8 @@
 -- refaz tudo que tiver mais de 10 minutos, para qualquer pessoa logada. Dias passados já
 -- completos nunca são refeitos. O pg_cron só "puxa" o lote a cada 5 minutos: se nada está
 -- vencido, a Edge Function responde na hora sem tocar no Klingo.
-drop function if exists public.proximos_trabalhos(integer);
+-- A versão de 1 parâmetro (criada na migration anterior) sai de cena por renomeação; ninguém mais a chama.
+alter function public.proximos_trabalhos(integer) rename to proximos_trabalhos_v1;
 
 create or replace function public.proximos_trabalhos(p_limite integer default 30, p_frescor_minutos integer default 300)
 returns table (relatorio_id uuid, klingo_id text, periodo date, restantes bigint)
