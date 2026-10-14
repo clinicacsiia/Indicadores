@@ -138,6 +138,62 @@ def pagina_suprimentos(de=None, ate=None) -> str:
         return gs.gerar(de, ate, devolver_html=True)
 
 
+# ------------------------------------------------------------------ paineis so de dinheiro (heuristica)
+def _pagina_generica(painel: str) -> str:
+    """Pagina com dados de um painel qualquer: DataFrames montados do relatorios.json mais as colunas citadas no gerador. Serve de fumaca (o painel monta, sem erro de
+    JavaScript) para os paineis so de dinheiro; nao tem a fidelidade das paginas acima e nao funciona com todos (Despesas pareia dois relatorios por ID)."""
+    import importlib
+    import json
+    import re
+    cfg = json.loads((RAIZ / "modulos.json").read_text(encoding="utf-8-sig"))
+    mod = next(m for m in cfg["modulos"] if m["id"] == painel)
+    pasta = RAIZ / mod["pasta"]
+    if str(pasta) not in sys.path:
+        sys.path.insert(0, str(pasta))
+    g = importlib.import_module(mod["codigo"])
+    literais = {c for c in re.findall(r'["\']([A-ZÁ-Ú][^"\'\n]{1,48})["\']', (pasta / f"{mod['codigo']}.py").read_text(encoding="utf-8"))}
+    rnd = random.Random(5)
+    textos = ["UNIMED", "SUS", "PARTICULAR", "Pago", "Pendente", "Enviada", "A Enviar", "Movimentada", "Cancelada", "Aberta", "CSI 1", "Cat A", "Cat B", "Fornecedor X"]
+    abas = {}
+    for rel in json.loads((pasta / "relatorios.json").read_text(encoding="utf-8"))["relatorios"]:
+        numeros, datas = set(rel.get("numeros", [])), set(rel.get("datas", {}))
+        cols = list(dict.fromkeys([*rel.get("chave", []), *rel.get("numeros", []), *rel.get("datas", {}), *sorted(literais)]))
+        linhas, d = [], date(2026, 9, 1)
+        while d <= date(2026, 10, 13):
+            for _ in range(rnd.randint(3, 6)):
+                lin = {}
+                for c in cols:
+                    if c in numeros or re.search(r"(Valor|Qtd|Quant|Saldo|Taxa|Custo|Total|Preço|Dias)", c):
+                        lin[c] = float(rnd.choice([0, 50, 120, 300, 1500.5]))
+                    elif c in datas or re.search(r"\b(Data|Emiss|Vencimento|Compet|Baixa|Pagamento|Envio)", c):
+                        lin[c] = pd.Timestamp(d) + pd.Timedelta(hours=rnd.randint(0, 20))
+                    else:
+                        lin[c] = rnd.choice(textos)
+                lin["Mês (filtro)"] = d.strftime("%Y-%m")
+                linhas.append(lin)
+            d += timedelta(days=1)
+        abas[rel["aba"]] = pd.DataFrame(linhas)
+    with mock.patch.object(g.k, "carregar", lambda p: abas), mock.patch.object(g, "lido_com_cache", lambda arq, n, fn: abas, create=True):
+        return g.gerar(devolver_html=True)
+
+
+@so_arquivos
+def pagina_financeiro(de=None, ate=None) -> str:
+    return _pagina_generica("financeiro")
+
+
+@so_arquivos
+def pagina_faturamento(de=None, ate=None) -> str:
+    return _pagina_generica("faturamento")
+
+
+@so_arquivos
+def pagina_indicadores(de=None, ate=None) -> str:
+    return _pagina_generica("indicadores")
+
+
+PAGINAS_SO_DINHEIRO = {"financeiro": pagina_financeiro, "faturamento": pagina_faturamento, "indicadores": pagina_indicadores}
+
 PAGINAS = {"atendimento": pagina_atendimento, "cesta": pagina_cesta, "suprimentos": pagina_suprimentos}
 # visoes do filtro De/Ate que cada painel entrega (a pagina de sempre, varios meses, dias exatos): o servidor calcula cada uma e a limpeza vale para todas
 PERIODOS = [(None, None), ("2026-09", "2026-10"), ("2026-10-02", "2026-10-09")]

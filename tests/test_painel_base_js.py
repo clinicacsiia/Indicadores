@@ -167,6 +167,26 @@ class PainelBaseJsTest(unittest.TestCase):
         self.assertEqual(len(it["nenhum"]), 1)                              # bloco que nao existe: aviso, nao a pagina toda
         self.assertTrue(it["nenhum"][0].startswith("P:Este bloco"))
 
+    def test_paineis_so_de_dinheiro_continuam_montando_para_quem_pode_ver(self):
+        """Fumaca com dados: Financeiro, Faturamento e Indicadores (os que so o painel_base.js e o modelo desenham) abrem sem erro de JavaScript e com os valores."""
+        sys.path.insert(0, str(RAIZ / "tests"))
+        import paineis_de_mentira as pm
+        import portal_nuvem as pn
+        for nome, gerar in pm.PAGINAS_SO_DINHEIRO.items():
+            with self.subTest(painel=nome):
+                html = pn.com_marcas(gerar(), nome, admin=True)
+                type(self).n += 1
+                arq = f"fumaca{self.n}.html"
+                (self.pasta / arq).write_text(html, encoding="utf-8")
+                out = subprocess.run([_chromium(), "--headless", "--no-sandbox", "--disable-gpu", "--virtual-time-budget=8000", "--enable-logging=stderr", "--v=0", "--dump-dom",
+                                      f"http://127.0.0.1:{self.porta}/{arq}"], capture_output=True, text=True, timeout=180)
+                erros = [l for l in out.stderr.splitlines() if "CONSOLE" in l and "rror" in l]
+                self.assertFalse(erros, erros[:2])
+                corpo = re.search(r'<main id="conteudo">(.*?)</main>', out.stdout, re.S).group(1)
+                self.assertGreater(len(corpo), 5000, "o painel nao montou")
+                self.assertRegex(corpo, r"R\$(?:&nbsp;|\s)*[1-9]")
+                self.assertNotIn("NaN", re.sub(r"<[^>]+>", " ", corpo).replace("Ressonancia", ""))
+
     def test_javascript_dos_modelos_e_valido(self):
         node = shutil.which("node")
         if not node:
