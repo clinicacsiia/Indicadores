@@ -18,13 +18,31 @@ async function contarAvisosAbertos() {
   return { abertos: data.length, criticos: data.filter((a) => a.nivel === "critico").length };
 }
 
+// Pedidos de acesso aguardando aprovação (só o administrador enxerga: RLS esconde os perfis dos outros).
+async function contarPedidosPendentes() {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pendente");
+  if (error) {
+    console.error("Falha ao contar pedidos de acesso:", error.message);
+    return 0;
+  }
+  return count ?? 0;
+}
+
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   // independentes: uma espera só em vez de duas em fila (a página reaproveita o perfil: getCurrentProfile é cacheado por pedido)
-  const [profile, avisos] = await Promise.all([getCurrentProfile(), contarAvisosAbertos()]);
+  const [profile, avisos, pedidos] = await Promise.all([
+    getCurrentProfile(),
+    contarAvisosAbertos(),
+    contarPedidosPendentes(),
+  ]);
   const isAdmin = profile?.role === "admin";
   const paineis = PAINEIS.filter((p) => podeVerPainel(profile, p.id));
   const email = profile?.email ?? "";
@@ -43,7 +61,7 @@ export default async function AppLayout({
           <span className="version-tag">v{APP_VERSION}</span>
         </div>
 
-        <NavLinks isAdmin={isAdmin} paineis={paineis} avisos={avisos} />
+        <NavLinks isAdmin={isAdmin} paineis={paineis} avisos={avisos} pedidos={isAdmin ? pedidos : 0} />
 
         <div className="sidebar-user">
           <span className="avatar" aria-hidden="true">
