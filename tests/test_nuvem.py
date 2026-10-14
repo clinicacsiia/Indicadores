@@ -208,16 +208,90 @@ class FluxoTest(unittest.TestCase):
         _, est = chamar("estado", "/api/estado?id=suprimentos", token="tok-admin")
         self.assertEqual(json.loads(est)["versao"], versao_pagina)
 
-    def test_pendencias(self):
-        r = chamar("pendencias", "/api/pendencias?id=despesas&acao=resolver", token="tok-viewer", metodo="POST",
-                   cabecalhos={"X-Painel": "1"}, corpo={"chave": "a|b", "titulo": "Algo", "versao": 7})
-        self.assertEqual(r[0], 200)
-        lista = json.loads(r[1])["resolvidas"]
-        self.assertEqual([(p["chave"], p["usuario"], p["versao"]) for p in lista], [("a|b", "ana@csi.local", 7)])   # quem marcou vem do login, nao do corpo
-        self.assertEqual(json.loads(chamar("pendencias", "/api/pendencias?id=despesas", token="tok-admin")[1])["resolvidas"][0]["chave"], "a|b")
-        self.assertEqual(chamar("pendencias", "/api/pendencias?id=despesas&acao=resolver", token="tok-viewer", metodo="POST", corpo={"chave": "x"})[0], 403)  # sem X-Painel
-        r = chamar("pendencias", "/api/pendencias?id=despesas&acao=reabrir", token="tok-viewer", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={"chave": "a|b"})
-        self.assertEqual(json.loads(r[1])["resolvidas"], [])
+    def test_pendencias_lista_os_avisos_do_painel(self):
+        BANCO.avisos[:] = [
+            {"id": 1, "painel": "despesas", "chave": "2026-10|des_zero", "titulo": "Despesas zeradas", "status": "justificado", "recorrencias": 0, "reaberturas": 0,
+             "justificativa": "Corrigido no Klingo", "justificado_por": "ana@csi.local", "justificado_em": "2026-10-14T10:00:00+00:00", "resolvido_em": None},
+            {"id": 2, "painel": "despesas", "chave": "|des_repetidas", "titulo": "Repetidas", "status": "aberto", "recorrencias": 2, "reaberturas": 0,
+             "justificativa": None, "justificado_por": None, "justificado_em": None, "resolvido_em": None},
+            {"id": 3, "painel": "despesas", "chave": "|des_sem_fornecedor", "titulo": "Sem fornecedor", "status": "aberto", "recorrencias": 0, "reaberturas": 0,
+             "justificativa": None, "justificado_por": None, "justificado_em": None, "resolvido_em": None},
+            {"id": 4, "painel": "faturamento", "chave": "|fat_glosa", "titulo": "Glosa", "status": "justificado", "recorrencias": 0, "reaberturas": 0,
+             "justificativa": "x", "justificado_por": "y", "justificado_em": None, "resolvido_em": None},
+        ]
+        try:
+            status, corpo = chamar("pendencias", "/api/pendencias?id=despesas", token="tok-viewer")
+            self.assertEqual(status, 200)
+            avisos = json.loads(corpo)["avisos"]
+            # so o que ja tem desfecho ou historico (um aviso aberto e nunca visto de novo nao precisa de nota na pagina) e so do painel pedido
+            self.assertEqual([a["chave"] for a in avisos], ["2026-10|des_zero", "|des_repetidas"])
+            self.assertEqual(avisos[0]["justificativa"], "Corrigido no Klingo")
+            self.assertEqual(chamar("pendencias", "/api/pendencias?id=despesas", token="tok-sem")[0], 403)
+            # fechar nao e mais feito aqui: precisa da justificativa da aba Avisos
+            r = chamar("pendencias", "/api/pendencias?id=despesas&acao=resolver", token="tok-viewer", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={"chave": "a|b"})
+            self.assertEqual(r[0], 405)
+            self.assertIn("Avisos", json.loads(r[1])["mensagem"])
+        finally:
+            BANCO.avisos[:] = []
+
+    def _refazer_pagina(self, falha=None):
+        """Atualiza o painel, apaga a pagina pronta e abre de novo (e ai que os avisos sao conferidos). Devolve (status, html, chamadas de avisos.sincronizar)."""
+        import avisos
+        chamar("atualizar", "/api/atualizar?id=despesas", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+        BANCO.paginas.clear()
+        chamadas, original = [], avisos.sincronizar
+
+        def espiao(painel, payload, versao):
+            chamadas.append((painel, payload, versao))
+            if falha:
+                raise falha
+        avisos.sincronizar = espiao
+        try:
+            status, html = chamar("painel", "/api/painel?id=despesas", token="tok-admin")
+        finally:
+            avisos.sincronizar = original
+        return status, html, chamadas
+
+    def test_pagina_do_painel_registra_os_avisos(self):
+        status, _, chamadas = self._refazer_pagina()
+        self.assertEqual(status, 200)
+        self.assertEqual(len(chamadas), 1)
+        painel, payload, versao = chamadas[0]
+        self.assertEqual(painel, "despesas")
+        self.assertIn("meses", payload)
+        self.assertGreater(versao, 0)                          # versao dos dados que gerou a lista
+
+    def test_pagina_abre_mesmo_se_os_avisos_falharem(self):
+        status, html, chamadas = self._refazer_pagina(falha=RuntimeError("banco fora do ar"))
+        self.assertEqual(len(chamadas), 1)
+        self.assertEqual(status, 200)
+        self.assertIn("window.PAINEL_NUVEM=true", html)
+
+    def test_sincronizacao_chega_ao_banco(self):
+        import armazenamento as arm
+        BANCO.avisos_sync.clear()
+        r = arm.sincronizar_avisos("despesas", ["", "2026-10"], 123, [{"chave": "|x", "tipo": "x"}])
+        self.assertEqual(BANCO.avisos_sync, [("despesas", ["", "2026-10"], 123, [{"chave": "|x", "tipo": "x"}])])
+        self.assertEqual(r["total"], 1)
+        BANCO.falhar_avisos = True
+        try:
+            with self.assertRaises(arm.ErroArmazenamento):
+                arm.sincronizar_avisos("despesas", [""], 1, [])
+        finally:
+            BANCO.falhar_avisos = False
+
+    def test_periodo_escolhido_nao_mexe_nos_avisos(self):
+        import avisos
+        chamar("atualizar", "/api/atualizar?id=despesas", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+        BANCO.paginas.clear()
+        chamadas, original = [], avisos.sincronizar
+        avisos.sincronizar = lambda *a: chamadas.append(a)
+        try:
+            status, _ = chamar("painel", "/api/painel?id=despesas&de=2026-08&ate=2026-09", token="tok-admin")   # varios meses = pagina de periodo, nao a de hoje
+        finally:
+            avisos.sincronizar = original
+        self.assertEqual(status, 200)
+        self.assertEqual(chamadas, [])
 
 
 class DadosTest(unittest.TestCase):
