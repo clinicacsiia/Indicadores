@@ -41,7 +41,7 @@ export function AtualizarTudoForm() {
   }, [ocupado]);
 
   // Pede ao banco o que falta, um lote por vez, até não sobrar nada. A mesma coleta roda sozinha
-  // a cada 5 minutos no servidor: o botão só antecipa, e fechar a aba não perde nada.
+  // no servidor (a cada 5 h): o botão só antecipa, e fechar a aba não perde nada.
   async function iniciar(e: React.FormEvent) {
     e.preventDefault();
     if (ocupado) return;
@@ -106,7 +106,7 @@ export function AtualizarTudoForm() {
       <div>
         <span className="toolbar-label">Sincronização</span>
         <p className="panel-sub" style={{ marginTop: 4 }}>
-          Busca no Klingo só o que falta nos relatórios ativos (até 90 dias cada). O servidor também faz isso sozinho a cada 5 minutos.
+          Busca no Klingo só o que falta nos relatórios ativos (até 90 dias cada). O servidor também atualiza sozinho a cada 5 horas; qualquer pessoa pode atualizar na hora.
         </p>
       </div>
 

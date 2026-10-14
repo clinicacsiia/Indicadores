@@ -1,5 +1,6 @@
 -- Roda depois que a Edge Function sync-relatorios-dw com o modo "auto" estiver publicada.
--- Agendamento: a cada 5 minutos a Edge Function pega o que falta (modo "auto"). Sem pendência
+-- Agendamento: a cada 5 minutos a Edge Function pega um lote do que venceu (modo "auto"): o dia de
+-- hoje de cada relatório vence a cada 5 horas, e o histórico novo é puxado aos poucos. Sem pendência
 -- ela responde na hora, sem tocar no Klingo. A chave service_role vem do Vault.
 select cron.unschedule(jobname) from cron.job where jobname = 'coleta-relatorios-5min';
 

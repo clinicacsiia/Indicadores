@@ -7,7 +7,7 @@ import { chamarEdgeFunction } from "@/lib/klingo/chamarEdgeFunction";
 // "Atualizar tudo" não monta mais plano no site: a Edge Function sync-relatorios-dw, no modo
 // "auto", pergunta ao banco (proximos_trabalhos) o que falta dentro da janela de cada relatório
 // ativo (dim_relatorio.janela_dias, até 90 dias) e busca só isso. O mesmo trabalho roda sozinho
-// a cada 5 minutos pelo pg_cron; o botão só antecipa. Quem conduz é o cliente
+// pelo pg_cron (o dia de hoje é refeito a cada 5 h); o botão manual refaz o que tiver mais de 10 min. Quem conduz é o cliente
 // (atualizar-tudo-form.tsx), que chama um lote por vez até não restar nada e mostra o progresso.
 // Qualquer usuário logado pode disparar — a Edge Function também aceita qualquer JWT autenticado.
 const LOTE = 30;
@@ -31,6 +31,7 @@ export async function coletarLote(): Promise<ResultadoLote> {
     const dw = await chamarEdgeFunction("sync-relatorios-dw", sessao.session.access_token, {
       modo: "auto",
       limite: LOTE,
+      frescor_minutos: 10,
     });
     if (!dw.ok) {
       console.error("sync-relatorios-dw falhou:", dw.status, JSON.stringify(dw.payload));

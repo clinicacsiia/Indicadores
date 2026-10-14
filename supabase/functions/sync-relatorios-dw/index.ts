@@ -21,11 +21,12 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 //   manual em dim_relatorio.
 // - Quem dispara: os botões "Atualizar" (Metas, com `klingo_ids`) e "Atualizar
 //   tudo" (Início) do site, por QUALQUER usuário logado — não só admin — o
-//   agendamento do pg_cron (a cada 5 min) ou SQL com service_role.
+//   agendamento do pg_cron (puxa um lote a cada 5 min; o dia de hoje só vence a cada 5 h) ou SQL com service_role.
 // - Modo "auto" (`{"modo":"auto","limite":N}`): em vez de varrer tudo, pergunta ao banco
 //   (`proximos_trabalhos`) quais pares relatório/dia ainda faltam dentro da janela de cada
 //   relatório (`dim_relatorio.janela_dias`, máx. 90) e busca só esses, até acabar o lote ou
-//   o tempo (100 s). Relatório que falha 3 vezes seguidas fica 6 h pausado (disjuntor).
+//   o tempo (100 s). O dia de hoje só é refeito a cada 5 h (`frescor_minutos`, o botão manual
+//   usa 10 min). Relatório que falha 3 vezes seguidas fica 6 h pausado (disjuntor).
 // - `dim_relatorio.colunas_essenciais`: se preenchido, só essas colunas são gravadas.
 // - Relatórios com `supersedido_por` preenchido (decisão humana) são pulados.
 //
@@ -306,7 +307,12 @@ Deno.serve(async (req: Request) => {
 
   if (auto) {
     const limite = Math.min(Math.max(Math.trunc(Number(body.limite ?? 30)) || 30, 1), MAX_LOTE_AUTO);
-    const { data: pendentes, error: pendentesError } = await supabase.rpc("proximos_trabalhos", { p_limite: limite });
+    // Frescor do dia de hoje: 5 h por padrão (agendamento); o botão manual pede menos (ex.: 10 min).
+    const frescor = Math.min(Math.max(Math.trunc(Number(body.frescor_minutos ?? 300)) || 300, 1), 1440);
+    const { data: pendentes, error: pendentesError } = await supabase.rpc("proximos_trabalhos", {
+      p_limite: limite,
+      p_frescor_minutos: frescor,
+    });
     if (pendentesError) return json({ error: `Falha ao ler proximos_trabalhos: ${pendentesError.message}` }, 500);
     const lista = (pendentes ?? []) as Array<{ relatorio_id: string; periodo: string; restantes: number }>;
     restantesAuto = lista.length > 0 ? Number(lista[0].restantes) : 0;
