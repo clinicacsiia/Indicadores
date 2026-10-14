@@ -166,6 +166,26 @@ class FluxoTest(unittest.TestCase):
         finally:
             pn.montar_pagina = original
 
+    def test_layout_novo_refaz_a_pagina_guardada(self):
+        """Pagina guardada com um layout antigo (sem a marca do layout atual) e refeita, mesmo com dados e dia iguais."""
+        import portal_nuvem as pn
+        chamar("atualizar", "/api/atualizar?id=despesas", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+        pronta = BANCO.paginas[("despesas", "padrao")]
+        self.assertIn(pn._marca_layout(), pronta["html"])
+        pronta["html"] = pronta["html"].replace(pn._marca_layout(), "<!-- layout:antigo -->")   # como a pagina que a producao ainda servia
+        chamadas = []
+        original = pn.montar_pagina
+        pn.montar_pagina = lambda *a, **k: chamadas.append(a) or original(*a, **k)
+        try:
+            _, html = chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            self.assertEqual(len(chamadas), 1)
+            self.assertIn(pn._marca_layout(), html)
+            self.assertIn(pn._marca_layout(), BANCO.paginas[("despesas", "padrao")]["html"])
+            chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            self.assertEqual(len(chamadas), 1)   # refeita uma vez so
+        finally:
+            pn.montar_pagina = original
+
     def test_periodo_livre_por_datas(self):
         chamar("atualizar", "/api/atualizar?id=despesas", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
         status, html = chamar("painel", "/api/painel?id=despesas&de=2026-09-10&ate=2026-10-05", token="tok-viewer")

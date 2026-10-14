@@ -1,9 +1,11 @@
 """Pecas comuns dos geradores de dashboard (Faturamento e Financeiro)."""
+import hashlib
 import json
 import math
 import re
 from calendar import monthrange
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -232,13 +234,30 @@ def completar_payload(payload: dict) -> dict:
     return payload
 
 
+@lru_cache(maxsize=1)
+def versao_layout() -> str:
+    """Impressao digital do que desenha as paginas (CSS e JS base, modelos HTML e geradores). Vai escrita em cada pagina pronta: mudou o
+    layout, a pagina guardada deixa de valer e e refeita, mesmo com os dados e o dia iguais."""
+    arquivos = [RAIZ / "painel_base.css", RAIZ / "painel_base.js", Path(__file__)]
+    arquivos += sorted(RAIZ.glob("*/dashboard_modelo.html")) + sorted(RAIZ.glob("*/gerar_*.py"))
+    h = hashlib.sha1()
+    for a in arquivos:
+        h.update(a.relative_to(RAIZ).as_posix().encode())
+        h.update(a.read_bytes())
+    return h.hexdigest()[:12]
+
+
+def marca_layout() -> str:
+    return f"<!-- layout:{versao_layout()} -->"
+
+
 def montar_html(modelo: Path, payload: dict) -> str:
     completar_payload(payload)
     css = (RAIZ / "painel_base.css").read_text(encoding="utf-8")
     js = (RAIZ / "painel_base.js").read_text(encoding="utf-8")
     dados = json.dumps(limpo(payload), ensure_ascii=False, allow_nan=False).replace("</", "<\\/")
     return (modelo.read_text(encoding="utf-8")
-            .replace("__CSS__", css).replace("__JS_BASE__", js.replace("</", "<\\/")).replace("__DADOS__", dados))
+            .replace("__CSS__", css).replace("__JS_BASE__", js.replace("</", "<\\/")).replace("__DADOS__", dados)) + marca_layout()
 
 
 def nome_curto_unidade(nome) -> str:
