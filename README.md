@@ -38,6 +38,12 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `app/(app)/page.tsx` — aba "Relatórios": filtro de período (padrão: últimos
   30 dias, com atalhos 7/30/90 dias e "Este ano"), cards de totais com
   tendência, gráfico agendados × realizados e tabela por dia (com total).
+- `app/(app)/page.tsx` + `lib/inicio.ts` — aba "Início": um cartão por relatório ativo, medido **na unidade em que ele é coletado**
+  (`status_coleta_relatorios()`): dias recentes nos diários ("faltam 83 dias"), **meses** nos mensais ("8 de 11 meses coletados"), 1/0 nos
+  pontuais. Mostra também **pausado até hh:mm**, falhas seguidas e tentativas com erro nas últimas 24 h (a partir de 3; o último erro só
+  aparece para admin), a última coleta automática (e avisa se passou de 30 min sem coletar nada) e os painéis em Python que estão sendo
+  **atualizando agora** (`paineis_renovando()`, só os que a pessoa pode ver). A tela se atualiza sozinha (10 s com atualização em
+  andamento, 60 s sem). A `status_sincronizacao_relatorios()` antiga continua no banco, sem uso na tela.
 - `app/(app)/loading.tsx` — esqueleto exibido enquanto a página carrega.
 - `app/(app)/atualizar-form.tsx` + `atualizar-actions.ts` — botão "Atualizar"
   (só admin): escolhe o relatório do catálogo `dim_relatorio` e o período.

@@ -3,8 +3,20 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { PAINEIS, podeVerPainel } from "@/lib/paineis";
 import { listarFavoritos } from "@/lib/favoritos";
+import {
+  alertasDoCartao,
+  descricaoDoCartao,
+  haQuanto,
+  horaLocal,
+  resumoDaColeta,
+  situacaoDe,
+  temProblema,
+  type PainelRenovando,
+  type StatusRelatorio,
+} from "@/lib/inicio";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
 import { AtualizarTudoForm } from "./atualizar-tudo-form";
+import { AtualizarSozinho } from "./atualizar-sozinho";
 import { FavoritosPaineis } from "./favoritos-paineis";
 
 // A atualização (server action do AtualizarTudoForm) espera as Edge Functions falarem com o Klingo.
@@ -12,36 +24,11 @@ export const maxDuration = 300;
 
 export const metadata: Metadata = { title: "Início" };
 
-type StatusRelatorio = {
-  klingo_id: string;
-  nome: string;
-  categoria: string | null;
-  periodicidade: string | null;
-  ultimo_periodo: string | null;
-  ultimo_sync: string | null;
-  dias_sincronizados: number;
-  dias_esperados: number;
-  pct: number;
-};
-
-type Situacao = "batida" | "ritmo" | "atencao" | "atrasado";
-
-function situacaoDe(pct: number): Situacao {
-  if (pct >= 100) return "batida";
-  if (pct >= 75) return "ritmo";
-  if (pct >= 50) return "atencao";
-  return "atrasado";
-}
-
-function formatarData(iso: string) {
-  const [, mes, dia] = iso.split("-");
-  return `${dia}/${mes}`;
-}
-
 export default async function Home() {
   const supabase = await createClient();
-  const [{ data, error }, profile, favoritos] = await Promise.all([
-    supabase.rpc("status_sincronizacao_relatorios"),
+  const [{ data, error }, renovandoRes, profile, favoritos] = await Promise.all([
+    supabase.rpc("status_coleta_relatorios"),
+    supabase.rpc("paineis_renovando"),
     getCurrentProfile(),
     listarFavoritos(),
   ]);
@@ -50,8 +37,18 @@ export default async function Home() {
     console.error("Falha ao carregar status dos relatórios:", error.message);
   }
 
+  // sem a lista de "atualizando agora" o resto da tela continua valendo
+  if (renovandoRes.error) console.error("Falha ao ver painéis em atualização:", renovandoRes.error.message);
+
   const relatorios = (data ?? []) as StatusRelatorio[];
+  const renovando = ((renovandoRes.data ?? []) as PainelRenovando[]).flatMap((r) => {
+    const painel = PAINEIS.find((p) => p.id === r.painel);
+    return painel ? [{ ...r, nome: painel.nome }] : [];
+  });
   const paineisDisponiveis = PAINEIS.filter((p) => podeVerPainel(profile, p.id));
+  const ehAdmin = profile?.role === "admin";
+  const agora = Date.now();
+  const resumo = resumoDaColeta(relatorios, agora);
 
   return (
     <>
@@ -60,12 +57,34 @@ export default async function Home() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Início</h1>
           <p className="page-lede">
-            Status da sincronização dos relatórios ativos do Klingo (últimos dias de cada um).
+            Status da coleta dos relatórios ativos do Klingo: os dias recentes dos diários e os meses dos mensais.
           </p>
         </div>
       </header>
 
+      <AtualizarSozinho rapido={renovando.length > 0} />
+
       <AtualizarTudoForm />
+
+      {renovando.length > 0 && (
+        <div className="painel-aviso" data-tipo="info" role="status" aria-live="polite">
+          <div className="painel-aviso-linha">
+            <span className="painel-aviso-nome">
+              <span className="spinner" aria-hidden="true" />
+              <strong>Atualizando agora: {renovando.map((r) => r.nome).join(", ")}</strong>
+            </span>
+            <span>
+              {renovando
+                .map((r) => {
+                  const falta = r.previsto_s - r.decorrido_s;
+                  const texto = falta > 3 ? `faltam cerca de ${falta} s` : "quase pronto";
+                  return renovando.length === 1 ? texto : `${r.nome}: ${texto}`;
+                })
+                .join(" · ")}
+            </span>
+          </div>
+        </div>
+      )}
 
       {paineisDisponiveis.length > 0 && (
         <FavoritosPaineis paineis={paineisDisponiveis} favoritos={favoritos} />
@@ -90,13 +109,27 @@ export default async function Home() {
 
       {relatorios.length > 0 && (
         <section aria-labelledby="titulo-sincronizacao">
-          <h2 className="panel-title" id="titulo-sincronizacao" style={{ marginBottom: 12 }}>
-            Sincronização dos relatórios
+          <h2 className="panel-title" id="titulo-sincronizacao" style={{ marginBottom: 4 }}>
+            Coleta dos relatórios
           </h2>
+          <p className="panel-sub" style={{ marginBottom: 12 }}>
+            {resumo.completos} de {resumo.total} completos
+            {resumo.incompletos > 0 && ` · ${resumo.incompletos} ainda sendo coletados`}
+            {resumo.problemas > 0 && ` · ${resumo.problemas} com pausa ou erro`}
+            {resumo.ultimo && ` · última coleta ${haQuanto(resumo.ultimo, agora)} (${horaLocal(resumo.ultimo)})`}
+          </p>
+          {resumo.parada && (
+            <div className="notice" role="alert" style={{ marginBottom: 12 }}>
+              <IconAlerta />
+              {resumo.ultimo
+                ? "Nenhum relatório foi coletado nos últimos 30 minutos. A coleta automática (a cada 5 minutos) pode estar parada."
+                : "Nenhum relatório foi coletado ainda."}
+            </div>
+          )}
           <div className="status-grid" aria-label="Status dos relatórios">
             {relatorios.map((r) => {
-              const situacao = situacaoDe(r.pct);
-              const faltam = Math.max(r.dias_esperados - r.dias_sincronizados, 0);
+              const situacao = situacaoDe(r);
+              const alertas = alertasDoCartao(r);
               return (
                 <article className="panel status-card" key={r.klingo_id}>
                   <div className="status-card-head">
@@ -111,10 +144,17 @@ export default async function Home() {
                   <div className="meter" data-status={situacao}>
                     <span className="meter-fill" style={{ width: `${Math.min(r.pct, 100)}%` }} />
                   </div>
-                  <p className="status-card-meta">
-                    {r.ultimo_periodo ? `Atualizado até ${formatarData(r.ultimo_periodo)}` : "Nunca sincronizado"}
-                    {faltam > 0 && ` · faltam ${faltam} ${faltam === 1 ? "dia" : "dias"}`}
-                  </p>
+                  <p className="status-card-meta">{descricaoDoCartao(r)}</p>
+                  {alertas.map((a) => (
+                    <p className="status-card-alerta" data-tipo={a.tipo} key={a.texto}>
+                      {a.texto}
+                    </p>
+                  ))}
+                  {ehAdmin && temProblema(r) && r.ultimo_erro && (
+                    <p className="status-card-meta" title={r.ultimo_erro}>
+                      Último erro: {r.ultimo_erro}
+                    </p>
+                  )}
                 </article>
               );
             })}
