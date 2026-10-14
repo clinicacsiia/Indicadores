@@ -9,6 +9,7 @@ type Props = {
   id: string;
   usuario: string;
   nome: string;
+  emailContato?: string;
   desde: string | null;
   paineis: { id: string; nome: string }[];
 };
@@ -25,7 +26,7 @@ function BotaoAprovar() {
   );
 }
 
-export function SolicitacaoForm({ id, usuario, nome, desde, paineis }: Props) {
+export function SolicitacaoForm({ id, usuario, nome, emailContato, desde, paineis }: Props) {
   const [state, action] = useActionState(aprovarSolicitacao, inicial);
 
   return (
@@ -43,6 +44,7 @@ export function SolicitacaoForm({ id, usuario, nome, desde, paineis }: Props) {
               <span className="user-desde">
                 {" "}
                 · usuário “{usuario}”{desde ? ` · pediu em ${desde}` : ""}
+                {emailContato ? ` · ${emailContato}` : ""}
               </span>
             </span>
           </div>

@@ -9,6 +9,7 @@ export type Profile = {
   // Só vem preenchido na lista da tela de Configurações.
   status?: "ativo" | "pendente";
   nome?: string | null;
+  email_contato?: string | null;
   solicitado_em?: string | null;
 };
 
