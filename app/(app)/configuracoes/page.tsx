@@ -56,17 +56,14 @@ export default async function ConfiguracoesPage() {
           <div>
             <h2 className="panel-title" id="titulo-sessao">Sua sessão</h2>
             <p className="panel-sub">
-              Você está como <strong>{nomeDe(profile.email) || "usuário"}</strong>. Saia, ou troque para outro usuário (vai para a tela de login).
+              Você está como <strong>{nomeDe(profile.email) || "usuário"}</strong>. Para sair ou entrar com outro usuário, use o botão abaixo (vai para a tela de login).
             </p>
           </div>
         </div>
         <form action={signOut} className="sessao-acoes">
-          <button type="submit" className="btn">
-            <IconSair size={16} />
-            Sair
-          </button>
           <button type="submit" className="btn btn-primary">
-            Trocar de usuário
+            <IconSair size={16} />
+            Sair ou trocar de usuário
           </button>
         </form>
       </section>
