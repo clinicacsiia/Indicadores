@@ -140,7 +140,7 @@ export function AtualizarTudoForm() {
       <div>
         <span className="toolbar-label">Sincronização</span>
         <p className="panel-sub" style={{ marginTop: 4 }}>
-          Busca no Klingo, para todos os relatórios, só o que falta para ficarem em dia (máx. 31 dias por relatório).
+          Busca no Klingo, para os relatórios ativos, só o que falta para ficarem em dia (máx. 31 dias por relatório).
         </p>
       </div>
 

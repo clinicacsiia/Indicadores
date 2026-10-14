@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { chamarEdgeFunction } from "@/lib/klingo/chamarEdgeFunction";
 
-// "Atualizar tudo" percorre TODOS os relatórios do catálogo (dim_relatorio, exceto
-// os marcados como supersedidos por uma pessoa), ativos ou não. Quem conduz é o
+// "Atualizar tudo" percorre só os relatórios liberados no catálogo (dim_relatorio com
+// ativo = true, sem supersedido_por): os que o site realmente usa. Relatório que
+// ninguém precisa fica inativo e não é buscado no Klingo, o que deixa a
+// atualização mais rápida e estável. Quem conduz é o
 // cliente (atualizar-tudo-form.tsx): primeiro pede o plano, depois executa um
 // passo por vez, e assim consegue mostrar o progresso de verdade. Cada passo é
 // um relatório em poucos dias, para caber folgado no tempo de uma chamada.
@@ -63,6 +65,7 @@ export async function planejarAtualizacao(): Promise<Plano> {
   const { data: catalogo, error } = await supabase
     .from("dim_relatorio")
     .select("id, klingo_id, nome, categoria, periodicidade")
+    .eq("ativo", true)
     .is("supersedido_por", null)
     .order("categoria")
     .order("nome");
@@ -72,7 +75,7 @@ export async function planejarAtualizacao(): Promise<Plano> {
     return { ok: false, mensagem: "Não foi possível listar os relatórios agora." };
   }
   if (!catalogo || catalogo.length === 0) {
-    return { ok: false, mensagem: "Nenhum relatório cadastrado para atualizar." };
+    return { ok: false, mensagem: "Nenhum relatório ativo para atualizar." };
   }
 
   const hoje = hojeSaoPaulo();

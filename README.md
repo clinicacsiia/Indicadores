@@ -309,6 +309,11 @@ descobre IDs testando a API do Klingo**, e só consulta relatórios com
    decida (e registre em `resolucao`); se for erro do relatório, o dado
    continua guardado para correção — nada é apagado.
 
+**"Atualizar tudo" (tela Início) só busca relatórios com `ativo = true`.** Os demais
+ficam no catálogo, sem sincronizar, para o site ficar rápido e estável. Se uma tela
+precisar de outro relatório (ex.: o `13339` da aba Metas), ative-o:
+`update public.dim_relatorio set ativo = true where klingo_id = '13339';`
+
 Ative poucos relatórios por vez: a função consulta todos os ativos em
 sequência numa única execução, e muitos de uma vez podem estourar o tempo
 limite da Edge Function.
