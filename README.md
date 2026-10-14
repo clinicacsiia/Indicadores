@@ -344,6 +344,24 @@ where klingo_id = '13339';
   para `painel_dados`. Não é preciso mantê-los nos dois lugares: se um painel já cobre o relatório,
   deixe `ativo = false` aqui (`update public.dim_relatorio set ativo = false where klingo_id = '...'`).
 
+### Regras para somar e cruzar os dados
+
+- **Leia por `v_relatorio_linha_vigente`, não por `fact_relatorio_linha`.** A tabela guarda o histórico (linha que
+  mudou vira registro novo); a visão devolve só o que a última coleta de cada relatório/dia viu. Somar a tabela
+  crua conta em dobro.
+- **`repeticoes`** é quantas linhas idênticas o Klingo devolveu no mesmo dia (ex.: #13374 devolve 2.605 além das
+  6.049 distintas). Para contar registros como o painel em Python, que deduplica pela chave, conte 1 por linha.
+- **Período:** o Klingo ignora, sem erro, um filtro com nome errado e devolve o dia de hoje (ou a tabela inteira).
+  Por isso `dim_relatorio.filtro_periodo` guarda o nome certo de cada relatório (`periodo0`, `periodo`, `PERIODO`,
+  `para`...; NULL = sem filtro de data) e a coleta confere na resposta que o período foi aplicado. Só depois dessa
+  confirmação (`periodo_validado_em`) o relatório recebe mais de 1 dia de histórico. `v_qualidade_relatorios` e a
+  auditoria diária (`auditar_qualidade_relatorios`) apontam relatório que repete as mesmas linhas em vários dias.
+- **Números:** o Klingo alterna `1` e `"1"` entre chamadas iguais; a coleta grava tudo como texto.
+- **Guias:** use sempre o `Guia - Id` como chave. O "Número da Guia Atribuído pela Operadora" vem vazio em ~40% das
+  guias e, em centenas, preenchido com valores falsos (`00`, `00000000`...) para pacientes diferentes; cruzar por
+  ele junta guias que não têm nada a ver. O `Atendimento - Id` e o paciente batem entre os relatórios #13374, #52 e
+  #319 (189 atendimentos em comum, nenhuma divergência).
+
 Ative poucos relatórios por vez: a função consulta todos os ativos em
 sequência numa única execução, e muitos de uma vez podem estourar o tempo
 limite da Edge Function.
