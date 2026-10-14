@@ -1217,6 +1217,15 @@ select {
   display: none;
   color: var(--ink);
 }
+.login-version {
+  display: none; /* no computador a versão fica no rodapé do painel azul; aqui só aparece no celular, onde o painel some */
+  margin-top: 20px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--ink-3);
+}
 .login-card h1 {
   font-size: 30px;
   font-weight: 700;
@@ -1747,6 +1756,9 @@ select {
   }
   .login-mobile-brand {
     display: flex;
+  }
+  .login-version {
+    display: block;
   }
   .login-panel {
     min-height: 100vh;
