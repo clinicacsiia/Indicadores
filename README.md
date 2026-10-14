@@ -81,7 +81,7 @@ site (menu "Faturamento", "Financeiro"...)  →  /painel/<id>  →  iframe  → 
                                                                               │ confere login (Supabase Auth) e permissão (profiles)
                                                                               ▼
                               painel_pagina (HTML pronto)  ←──  gerar_<id>.py  ←──  painel_dados (linhas do Klingo, por mês)
-botão "Atualizar agora" (só admin)  →  /api/atualizar?id=<id>  →  API do Klingo  →  grava o mês inteiro (troca atômica)  →  refaz a página
+botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?id=<id>  →  BANCO (fact_relatorio_linha, coletado pelo Supabase)  →  grava o mês inteiro (troca atômica)  →  refaz a página
 ```
 
 - **Arquivos novos:** `armazenamento.py` (Supabase), `portal_nuvem.py` (login, permissão, página pronta, atualização),
@@ -93,11 +93,16 @@ botão "Atualizar agora" (só admin)  →  /api/atualizar?id=<id>  →  API do K
   `painel_base.js` fala com `/api/*` quando a página traz `window.PAINEL_NUVEM`.
 - **Permissões:** cada painel é uma chave em `profiles.permissions` (id do painel). Administrador vê todos; os demais só os
   marcados em **Configurações**. Painel novo nasce **bloqueado** (dado financeiro e, em alguns, de paciente).
-- **Atualização:** só administrador. O botão baixa do Klingo mês a mês e **substitui o mês inteiro**, como o Excel fazia
-  (`revisar_meses`/`meses_a_frente` do `relatorios.json` valem igual). Como a função da Vercel para em 300 s, a atualização
-  para antes (190 s) e avisa; cada mês já baixado fica guardado, então é só clicar de novo para continuar (a carga inicial de
-  um painel com muito histórico pode pedir dois ou três cliques). Ordem: meses nunca baixados, os 3 mais recentes, e os antigos
-  do mais desatualizado para o mais novo. O Atendimento também atualiza a base das Metas (#13339) de que depende.
+- **Atualização (do banco):** os painéis **não consultam mais o Klingo**. Uma coleta só (Edge Function `sync-relatorios-dw`,
+  pg_cron a cada 5 min) guarda os relatórios em `fact_relatorio_linha`; `fonte_banco.py` copia dali para `painel_dados`, no
+  formato que os geradores já liam. O relatório dos painéis é coletado **por mês** (`dim_relatorio.granularidade = 'mes'`,
+  com `primeiro_mes`, `meses_a_frente` e `revisar_meses` vindos do `relatorios.json`), exatamente como o painel pedia ao
+  Klingo; as Metas (#13339) vêm dia a dia. Cada mês coletado por inteiro **substitui o mês inteiro** guardado (troca atômica);
+  mês que o banco ainda não coletou, relatório sem filtro de período comprovado, desativado ou sem título de coluna ficam
+  como estavam e viram aviso. Só regrava o mês cujo dado no banco é mais novo que o do painel. O botão **Atualizar agora**
+  (só administrador) copia na hora; além disso, quando alguém abre um painel cuja última atualização tem mais de **5 h**, ele
+  copia sozinho (`portal_nuvem.sincronizar_se_vencido`, também no cron diário). `PAINEL_FONTE=klingo` (variável da Vercel)
+  volta ao caminho antigo, que consulta o Klingo direto.
 - **Horário:** as funções rodam com fuso de Brasília (`TZ=BRT3`), senão "hoje" viraria amanhã depois das 21h.
 - **Cron (opcional):** `vercel.json` agenda `/api/preaquecer` todo dia às 06:30 (Brasília) para refazer as páginas e o primeiro
   acesso do dia não esperar a conta (a Cesta chega a levar mais de 1 min). Só funciona se existir a variável `CRON_SECRET`.

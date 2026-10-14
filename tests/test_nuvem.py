@@ -32,7 +32,9 @@ def setUpModule():
     sup, url = mn.subir(mn.criar_supabase(BANCO))
     kli, kurl = mn.subir(mn.criar_klingo())
     SERVIDORES.extend([sup, kli])
-    os.environ.update(SUPABASE_URL=url, SUPABASE_SERVICE_ROLE_KEY="svc", NEXT_PUBLIC_SUPABASE_ANON_KEY="anon", KLINGO_APP_TOKEN="token-de-teste")
+    # Estes testes cobrem o caminho antigo (consulta direta ao Klingo, PAINEL_FONTE=klingo); o caminho pelo banco e testado em test_fonte_banco.py
+    os.environ.update(SUPABASE_URL=url, SUPABASE_SERVICE_ROLE_KEY="svc", NEXT_PUBLIC_SUPABASE_ANON_KEY="anon", KLINGO_APP_TOKEN="token-de-teste",
+                      PAINEL_FONTE="klingo")
     import portal_nuvem  # noqa: F401  (poe as pastas dos paineis no sys.path)
     import extrair_laudo as ex
     ex.API_EXTERNA = kurl + "/api/info/relatorio"

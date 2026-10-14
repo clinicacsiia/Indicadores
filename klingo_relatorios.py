@@ -33,6 +33,7 @@ sys.path.insert(0, str(RAIZ))
 sys.path.insert(0, str(RAIZ / "Acompanhamento de META"))
 import armazenamento as arm  # noqa: E402  (Supabase no lugar do Excel, quando o portal roda na Vercel)
 import extrair_laudo as ex  # noqa: E402  (cliente da API do Klingo, token e config compartilhados com as Metas)
+import fonte_banco as fb  # noqa: E402  (na nuvem os paineis leem o banco, que a coleta do Supabase mantem em dia)
 
 COL_MES = "Mês (filtro)"
 COL_EM = "Atualizado em"
@@ -265,10 +266,89 @@ ORCAMENTO_S = float(os.environ.get("PAINEL_ORCAMENTO_S", "190"))   # a funcao da
 PRAZO_FINAL: float | None = None   # instante (time.time) em que a atualizacao tem de parar de baixar; quem chama (portal_nuvem) fixa um so para varias atualizacoes em sequencia
 
 
+def atualizar_do_banco(pasta: Path, forcar: bool = False, historico: bool = False) -> dict:
+    """Atualiza o painel a partir do BANCO (coleta unica do Supabase), sem consultar o Klingo. Mesma regra de substituicao: cada
+    (relatorio, mes) coberto pelo banco substitui o mes inteiro guardado no painel. Mes que o banco ainda nao coletou, relatorio
+    sem filtro de periodo comprovado ou sem titulos de coluna ficam como estavam e entram em `avisos`. So regrava o mes cujo dado
+    no banco e mais novo que o do painel."""
+    defn, painel = ler_definicao(pasta), arm.painel_de_pasta(pasta)
+    guardados = arm.meses_gravados(painel)
+    hoje = date.today()
+    hoje_ym = hoje.strftime("%Y-%m")
+    resumo: dict[str, dict] = {}
+    avisos, aguardando = [], 0
+
+    def gravou(aba: str, ym: str, n: int) -> None:
+        r = resumo.setdefault(aba, {"aba": aba, "linhas": 0, "meses": []})
+        r["linhas"] += n
+        r["meses"].append(ym)
+        print(f">>> {aba} {ym}: {n} linhas (do banco)", flush=True)
+
+    for rel in defn["relatorios"]:
+        aba = rel["aba"]
+        try:
+            info = fb.relatorio(rel["id"])
+            fb.conferir_pronto(info, rel["id"])
+            tit = fb.titulos(info["id"])
+            faltam = [t for t in colunas_exigidas(rel) if t not in tit.values()]
+            if faltam:
+                raise fb.DadosIncompletos(f"o relatório {rel['id']} não tem a(s) coluna(s) {', '.join(map(repr, faltam))} no banco: o Klingo mudou o relatório?")
+            execs = fb.execucoes(info["id"])
+        except fb.DadosIncompletos as e:
+            avisos.append(f"{aba}: {e}; mantive o que já estava guardado.")
+            continue
+
+        if rel.get("sem_periodo"):   # vem inteiro: vale a coleta mais recente; o "mes" guardado e so o da ultima baixa
+            if not execs:
+                aguardando += 1
+                continue
+            ultimo = max(execs)
+            quando, antes = execs[ultimo], guardados.get((aba, hoje_ym))
+            if antes and quando <= antes:
+                continue
+            try:
+                brutas = fb.brutas(info["id"], tit, ultimo, ultimo)
+            except fb.DadosIncompletos as e:
+                avisos.append(f"{aba}: {e}; mantive o que já estava guardado.")
+                continue
+            arm.gravar_mes(painel, aba, hoje_ym, converter(rel, brutas, hoje_ym, fb.hora_local(quando)), exclusivo=True)
+            gravou(aba, hoje_ym, len(brutas))
+            continue
+
+        primeiro = rel.get("primeiro_mes", defn["primeiro_mes"])
+        for ym in meses_entre(primeiro, mes_mais(hoje_ym, rel.get("meses_a_frente", 0))):
+            quando = fb.cobertura_mes(info, ym, execs, hoje)
+            if quando is None:
+                if ym <= hoje_ym:
+                    aguardando += 1
+                continue
+            antes = guardados.get((aba, ym))
+            if antes and quando <= antes:
+                continue   # o painel ja tem dado igual ou mais novo
+            de, ate = (f"{ym}-01", f"{ym}-01") if info.get("granularidade") == "mes" else (f"{ym}-01", fb.ultimo_dia(ym))
+            try:
+                brutas = fb.brutas(info["id"], tit, de, ate)
+            except fb.DadosIncompletos as e:
+                avisos.append(f"{aba} {ym}: {e}; mantive o que já estava guardado.")
+                continue
+            arm.gravar_mes(painel, aba, ym, converter(rel, brutas, ym, fb.hora_local(quando)))
+            gravou(aba, ym, len(brutas))
+
+    if aguardando:
+        avisos.append(f"{aguardando} mês(es) ainda não foram coletados pelo banco (a coleta roda sozinha a cada 5 minutos); ficam como estavam.")
+    partes = " · ".join(f"{r['aba']} {r['linhas']:,} linhas em {len(r['meses'])} mês(es)".replace(",", ".") for r in resumo.values())
+    msg = f"Atualizado a partir do banco: {partes or 'nada mais novo que o painel'}."
+    if avisos:
+        msg += " Atenção: " + " ".join(avisos)
+    return {"atualizou": bool(resumo), "resumo": list(resumo.values()), "avisos": avisos, "parcial": bool(aguardando), "mensagem": msg}
+
+
 def atualizar_nuvem(pasta: Path, forcar: bool = False, historico: bool = False, orcamento_s: float | None = None) -> dict:
     """Mesma regra da `atualizar` abaixo, gravando no Supabase. Cada (relatorio, mes) e gravado assim que baixa, entao um corte por
     tempo nao perde nada: o que ficou para tras entra no proximo clique. Ordem: o que nunca foi baixado, os 3 meses mais recentes, e
     depois os meses antigos do mais desatualizado para o mais novo (o Klingo pode corrigir mes antigo, e assim todos acabam revistos)."""
+    if fb.ativa():   # padrao na nuvem: os dados vem do banco; PAINEL_FONTE=klingo volta a consultar o Klingo daqui
+        return atualizar_do_banco(pasta, forcar=forcar, historico=historico)
     inicio, orcamento_s = time.time(), ORCAMENTO_S if orcamento_s is None else orcamento_s
     limite = PRAZO_FINAL or inicio + orcamento_s
     defn, painel = ler_definicao(pasta), arm.painel_de_pasta(pasta)

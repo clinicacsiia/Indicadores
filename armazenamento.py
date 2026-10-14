@@ -271,6 +271,12 @@ def registrar_atualizacao(painel: str, status: str, mensagem: str, duracao_segun
         print(f">>> AVISO: não consegui registrar a atualização no histórico ({e})", flush=True)
 
 
+def ultima_atualizacao(painel: str) -> datetime | None:
+    """Quando o painel foi atualizado pela ultima vez (botao ou automatica), mesmo que nao tenha mudado nada; None = nunca."""
+    _, _, res = _pedir("GET", "/rest/v1/painel_atualizacao", {"painel": f"eq.{painel}", "select": "criado_em", "order": "criado_em.desc", "limit": "1"})
+    return _dt(res[0]["criado_em"]) if res else None
+
+
 def custos_informados() -> dict[str, float]:
     """Custos digitados a mao (tabela painel_custo_item), no lugar da planilha 'Custos dos Itens.xlsx'."""
     try:

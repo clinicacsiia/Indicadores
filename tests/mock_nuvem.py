@@ -17,6 +17,7 @@ PADRAO_MES = re.compile(r"^\d{4}-\d\d$")
 class BancoSimulado:
     def __init__(self):
         self.dados, self.mes, self.paginas, self.pendencias, self.atualizacoes, self.custos = [], {}, {}, {}, [], []
+        self.relatorios, self.colunas, self.execucoes, self.linhas_dw = [], [], [], []   # a coleta unica do banco (dim_relatorio, dim_relatorio_coluna, sync_relatorio_runs, linhas vigentes)
         self.usuarios = {}   # token -> {"id","email"}
         self.perfis = {}     # id -> {"role","permissions"}
         self.trava = threading.Lock()
@@ -158,9 +159,25 @@ def criar_supabase(banco: BancoSimulado):
                         for k in [k for k, p in banco.pendencias.items() if _casa(p, f)]:
                             del banco.pendencias[k]
                         return self._enviar(204)
+                if tabela == "dim_relatorio":
+                    return self._enviar(200, [r for r in banco.relatorios if _casa(r, _filtros(params))])
+                if tabela == "dim_relatorio_coluna":
+                    return self._enviar_faixa([c for c in banco.colunas if _casa(c, _filtros(params))])
+                if tabela == "sync_relatorio_runs":
+                    return self._enviar_faixa([r for r in banco.execucoes if _casa(r, _filtros(params))])
+                if tabela == "v_relatorio_linha_vigente":
+                    lin = [l for l in banco.linhas_dw if _casa(l, _filtros(params))]
+                    faixa = re.match(r"^\(periodo\.gte\.(.+),periodo\.lte\.(.+)\)$", params.get("and", ""))
+                    if faixa:
+                        lin = [l for l in lin if faixa.group(1) <= l["periodo"] <= faixa.group(2)]
+                    lin.sort(key=lambda l: (l["periodo"], l["id"]))
+                    return self._enviar_faixa([{"linha": l["linha"], "repeticoes": l["repeticoes"]} for l in lin])
                 if tabela == "painel_atualizacao" and self.command == "POST":
-                    banco.atualizacoes.extend(self._corpo())
+                    banco.atualizacoes.extend({**a, "criado_em": datetime.now(timezone.utc).isoformat()} for a in self._corpo())
                     return self._enviar(201)
+                if tabela == "painel_atualizacao" and self.command == "GET":
+                    lin = sorted((a for a in banco.atualizacoes if _casa(a, _filtros(params))), key=lambda a: a["criado_em"], reverse=True)
+                    return self._enviar(200, lin[:int(params.get("limit", len(lin)))])
                 if tabela == "painel_custo_item":
                     return self._enviar_faixa([c for c in banco.custos if (c.get("custo") or 0) > 0])
             self._enviar(404, {"message": f"rota nao simulada: {self.command} {self.path}"})

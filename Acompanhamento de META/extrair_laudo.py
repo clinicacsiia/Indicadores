@@ -407,10 +407,55 @@ def dados_estao_recentes(intervalo_min: float) -> float | None:
     return idade if idade < intervalo_min else None
 
 
+def atualizar_do_banco() -> dict:
+    """Metas a partir do BANCO (relatorio #13339 coletado dia a dia pela Edge Function), sem consultar o Klingo: cada mes que o banco
+    cobre por inteiro substitui o mes guardado. Mes sem cobertura completa fica como estava."""
+    sys.path.insert(0, str(PASTA.parent))
+    import armazenamento as arm
+    import fonte_banco as fb
+    hoje = date.today()
+    try:
+        info = fb.relatorio(ID_RELATORIO)
+        fb.conferir_pronto(info, ID_RELATORIO)
+        tit = fb.titulos(info["id"])
+        faltam = [t for t in COLUNAS_API if t not in tit.values()]
+        if faltam:
+            raise fb.DadosIncompletos(f"o relatório {ID_RELATORIO} não tem a(s) coluna(s) {', '.join(map(repr, faltam))} no banco")
+        execs = fb.execucoes(info["id"])
+    except fb.DadosIncompletos as e:
+        return {"atualizou": False, "avisos": [str(e)], "mensagem": f"Metas: {e}; mantive o que já estava guardado."}
+    guardados = arm.meses_gravados(arm.PAINEL_METAS)
+    total, meses, avisos = 0, [], []
+    for m in range(1, hoje.month + 1):
+        ym = f"{hoje.year}-{m:02d}"
+        quando = fb.cobertura_mes(info, ym, execs, hoje)
+        if quando is None:
+            continue
+        antes = guardados.get((arm.ABA_METAS, ym))
+        if antes and quando <= antes:
+            continue
+        data = {"result": {"columns": [{"name": k, "title": t} for k, t in tit.items()],
+                           "data": [linha for linha, _ in fb.linhas_do_periodo(info["id"], f"{ym}-01", fb.ultimo_dia(ym))]}}
+        try:
+            linhas = [l for l in para_linhas(data) if l["Mês"] == ym]
+        except RespostaInvalida as e:
+            avisos.append(f"{ym}: {e}")
+            continue
+        total += arm.gravar_mes(arm.PAINEL_METAS, arm.ABA_METAS, ym, linhas)
+        meses.append(ym)
+    msg = f"Metas atualizadas a partir do banco: {total} atendimento(s) em {len(meses)} mês(es)." if meses else "Metas já estavam em dia com o banco."
+    if avisos:
+        msg += " Atenção: " + " ".join(avisos)
+    return {"atualizou": bool(meses), "novos": total, "total": total, "avisos": avisos, "mensagem": msg}
+
+
 def atualizar_nuvem(forcar: bool = False, historico: bool = False) -> dict:
     """Mesma consulta da `atualizar`, gravando no Supabase (um mes por vez, substituindo o mes inteiro) em vez de no Excel."""
     sys.path.insert(0, str(PASTA.parent))
     import armazenamento as arm
+    import fonte_banco as fb
+    if fb.ativa():   # padrao na nuvem: vem do banco; PAINEL_FONTE=klingo volta a consultar o Klingo
+        return atualizar_do_banco()
     periodos = ["a"] if historico else ["m"] + (["ma"] if date.today().day <= 5 else [])
     minimo = ler_config()["intervalo_minimo_minutos"]
     versao = arm.versao_dados(arm.PAINEL_METAS)

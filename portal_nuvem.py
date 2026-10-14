@@ -18,7 +18,7 @@ import sys
 import time
 import traceback
 import urllib.parse
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
 
@@ -37,6 +37,7 @@ import armazenamento as arm  # noqa: E402
 PADRAO_MES = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 PRAZO_TOTAL_S = 270          # a funcao da Vercel para em 300 s (maxDuration em vercel.json)
 FIM_DAS_ATUALIZACOES_S = 190  # ate aqui baixa do Klingo; o resto do tempo e para calcular e guardar a pagina
+SINCRONIA_S = 5 * 3600        # o painel copia do banco sozinho quando a ultima atualizacao tem mais de 5 h (alem do botao)
 CACHE_LOGIN_S = 60
 _LOGINS: dict[str, tuple[float, dict | None]] = {}
 _CODIGOS: dict[str, object] = {}
@@ -208,6 +209,22 @@ def atualizar(painel: str, usuario: str) -> dict:
         k.PRAZO_FINAL = None
 
 
+def sincronizar_se_vencido(painel: str) -> None:
+    """Atualizacao automatica: se a ultima atualizacao do painel (botao ou automatica) tem mais de 5 h, copia do banco agora. Nao consulta o
+    Klingo (a coleta do Supabase ja o faz), entao e rapido; qualquer pessoa que abrir o painel dispara, e o botao Atualizar continua valendo
+    a qualquer hora. Uma falha aqui nunca impede de abrir o painel."""
+    import fonte_banco as fb
+    if not fb.ativa():
+        return
+    try:
+        ultima = arm.ultima_atualizacao(painel)
+        if ultima and (datetime.now(timezone.utc) - ultima).total_seconds() < SINCRONIA_S:
+            return
+        atualizar(painel, "automático (a cada 5 h)")
+    except Exception as e:
+        print(f">>> AVISO: não consegui sincronizar {painel} com o banco: {type(e).__name__}: {e}", flush=True)
+
+
 def _preparar_paginas(painel: str, inicio: float) -> None:
     """Refaz a pagina do painel e, enquanto sobrar tempo, as dos paineis que leem os dados dele (para ninguem esperar a conta no primeiro acesso)."""
     dependentes = [p for p, deps in arm.DEPENDENCIAS.items() if painel in deps and p in modulos()]
@@ -275,6 +292,7 @@ def rota_pagina(h) -> None:
         painel = q.get("id", "")
         u = conferir_acesso(h.headers, painel)
         periodo = periodo_da_url(q.get("de", ""), q.get("ate", ""))
+        sincronizar_se_vencido(painel)
         try:
             html = garantir_pagina(painel, periodo)
         except Exception as e:
@@ -350,6 +368,7 @@ def rota_preaquecer(h) -> None:
                 resultado[painel] = "adiado"
                 continue
             try:
+                sincronizar_se_vencido(painel)
                 garantir_pagina(painel)
                 resultado[painel] = "ok"
             except Exception as e:
