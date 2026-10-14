@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, type Profile } from "@/lib/supabase/profile";
-import { IconAlerta } from "@/app/components/icons";
+import { signOut } from "@/app/actions";
+import { IconAlerta, IconSair } from "@/app/components/icons";
 import { PAINEIS } from "@/lib/paineis";
 import { NovoUsuarioForm } from "./NovoUsuarioForm";
 import { SolicitacaoForm } from "./SolicitacaoForm";
@@ -49,6 +50,26 @@ export default async function ConfiguracoesPage() {
           </p>
         </div>
       </header>
+
+      <section className="panel" aria-labelledby="titulo-sessao">
+        <div className="panel-head" style={{ paddingBottom: 12 }}>
+          <div>
+            <h2 className="panel-title" id="titulo-sessao">Sua sessão</h2>
+            <p className="panel-sub">
+              Você está como <strong>{nomeDe(profile.email) || "usuário"}</strong>. Saia, ou troque para outro usuário (vai para a tela de login).
+            </p>
+          </div>
+        </div>
+        <form action={signOut} className="sessao-acoes">
+          <button type="submit" className="btn">
+            <IconSair size={16} />
+            Sair
+          </button>
+          <button type="submit" className="btn btn-primary">
+            Trocar de usuário
+          </button>
+        </form>
+      </section>
 
       {error && (
         <div className="notice" role="alert">

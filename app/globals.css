@@ -2130,3 +2130,10 @@ select {
     flex-wrap: wrap;
   }
 }
+
+.sessao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 20px 20px;
+}
