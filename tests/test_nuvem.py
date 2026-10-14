@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import unittest
+from datetime import timedelta
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -41,7 +42,7 @@ def setUpModule():
     BANCO.novo_usuario("tok-admin", "csiadmin@csi.local", "admin")
     BANCO.novo_usuario("tok-viewer", "ana@csi.local", "viewer", {"despesas": True, "faturamento": False})
     BANCO.novo_usuario("tok-sem", "bia@csi.local", "viewer", {})
-    for nome in ("painel", "atualizar", "estado", "pendencias"):   # as funcoes da Vercel, carregadas do jeito que a Vercel as carrega
+    for nome in ("painel", "atualizar", "estado", "pendencias", "renovar"):   # as funcoes da Vercel, carregadas do jeito que a Vercel as carrega
         spec = importlib.util.spec_from_file_location(f"api_{nome}", RAIZ / "api" / f"{nome}.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -157,14 +158,24 @@ class FluxoTest(unittest.TestCase):
         finally:
             pn.montar_pagina = original
 
-        # 6. dado novo invalida a pagina guardada (a versao tem resolucao de 1 s)
+        # 6. dado novo deixa a pagina guardada VENCIDA (a versao tem resolucao de 1 s): ela sai na hora, sem recalcular, marcada como vencida;
+        #    quem a refaz e a renovacao pedida pela tela do site
         time.sleep(1.1)
         arm.gravar_mes("despesas", pn.codigo_do("despesas").k.ler_definicao(RAIZ / "Despesas")["relatorios"][0]["aba"], "2026-10", [], exclusivo=False)
         arm._CACHE_VERSAO.clear()
         pn.montar_pagina = lambda *a, **k: chamadas.append(a) or original(*a, **k)
         try:
-            chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            _, html = chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            self.assertEqual(len(chamadas), 1, "abrir o painel nao pode esperar a conta")
+            self.assertIn("window.PAINEL_VENCIDO=true", html)
+            status, corpo = chamar("renovar", "/api/renovar?id=despesas", token="tok-viewer", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+            self.assertEqual(status, 200)
+            self.assertTrue(json.loads(corpo)["ok"])
             self.assertEqual(len(chamadas), 2)
+            _, html = chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            self.assertEqual(len(chamadas), 2)
+            self.assertIn("window.PAINEL_VENCIDO=false", html)
+            self.assertEqual(BANCO.renovacoes, {}, "a trava ficou presa")
         finally:
             pn.montar_pagina = original
 
@@ -180,10 +191,15 @@ class FluxoTest(unittest.TestCase):
         pn.montar_pagina = lambda *a, **k: chamadas.append(a) or original(*a, **k)
         try:
             _, html = chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            self.assertEqual(chamadas, [], "o layout antigo sai na hora; refazer e com a renovacao")
+            self.assertIn("layout:antigo", html)
+            self.assertIn("window.PAINEL_VENCIDO=true", html)
+            chamar("renovar", "/api/renovar?id=despesas", token="tok-viewer", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
             self.assertEqual(len(chamadas), 1)
-            self.assertIn(pn._marca_layout(), html)
             self.assertIn(pn._marca_layout(), BANCO.paginas[("despesas", "padrao")]["html"])
-            chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            _, html = chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            self.assertIn(pn._marca_layout(), html)
+            self.assertIn("window.PAINEL_VENCIDO=false", html)
             self.assertEqual(len(chamadas), 1)   # refeita uma vez so
         finally:
             pn.montar_pagina = original
@@ -292,6 +308,116 @@ class FluxoTest(unittest.TestCase):
             avisos.sincronizar = original
         self.assertEqual(status, 200)
         self.assertEqual(chamadas, [])
+
+
+class RenovacaoTest(unittest.TestCase):
+    """Abrir o painel nunca espera a atualizacao: a pagina velha sai na hora e a tela do site pede a renovacao (com trava e andamento)."""
+
+    def setUp(self):
+        BANCO.renovacoes.clear()
+        chamar("atualizar", "/api/atualizar?id=despesas", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+        BANCO.renovacoes.clear()
+
+    def renovar(self, token="tok-viewer", painel="despesas"):
+        status, corpo = chamar("renovar", f"/api/renovar?id={painel}", token=token, metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+        return status, json.loads(corpo)
+
+    def test_renovar_exige_cabecalho_login_e_permissao(self):
+        self.assertEqual(chamar("renovar", "/api/renovar?id=despesas", token="tok-viewer", metodo="POST", corpo={})[0], 403)           # sem X-Painel
+        self.assertEqual(chamar("renovar", "/api/renovar?id=despesas", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})[0], 401)  # sem login
+        self.assertEqual(chamar("renovar", "/api/renovar?id=despesas", token="tok-sem", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})[0], 403)
+        self.assertEqual(chamar("renovar", "/api/renovar?id=faturamento", token="tok-viewer", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})[0], 403)
+
+    def test_pagina_em_dia_nao_esta_vencida(self):
+        _, html = chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+        self.assertIn("window.PAINEL_VENCIDO=false", html)
+
+    def test_dia_novo_deixa_a_pagina_vencida_e_a_renovacao_refaz(self):
+        import portal_nuvem as pn
+        BANCO.paginas[("despesas", "padrao")]["dia"] = "2020-01-01"
+        chamadas = []
+        original = pn.montar_pagina
+        pn.montar_pagina = lambda *a, **k: chamadas.append(a) or original(*a, **k)
+        try:
+            _, html = chamar("painel", "/api/painel?id=despesas", token="tok-viewer")
+            self.assertEqual(chamadas, [])
+            self.assertIn("window.PAINEL_VENCIDO=true", html)
+            self.assertRegex(html, r"window.PAINEL_PREVISTO_S=\d+;")
+            status, r = self.renovar()
+            self.assertEqual((status, r["ok"], r["ocupado"], r["falhou"]), (200, True, False, False))
+            self.assertEqual(len(chamadas), 1)
+            self.assertEqual(BANCO.paginas[("despesas", "padrao")]["dia"], pn.date.today().isoformat())
+            self.assertEqual(BANCO.atualizacoes[-1]["status"], "pagina")   # fica no historico, sem contar como copia dos dados
+            self.assertEqual(BANCO.renovacoes, {})
+        finally:
+            pn.montar_pagina = original
+
+    def test_outra_renovacao_em_andamento_devolve_o_andamento_e_nao_roda_junto(self):
+        import portal_nuvem as pn
+        BANCO.paginas[("despesas", "padrao")]["dia"] = "2020-01-01"
+        agora = pn.datetime.now(pn.timezone.utc)
+        BANCO.renovacoes["despesas"] = {"painel": "despesas", "usuario": "ana@csi.local", "previsto_s": 45,
+                                        "iniciado_em": (agora - timedelta(seconds=10)).isoformat(timespec="seconds")}
+        chamadas = []
+        original = pn.montar_pagina
+        pn.montar_pagina = lambda *a, **k: chamadas.append(a) or original(*a, **k)
+        try:
+            _, r = self.renovar()
+            self.assertTrue(r["ok"] and r["ocupado"], r)
+            self.assertEqual(r["andamento"]["previsto_s"], 45)
+            self.assertGreaterEqual(r["andamento"]["decorrido_s"], 9)
+            self.assertEqual(chamadas, [], "rodou junto com a outra")
+            _, est = chamar("estado", "/api/estado?id=despesas", token="tok-viewer")
+            est = json.loads(est)
+            self.assertTrue(est["atualizando"])
+            self.assertEqual(est["andamento"]["previsto_s"], 45)
+            # o botao Atualizar agora do admin tambem respeita a trava e explica
+            _, corpo = chamar("atualizar", "/api/atualizar?id=despesas", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+            resp = json.loads(corpo)
+            self.assertTrue(resp["ok"] and resp["atualizou"] is False and "já está sendo atualizado" in resp["mensagem"], resp)
+            self.assertIn("despesas", BANCO.renovacoes, "o botao nao pode soltar a trava dos outros")
+        finally:
+            pn.montar_pagina = original
+
+    def test_trava_de_execucao_que_morreu_vence_sozinha(self):
+        import portal_nuvem as pn
+        BANCO.renovacoes["despesas"] = {"painel": "despesas", "usuario": "ana@csi.local", "previsto_s": 45,
+                                        "iniciado_em": (pn.datetime.now(pn.timezone.utc) - timedelta(minutes=7)).isoformat(timespec="seconds")}
+        _, est = chamar("estado", "/api/estado?id=despesas", token="tok-viewer")
+        self.assertFalse(json.loads(est)["atualizando"])
+        _, r = self.renovar()
+        self.assertTrue(r["ok"] and not r["ocupado"], r)
+        self.assertEqual(BANCO.renovacoes, {})
+
+    def test_falha_ao_renovar_solta_a_trava(self):
+        import portal_nuvem as pn
+        BANCO.paginas[("despesas", "padrao")]["dia"] = "2020-01-01"
+        original = pn.montar_pagina
+
+        def quebra(*a, **k):
+            raise RuntimeError("falhou de mentira")
+        pn.montar_pagina = quebra
+        try:
+            _, r = self.renovar()
+            self.assertFalse(r["ok"])
+            self.assertEqual(BANCO.renovacoes, {})
+        finally:
+            pn.montar_pagina = original
+
+    def test_login_em_paralelo_confere_o_token_no_supabase(self):
+        """Token com cara de JWT: o perfil e buscado junto, mas so vale se o Supabase confirmar o token E o mesmo id."""
+        def jwt(sub):
+            corpo = base64.urlsafe_b64encode(json.dumps({"sub": sub}).encode()).decode().rstrip("=")
+            return f"cabecalho.{corpo}.assinatura"
+        uid = BANCO.novo_usuario(jwt("uid-do-token-admin"), "ana2@csi.local", "viewer", {"despesas": True})
+        BANCO.usuarios[jwt("uid-do-token-admin")]["id"] = "uid-do-token-admin"   # o id do JWT bate com o do Supabase
+        BANCO.perfis["uid-do-token-admin"] = BANCO.perfis[uid]
+        status, _ = chamar("estado", "/api/estado?id=despesas", token=jwt("uid-do-token-admin"))
+        self.assertEqual(status, 200)
+        # JWT que diz ser outra pessoa (admin) mas o Supabase diz que o dono e um viewer sem permissao: vale o que o Supabase diz
+        BANCO.novo_usuario(jwt("uid-1"), "bia2@csi.local", "viewer", {})
+        self.assertEqual(chamar("estado", "/api/estado?id=despesas", token=jwt("uid-1"))[0], 403)
+        self.assertEqual(chamar("estado", "/api/estado?id=despesas", token=jwt("qualquer"))[0], 401)
 
 
 class DadosTest(unittest.TestCase):

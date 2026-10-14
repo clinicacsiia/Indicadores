@@ -20,6 +20,7 @@ class BancoSimulado:
         self.avisos_sync = []        # (painel, escopos, versao, alertas) de cada chamada de aviso_sincronizar
         self.falhar_avisos = False   # a sincronizacao responde erro (o painel tem de abrir do mesmo jeito)
         self.relatorios, self.colunas, self.execucoes, self.linhas_dw = [], [], [], []   # a coleta unica do banco (dim_relatorio, dim_relatorio_coluna, sync_relatorio_runs, linhas vigentes)
+        self.renovacoes = {}   # painel -> {"painel","iniciado_em","previsto_s","usuario"}: a trava de painel_renovacao
         self.usuarios = {}   # token -> {"id","email"}
         self.perfis = {}     # id -> {"role","permissions"}
         self.trava = threading.Lock()
@@ -36,7 +37,7 @@ def _filtros(params):
     """{coluna: (operador, valor)} dos parametros 'coluna=op.valor' (ignora select/order/limit/on_conflict/or)."""
     out = {}
     for k, v in params.items():
-        m = re.match(r"^(eq|neq|gt)\.(.*)$", v)
+        m = re.match(r"^(eq|neq|gt|lt)\.(.*)$", v)
         if m and k not in ("select", "order", "limit", "on_conflict", "or"):
             out[k] = (m.group(1), m.group(2))
     return out
@@ -50,6 +51,8 @@ def _casa(linha, filtros):
         if op == "neq" and atual == val:
             return False
         if op == "gt" and not (float(linha.get(col) or 0) > float(val)):
+            return False
+        if op == "lt" and not (str(linha.get(col)) < val):   # datas ISO no mesmo formato comparam como texto
             return False
     return True
 
@@ -169,6 +172,19 @@ def criar_supabase(banco: BancoSimulado):
                         lin = [l for l in lin if faixa.group(1) <= l["periodo"] <= faixa.group(2)]
                     lin.sort(key=lambda l: (l["periodo"], l["id"]))
                     return self._enviar_faixa([{"linha": l["linha"], "repeticoes": l["repeticoes"]} for l in lin])
+                if tabela == "painel_renovacao":
+                    if self.command == "DELETE":
+                        for k in [k for k, r in banco.renovacoes.items() if _casa(r, _filtros(params))]:
+                            del banco.renovacoes[k]
+                        return self._enviar(204)
+                    if self.command == "POST":   # resolution=ignore-duplicates,return=representation: devolve so o que entrou
+                        novas = []
+                        for r in self._corpo():
+                            if r["painel"] not in banco.renovacoes:
+                                banco.renovacoes[r["painel"]] = r
+                                novas.append(r)
+                        return self._enviar(201, novas)
+                    return self._enviar(200, [r for r in banco.renovacoes.values() if _casa(r, _filtros(params))])
                 if tabela == "painel_atualizacao" and self.command == "POST":
                     banco.atualizacoes.extend({**a, "criado_em": datetime.now(timezone.utc).isoformat()} for a in self._corpo())
                     return self._enviar(201)

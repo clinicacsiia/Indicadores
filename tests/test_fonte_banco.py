@@ -248,23 +248,28 @@ class SincroniaAutomaticaTest(unittest.TestCase):
         import armazenamento as arm
         arm._CACHE_VERSAO.clear()
 
+    @staticmethod
+    def copias():
+        return [a for a in BANCO.atualizacoes if a["status"] != "pagina"]   # refazer so a pagina nao e uma copia dos dados
+
     def test_copia_do_banco_sozinha_a_cada_5_horas(self):
         import portal_nuvem as pn
         semear_cesta(Semeador())
-        pn.sincronizar_se_vencido("cesta")   # nunca atualizado: copia
-        self.assertEqual(len(BANCO.atualizacoes), 1)
+        self.assertTrue(pn.renovar("cesta", "cron")["ok"])   # nunca atualizado: copia
+        self.assertEqual(len(self.copias()), 1)
         self.assertIn("automático", BANCO.atualizacoes[0]["usuario"])
         self.assertTrue(BANCO.mes, "nao copiou")
-        pn.sincronizar_se_vencido("cesta")   # acabou de atualizar: nao repete
-        self.assertEqual(len(BANCO.atualizacoes), 1)
+        pn.renovar("cesta", "cron")   # acabou de atualizar: nao copia de novo
+        self.assertEqual(len(self.copias()), 1)
         BANCO.atualizacoes[0]["criado_em"] = (agora_utc() - timedelta(hours=5, minutes=1)).isoformat()
-        pn.sincronizar_se_vencido("cesta")   # passou de 5 h: confere de novo
-        self.assertEqual(len(BANCO.atualizacoes), 2)
+        pn.renovar("cesta", "cron")   # passou de 5 h: confere de novo
+        self.assertEqual(len(self.copias()), 2)
 
-    def test_falha_na_sincronia_nao_derruba_a_abertura_do_painel(self):
+    def test_falha_na_sincronia_nao_derruba_nada(self):
         import portal_nuvem as pn
-        # sem nada no banco simulado o relatorio nao existe: o painel segue com o que tem, sem excecao
-        pn.sincronizar_se_vencido("cesta")
+        # sem nada no banco simulado o relatorio nao existe: a renovacao segue com o que tem, sem excecao
+        r = pn.renovar("cesta", "cron")
+        self.assertTrue(r["ok"] or r["falhou"], r)
 
 
 class MetasDoBancoTest(unittest.TestCase):
