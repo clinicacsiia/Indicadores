@@ -10,9 +10,11 @@ type Props = {
   paineis: Painel[];
   // Avisos abertos que esta pessoa pode ver (e quantos são críticos), para o contador do menu.
   avisos: { abertos: number; criticos: number };
+  // Pedidos de acesso aguardando aprovação (só o administrador vê), para o contador de Configurações.
+  pedidos: number;
 };
 
-export function NavLinks({ isAdmin, paineis, avisos }: Props) {
+export function NavLinks({ isAdmin, paineis, avisos, pedidos }: Props) {
   const pathname = usePathname();
 
   const links: {
@@ -22,6 +24,7 @@ export function NavLinks({ isAdmin, paineis, avisos }: Props) {
     ativo: boolean;
     contador?: number;
     critico?: boolean;
+    textoContador?: (n: number) => string;
   }[] = [
     { href: "/", rotulo: "Início", icone: <IconInicio />, ativo: pathname === "/" },
     {
@@ -31,6 +34,7 @@ export function NavLinks({ isAdmin, paineis, avisos }: Props) {
       ativo: pathname.startsWith("/avisos"),
       contador: avisos.abertos,
       critico: avisos.criticos > 0,
+      textoContador: (n) => `${n} ${n === 1 ? "aviso aberto" : "avisos abertos"}`,
     },
     { href: "/metas", rotulo: "Metas", icone: <IconMetas />, ativo: pathname.startsWith("/metas") },
     ...paineis.map((p) => ({
@@ -46,6 +50,9 @@ export function NavLinks({ isAdmin, paineis, avisos }: Props) {
             rotulo: "Configurações",
             icone: <IconConfig />,
             ativo: pathname.startsWith("/configuracoes"),
+            contador: pedidos,
+            critico: pedidos > 0,
+            textoContador: (n: number) => `${n} ${n === 1 ? "pedido de acesso aguardando" : "pedidos de acesso aguardando"} aprovação`,
           },
         ]
       : []),
@@ -67,7 +74,7 @@ export function NavLinks({ isAdmin, paineis, avisos }: Props) {
             <span className="nav-contador" data-critico={l.critico ? "true" : undefined}>
               <span aria-hidden="true">{l.contador > 99 ? "99+" : l.contador}</span>
               <span className="sr-only">
-                {l.contador} {l.contador === 1 ? "aviso aberto" : "avisos abertos"}
+                {l.textoContador?.(l.contador)}
               </span>
             </span>
           ) : null}
