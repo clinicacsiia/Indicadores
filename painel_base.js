@@ -254,7 +254,7 @@ function empilhada(segs, fmt = v => num(v)) {
 }
 
 // ---- donut: no maximo 4 fatias (o resto vira "Outros"). fatias = [{rotulo, valor, cor, tip}]; o: {centro: {num, rot}, fmt, max, outros}
-const TONS_DONUT = ['var(--accent)', 'var(--neutro)', 'var(--neutro-2)', 'var(--neutro-3)'];
+const TONS_DONUT = ['var(--accent)', 'var(--s1)', 'var(--neutro-2)', 'var(--neutro-3)'];
 function donut(fatias, o = {}) {
   let f = fatias.filter(x => x.valor > 0).sort((a, b) => b.valor - a.valor);
   const max = o.max || 4, fmt = o.fmt || (v => num(v));
@@ -336,7 +336,7 @@ function miniLinha(titulo, dias, campo, o = {}) {
   const xRot = dias.filter((d, i) => i === 0 || i === n - 1 || dia(d) % passo === 0).map(d => ({ x: dia(d), t: String(dia(d)) }));
   const tipX = x => { const d = dias.find(z => dia(z) === x); return `${d.d.length === 10 ? dataBR(d.d) : 'Dia ' + x}${d.dom ? ' (sem expediente)' : ''}\n${titulo}: ${(o.fmt || num)(d[campo] || 0)}`; };
   return `<p class="graf-tit">${esc(titulo)}</p>` + linhas({ W: o.W || 520, H: 120, ml: 24, mt: 22, mb: 24, mr: 56, fmt: o.fmt || (v => num(v)), teto, xRot, tipX, aria: titulo,
-    series: [{ cor: o.cor || 'var(--neutro)', principal: true, rotuloFim: true, marcaPico: !cortar, pontos: dias.map((d, i) => ({ x: dia(d), y: vals[i] })) }] });
+    series: [{ cor: o.cor || 'var(--accent)', principal: true, rotuloFim: true, marcaPico: !cortar, pontos: dias.map((d, i) => ({ x: dia(d), y: vals[i] })) }] });
 }
 
 // tabela: cols = [{t, n?, txt?}]; linhas = arrays de strings ja formatadas; rodape opcional

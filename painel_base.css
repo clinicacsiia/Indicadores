@@ -167,7 +167,7 @@
   .pag-info { font-variant-numeric: tabular-nums; }
   .barra-rot { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .barra-area { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; height: 22px; }
-  .barra-fill { flex: none; height: 14px; background: var(--cor, var(--neutro)); border-radius: 0 3px 3px 0; min-width: 2px; }
+  .barra-fill { flex: none; height: 14px; background: var(--cor, var(--s1)); border-radius: 0 6px 6px 0; min-width: 2px; }
   .barra-val { position: relative; z-index: 1; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600;
     text-shadow: -3px 0 var(--page), 3px 0 var(--page), 0 -3px var(--page), 0 3px var(--page), 0 0 4px var(--page); }   /* o numero "apaga" a marca que passa por tras */
   .barra-val small { color: var(--ink2); font-weight: 400; margin-left: 6px; }
@@ -252,7 +252,7 @@
      Tudo abaixo repete, com os mesmos nomes de classe, o que app/globals.css faz nas telas Inicio, Metas e Configuracoes. */
 
   /* dentro do site (iframe), quem da o respiro e o fundo e a propria tela do site */
-  .embutido body { background: transparent; }
+  .embutido body { background: var(--page); }   /* o mesmo azul de fundo do site (--bg), sem depender de transparencia */
   .embutido .wrap { max-width: none; padding: 0 0 24px; }
 
   /* cabecalho de pagina: marca, titulo, descricao e (a direita) a acao da tela */
