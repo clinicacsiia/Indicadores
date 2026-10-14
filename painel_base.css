@@ -321,6 +321,16 @@
   details.ajuda > summary { font-family: var(--font-display); }
   .btn-mini { border-radius: var(--radius-sm); }
 
+  /* um bloco so, dentro de um cartao da tela de Inicio (?aba=...&item=...): quem da o titulo e a borda e o cartao do site */
+  .modo-item body { background: transparent; }
+  .modo-item .wrap { padding: 0; }
+  .modo-item [data-item-titulo] { display: none; }
+  .modo-item .tier { margin-top: 0; }
+  .modo-item .tier > section { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  .modo-item details.acord { border: 0; }
+  .modo-item details.acord > summary { display: none; }
+  .modo-item .item-ausente { margin: 0; }
+
   @media print {
     .toolbar { display: none !important; }
     .tier > section, .kpi, details.ajuda, .toolbar { box-shadow: none; }

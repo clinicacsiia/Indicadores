@@ -1,12 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 
-// RLS (policy "painel_favoritos_select_own") garante que isso só traz os
+// Um gráfico (ou bloco) de um painel que o usuário fixou no Início. `aba` e `chave` acham o bloco dentro do painel
+// (ver itensDaPagina em painel_base.js); `titulo` é o texto que ele tinha quando foi escolhido.
+export type FavoritoItem = { painel_id: string; aba: string; chave: string; titulo: string };
+
+export const LIMITE_FAVORITOS = 40;
+
+// RLS (policy "painel_favoritos_itens_select_own") garante que isso só traz os
 // favoritos do próprio usuário logado.
-export async function listarFavoritos(): Promise<string[]> {
+export async function listarFavoritos(): Promise<FavoritoItem[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("painel_favoritos")
-    .select("painel_id")
+    .from("painel_favoritos_itens")
+    .select("painel_id, aba, chave, titulo")
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -14,5 +20,5 @@ export async function listarFavoritos(): Promise<string[]> {
     return [];
   }
 
-  return (data ?? []).map((r) => r.painel_id as string);
+  return (data ?? []) as FavoritoItem[];
 }

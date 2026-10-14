@@ -629,3 +629,94 @@ function iniciarAtualizacao(versaoAtual) {
     } catch (e) {}
   }, 30000);
 }
+
+// ---- itens da pagina, para a tela de Inicio do site
+// Cada grafico/bloco com titulo, agrupado pela aba (Resumo, Analise, Detalhes...), pode ser escolhido la como favorito. A tela do site
+// carrega esta mesma pagina num quadro e (1) pergunta a lista (mensagem "itens") e (2) pede um so item (?aba=...&item=...), e a pagina
+// esconde o resto. Tudo sai do HTML ja montado: um grafico novo nos modelos aparece na lista sem mexer aqui.
+const MESES_NOME = /\b(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\/\d{4}\b/gi;
+// o titulo muda com o mes ("Ritmo dos dias em Outubro/2026") e com contagens ("Os 12 exames..."): a chave ignora isso para o favorito seguir valendo
+const chaveDoItem = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(MESES_NOME, '').replace(/\d+/g, '#').replace(/\s+/g, ' ').trim();
+const h2Soltos = el => [...el.querySelectorAll('h2')].filter(h => !h.closest('details'));
+
+function itensDaPagina() {
+  const itens = [], vistos = new Set();
+  const acrescentar = (aba, titulo, els, h2) => {
+    titulo = String(titulo).replace(/\s+/g, ' ').trim();
+    const chave = chaveDoItem(titulo), id = aba + '\u0001' + chave;
+    if (!titulo || !chave || vistos.has(id)) return;   // dois blocos com o mesmo titulo na mesma aba: vale o primeiro
+    vistos.add(id);
+    itens.push({ aba, titulo, chave, els, h2 });
+  };
+  document.querySelectorAll('#conteudo .tier').forEach(tier => {
+    const aba = (tier.querySelector('.tier-h b') || {}).textContent || '';
+    if (!aba.trim()) return;
+    [...tier.children].forEach(filho => {
+      if (filho.matches('.kpis')) acrescentar(aba.trim(), 'Números principais', [filho], null);
+    });
+    tier.querySelectorAll('details.acord').forEach(d => {
+      const s = d.querySelector(':scope > summary');
+      if (!s) return;
+      const c = s.cloneNode(true);
+      c.querySelectorAll('small').forEach(x => x.remove());
+      acrescentar(aba.trim(), c.textContent, [d], null);
+    });
+    h2Soltos(tier).forEach(h => {
+      let c = h;   // sobe enquanto o pai so tem este titulo: o bloco inteiro do grafico (cartao, nota, grafico)
+      while (c.parentElement && c.parentElement !== tier && h2Soltos(c.parentElement).length === 1) c = c.parentElement;
+      let els = [c];
+      if (c === h) {   // titulo solto entre outros: o bloco vai ate o proximo titulo
+        els = [h];
+        for (let n = h.nextElementSibling; n && !n.matches('h2') && !h2Soltos(n).length; n = n.nextElementSibling) els.push(n);
+      }
+      acrescentar(aba.trim(), h.textContent, els, h);
+    });
+  });
+  return itens;
+}
+
+// deixa visivel so o caminho ate os elementos escolhidos e o que tem dentro deles
+function isolarItem(els) {
+  const caminho = new Set();
+  els.forEach(e => { for (let n = e; n; n = n.parentElement) caminho.add(n); });
+  const passar = pai => [...pai.children].forEach(c => {
+    if (c.tagName === 'SCRIPT' || c.tagName === 'STYLE') return;
+    if (!caminho.has(c)) c.style.display = 'none';
+    else if (!els.includes(c)) passar(c);
+  });
+  passar(document.body);
+}
+
+(function itensParaOInicio() {
+  const alvo = $('conteudo');
+  if (!alvo) return;
+  const q = new URLSearchParams(location.search), pedidoAba = q.get('aba'), pedidoItem = q.get('item');
+  const modoItem = pedidoAba != null && pedidoItem != null;
+  if (modoItem) document.documentElement.classList.add('modo-item');
+  let ocupado = false;
+  const observador = new MutationObserver(() => {
+    if (ocupado) return;
+    ocupado = true;
+    try {
+      const itens = itensDaPagina();
+      if (modoItem) {
+        const achado = itens.find(i => i.aba === pedidoAba && i.chave === pedidoItem);
+        if (achado) {
+          if (achado.h2) achado.h2.setAttribute('data-item-titulo', '');
+          achado.els.forEach(e => { if (e.matches('details')) e.open = true; });
+          isolarItem(achado.els);
+        } else {
+          observador.disconnect();   // trocar o conteudo abaixo nao pode chamar este mesmo observador de novo
+          alvo.innerHTML = '<p class="nota item-ausente">Este bloco não aparece neste momento (o painel só o mostra quando há dados para ele). Use “Abrir painel” para ver tudo.</p>';
+          isolarItem([alvo]);
+        }
+      }
+      if (window.parent !== window) {
+        window.parent.postMessage({ tipo: 'itens', painel: painelAtual(), itens: itens.map(({ aba, titulo, chave }) => ({ aba, titulo, chave })) }, location.origin);
+      }
+    } finally {
+      ocupado = false;
+    }
+  });
+  observador.observe(alvo, { childList: true });
+})();
