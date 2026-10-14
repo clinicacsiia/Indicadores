@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Brand } from "@/app/components/Brand";
-import { LoginForm } from "./LoginForm";
+import { AcessoPanel } from "./AcessoPanel";
 
 export const metadata: Metadata = { title: "Entrar" };
 
@@ -55,11 +55,7 @@ export default function LoginPage() {
           <div className="login-mobile-brand">
             <Brand />
           </div>
-          <div>
-            <h1>Entrar</h1>
-            <p className="lede">Use o usuário e a senha da equipe para acessar os indicadores.</p>
-          </div>
-          <LoginForm />
+          <AcessoPanel />
         </div>
       </section>
     </main>

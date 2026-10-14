@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { PAINEIS } from "@/lib/paineis";
+import { BLOQUEIO_PENDENTE, DOMINIO_INTERNO } from "@/lib/acesso";
 
 // RLS (policy "profiles_update_admin") é quem realmente garante que só admin
 // grava aqui, mesmo que estas actions sejam chamadas diretamente.
@@ -91,7 +92,6 @@ export async function updateProfileAccess(userId: string, acesso: Record<string,
 // ───────── Criar usuário e redefinir senha ─────────
 // Usam a service role (ignora RLS), então SEMPRE conferem antes se quem chama é admin.
 
-const DOMINIO_INTERNO = "csi.local";
 const SENHA_MINIMA = 6;
 
 export type UsuarioAdminState = { ok?: boolean; error?: string; mensagem?: string };
@@ -164,4 +164,93 @@ export async function redefinirSenha(
   }
 
   return { ok: true, mensagem: "Senha redefinida." };
+}
+
+// ───────── Excluir usuário e pedidos de acesso ─────────
+
+// Apaga o login no Supabase Auth; o perfil e os favoritos somem junto (on delete cascade).
+export async function excluirUsuario(
+  _prev: UsuarioAdminState,
+  formData: FormData
+): Promise<UsuarioAdminState> {
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) return { error: "Usuário inválido." };
+
+  const acesso = await exigirAdmin();
+  if ("error" in acesso) return { error: acesso.error };
+
+  // Evita que o administrador apague o próprio acesso (e a tela de Configurações junto).
+  const perfil = await getCurrentProfile();
+  if (perfil?.id === userId) return { error: "Você não pode excluir o seu próprio usuário." };
+
+  const { error } = await acesso.admin.auth.admin.deleteUser(userId);
+  if (error) {
+    console.error("Falha ao excluir usuário:", error.message);
+    return { error: "Não foi possível excluir o usuário." };
+  }
+
+  revalidatePath("/configuracoes");
+  return { ok: true, mensagem: "Usuário excluído." };
+}
+
+// Só recusa quem ainda está pendente; para apagar quem já tem acesso existe excluirUsuario.
+export async function recusarSolicitacao(
+  _prev: UsuarioAdminState,
+  formData: FormData
+): Promise<UsuarioAdminState> {
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) return { error: "Pedido inválido." };
+
+  const acesso = await exigirAdmin();
+  if ("error" in acesso) return { error: acesso.error };
+
+  const { data: alvo } = await acesso.admin.from("profiles").select("status").eq("id", userId).single();
+  if (alvo?.status !== "pendente") return { error: "Este pedido não está mais pendente." };
+
+  const { error } = await acesso.admin.auth.admin.deleteUser(userId);
+  if (error) {
+    console.error("Falha ao recusar pedido de acesso:", error.message);
+    return { error: "Não foi possível recusar o pedido." };
+  }
+
+  revalidatePath("/configuracoes");
+  return { ok: true, mensagem: "Pedido recusado." };
+}
+
+// Aprova o pedido: desbloqueia o login e já grava a permissão e as telas escolhidas pelo administrador.
+export async function aprovarSolicitacao(
+  _prev: UsuarioAdminState,
+  formData: FormData
+): Promise<UsuarioAdminState> {
+  const userId = String(formData.get("userId") ?? "");
+  const role = formData.get("role") === "admin" ? "admin" : "viewer";
+  if (!userId) return { error: "Pedido inválido." };
+
+  const acesso = await exigirAdmin();
+  if ("error" in acesso) return { error: acesso.error };
+
+  const { data: alvo } = await acesso.admin.from("profiles").select("status").eq("id", userId).single();
+  if (alvo?.status !== "pendente") return { error: "Este pedido não está mais pendente." };
+
+  const permissions: Record<string, boolean> = {
+    metas: formData.get("metas") === "on",
+    ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
+  };
+
+  const { error: desbloqueioError } = await acesso.admin.auth.admin.updateUserById(userId, { ban_duration: "none" });
+  if (desbloqueioError) {
+    console.error("Falha ao desbloquear usuário:", desbloqueioError.message);
+    return { error: "Não foi possível aprovar o pedido." };
+  }
+
+  const { error } = await acesso.admin.from("profiles").update({ status: "ativo", role, permissions }).eq("id", userId);
+  if (error) {
+    console.error("Falha ao ativar perfil:", error.message);
+    // Volta ao estado anterior para o pedido não ficar "pendente" com o login já liberado.
+    await acesso.admin.auth.admin.updateUserById(userId, { ban_duration: BLOQUEIO_PENDENTE });
+    return { error: "Não foi possível aprovar o pedido." };
+  }
+
+  revalidatePath("/configuracoes");
+  return { ok: true, mensagem: "Acesso aprovado." };
 }

@@ -5,6 +5,7 @@ import { getCurrentProfile, type Profile } from "@/lib/supabase/profile";
 import { IconAlerta } from "@/app/components/icons";
 import { PAINEIS } from "@/lib/paineis";
 import { NovoUsuarioForm } from "./NovoUsuarioForm";
+import { SolicitacaoForm } from "./SolicitacaoForm";
 import { UsuarioForm } from "./UsuarioForm";
 
 export const metadata: Metadata = { title: "Configurações" };
@@ -21,14 +22,21 @@ export default async function ConfiguracoesPage() {
   const supabase = await createClient();
   const { data: perfis, error } = await supabase
     .from("profiles")
-    .select("id, email, role, permissions")
+    .select("id, email, role, permissions, status, nome, solicitado_em")
     .order("email");
 
   if (error) {
     console.error("Falha ao carregar perfis:", error.message);
   }
 
-  const usuarios = (perfis ?? []) as Profile[];
+  const todos = (perfis ?? []) as Profile[];
+  const pendentes = todos
+    .filter((p) => p.status === "pendente")
+    .sort((a, b) => (a.solicitado_em ?? "").localeCompare(b.solicitado_em ?? ""));
+  const usuarios = todos.filter((p) => p.status !== "pendente");
+  const nomeDe = (email: string | null) => (email ?? "").replace(/@csi\.local$/, "");
+  const desde = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : null;
 
   return (
     <>
@@ -37,7 +45,7 @@ export default async function ConfiguracoesPage() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Configurações</h1>
           <p className="page-lede">
-            Adicione usuários, redefina senhas e escolha quais telas cada um pode ver (Metas e painéis). Cada usuário é salvo separadamente; os painéis começam bloqueados para quem não é administrador.
+            Aprove pedidos de acesso, adicione ou exclua usuários, redefina senhas e escolha quais telas cada um pode ver (Metas e painéis). Cada usuário é salvo separadamente; os painéis começam bloqueados para quem não é administrador.
           </p>
         </div>
       </header>
@@ -47,6 +55,33 @@ export default async function ConfiguracoesPage() {
           <IconAlerta />
           Não foi possível carregar os usuários agora. Tente novamente em instantes.
         </div>
+      )}
+
+      {pendentes.length > 0 && (
+        <section className="panel" aria-labelledby="titulo-pedidos">
+          <div className="panel-head" style={{ paddingBottom: 12 }}>
+            <div>
+              <h2 className="panel-title" id="titulo-pedidos">
+                Pedidos de acesso
+              </h2>
+              <p className="panel-sub">
+                {pendentes.length} {pendentes.length === 1 ? "pessoa aguardando" : "pessoas aguardando"} aprovação. Escolha a permissão e as telas e aprove, ou recuse o pedido.
+              </p>
+            </div>
+          </div>
+          <ul className="user-list" style={{ borderTop: "1px solid var(--line)" }}>
+            {pendentes.map((pedido) => (
+              <SolicitacaoForm
+                key={pedido.id}
+                id={pedido.id}
+                usuario={nomeDe(pedido.email)}
+                nome={pedido.nome ?? ""}
+                desde={desde(pedido.solicitado_em)}
+                paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome }))}
+              />
+            ))}
+          </ul>
+        </section>
       )}
 
       <section className="panel" aria-labelledby="titulo-novo">

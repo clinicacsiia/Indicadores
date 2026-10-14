@@ -6,6 +6,10 @@ export type Profile = {
   email: string | null;
   role: "admin" | "viewer";
   permissions: Record<string, boolean>;
+  // Só vem preenchido na lista da tela de Configurações.
+  status?: "ativo" | "pendente";
+  nome?: string | null;
+  solicitado_em?: string | null;
 };
 
 // RLS garante que isso só retorna o perfil do próprio usuário logado.

@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { signIn } from "./actions";
 import { IconAlerta, IconOlho, IconOlhoFechado } from "@/app/components/icons";
 
-const initialState: { error?: string; usuario?: string } = {};
+const initialState: { error?: string; aviso?: string; usuario?: string } = {};
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -17,7 +17,7 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ onSolicitarAcesso }: { onSolicitarAcesso: () => void }) {
   const [state, formAction] = useActionState(signIn, initialState);
   const [mostrarSenha, setMostrarSenha] = useState(false);
 
@@ -75,7 +75,21 @@ export function LoginForm() {
         </div>
       )}
 
+      {state?.aviso && (
+        <div className="alert alert-info" role="status">
+          <IconAlerta size={18} />
+          <span>{state.aviso}</span>
+        </div>
+      )}
+
       <SubmitButton />
+
+      <div className="login-alt">
+        <span>Ainda não tem acesso?</span>
+        <button type="button" className="btn btn-block" onClick={onSolicitarAcesso}>
+          Solicitar acesso
+        </button>
+      </div>
     </form>
   );
 }
