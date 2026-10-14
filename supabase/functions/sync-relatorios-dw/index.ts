@@ -30,6 +30,8 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 // - `dim_relatorio.colunas_essenciais`: se preenchido, só essas colunas são gravadas.
 // - `dim_relatorio.filtro_periodo`: id do filtro de período de cada relatório (a maioria
 //   "periodo0"); a resposta é conferida e, se o Klingo não aplicou o período, o dia vira erro.
+//   Enquanto nenhuma resposta comprovar o filtro (`periodo_validado_em`), o relatório fica limitado ao
+//   dia de hoje (`proximos_trabalhos`): histórico só depois de comprovado.
 // - Relatórios com `supersedido_por` preenchido (decisão humana) são pulados.
 //
 // ATENÇÃO LGPD: ao contrário de sync-indicadores, esta função NÃO agrega nem
@@ -124,13 +126,15 @@ function sleep(ms: number): Promise<void> {
 
 // `titulos`: chave da coluna (col1, col2…) -> título que o Klingo dá a ela. Vazio quando o
 // período não tem registros ou o Klingo não informou as colunas.
-type Relatorio = { data: unknown[]; titulos: Record<string, string> };
+type Relatorio = { data: unknown[]; titulos: Record<string, string>; periodoConfirmado: boolean };
 
 // Confere na resposta que o Klingo aplicou mesmo o período pedido. Filtro com nome errado não dá
 // erro: ele ignora o pedido e devolve o período padrão (hoje), e o dado cairia no dia errado ou
 // repetido em cada dia. Mesma regra do painel em Python (extrair_laudo.validar_resposta).
-function validarPeriodo(payload: unknown, filtro: string): void {
-  if (!isPlainObject(payload)) return;
+// Devolve true só quando a resposta traz o filtro com o valor pedido (período comprovado); false
+// quando a resposta é vazia e sem filtros, o que não prova nada.
+function validarPeriodo(payload: unknown, filtro: string): boolean {
+  if (!isPlainObject(payload)) return false;
   const inputs = (Array.isArray(payload.inputs) ? payload.inputs : []).filter(isPlainObject);
   const achado = inputs.find((i) => i.id === filtro);
   if (!achado) {
@@ -142,9 +146,12 @@ function validarPeriodo(payload: unknown, filtro: string): void {
           `todos: ${inputs.map((i) => String(i.id)).join(", ") || "nenhum"}). Ajuste dim_relatorio.filtro_periodo`,
       );
     }
-  } else if (achado.value !== "l") {
+    return false;
+  }
+  if (achado.value !== "l") {
     throw new Error(`Klingo aplicou o período ${String(achado.value)} em vez de "l"`);
   }
+  return true;
 }
 
 // `filtro`: id do filtro de período do relatório (dim_relatorio.filtro_periodo); null = relatório
@@ -164,12 +171,12 @@ async function fetchReportOnce(klingoId: string, day: string, token: string, fil
 
   const payload = await res.json();
   if (payload?.error) throw new Error("Klingo retornou erro no relatório");
-  if (filtro) validarPeriodo(payload, filtro);
+  const periodoConfirmado = filtro ? validarPeriodo(payload, filtro) : false;
   // Período sem nenhum registro: o Klingo devolve result = "" (sem erro) em vez de data = [].
-  if (payload?.result === "") return { data: [], titulos: {} };
+  if (payload?.result === "") return { data: [], titulos: {}, periodoConfirmado };
   const data = payload?.result?.data;
   if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
-  return { data, titulos: extrairTitulos(payload.result) };
+  return { data, titulos: extrairTitulos(payload.result), periodoConfirmado };
 }
 
 function extrairTitulos(result: unknown): Record<string, string> {
@@ -234,6 +241,18 @@ async function agruparLinhas(data: unknown[]): Promise<Map<string, Grupo>> {
     else grupos.set(hashes[i], { linha, repeticoes: 1 });
   });
   return grupos;
+}
+
+// O Klingo alterna, entre chamadas iguais, o mesmo campo entre número (1) e texto ("1"), conforme o
+// servidor que responde. Gravado cru, o mesmo dado teria dois hashes e o dia ficaria com as linhas
+// em dobro. Como o painel em Python (extrair_laudo.normalizar_celulas), números viram texto antes
+// de qualquer hash; booleanos e vazios ficam como estão.
+function normalizarCelulas(data: unknown[]): unknown[] {
+  return data.map((row) =>
+    isPlainObject(row)
+      ? Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === "number" ? String(v) : v]))
+      : row
+  );
 }
 
 // Grava só as colunas essenciais do relatório (dim_relatorio.colunas_essenciais). Sem lista, a
@@ -406,7 +425,8 @@ Deno.serve(async (req: Request) => {
     primeiraRequisicao = false;
 
     try {
-      const { data, titulos } = await fetchReport(relatorio.klingo_id, periodo, token, relatorio.filtro_periodo);
+      const { data: dadosBrutos, titulos, periodoConfirmado } = await fetchReport(relatorio.klingo_id, periodo, token, relatorio.filtro_periodo);
+      const data = normalizarCelulas(dadosBrutos);
       const grupos = await agruparLinhas(projetarColunas(data, relatorio.colunas_essenciais));
       const agora = new Date().toISOString();
 
@@ -434,6 +454,8 @@ Deno.serve(async (req: Request) => {
           .eq("id", run.id);
       }
       await supabase.rpc("registrar_resultado_coleta", { p_relatorio_id: relatorio.id, p_ok: true });
+      // Só depois de o Klingo confirmar o filtro de período o relatório passa a receber histórico.
+      if (periodoConfirmado) await supabase.rpc("registrar_periodo_validado", { p_relatorio_id: relatorio.id });
 
       // --- Revisão (nada abaixo apaga ou altera dados já gravados) ---
       if (data.length === 0) continue;
