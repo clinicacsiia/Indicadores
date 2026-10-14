@@ -343,8 +343,12 @@ where klingo_id = '13339';
   Ao mudar `colunas_essenciais` de um relatório que já tem dados, apague antes as linhas dele em
   `fact_relatorio_linha` (e os `sync_relatorio_runs` dele, para o histórico ser refeito); senão as linhas
   antigas, com todas as colunas, ficam ao lado das novas e o mesmo dia é contado duas vezes.
-- Cuidado com dados de paciente: relatórios como #275, #52, #319 e #13434 trazem nome, telefone e
-  celular. Defina `colunas_essenciais` sem esses campos, a menos que a tela realmente precise deles.
+- **Dados de paciente:** nos relatórios que os painéis não usam (#12757, #13256, #13434, #13510, #18, #19, #275, #319, #47, #52,
+  #681), `dim_relatorio.colunas_essenciais` já deixa de gravar nome, telefone, matrícula, prontuário, CID e observações livres;
+  ficam os IDs. As linhas gravadas **antes** dessa regra continuam no banco com essas colunas (nada é apagado sozinho); para
+  apagá-las de um relatório: `delete from public.fact_relatorio_linha where relatorio_id = (select id from public.dim_relatorio where klingo_id = '275');`
+  (e depois deixe a coleta refazer os dias). Os relatórios dos painéis em Python (#13374, #13376, #13280...) gravam todas as colunas
+  porque os painéis as usam.
 - Vários relatórios (Faturamento, Financeiro, Cesta etc.) também são baixados pelos painéis em Python
   para `painel_dados`. Não é preciso mantê-los nos dois lugares: se um painel já cobre o relatório,
   deixe `ativo = false` aqui (`update public.dim_relatorio set ativo = false where klingo_id = '...'`).
