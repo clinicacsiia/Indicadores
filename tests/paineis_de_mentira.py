@@ -22,9 +22,9 @@ def so_arquivos(f):
     O resultado fica guardado: os testes pedem a mesma pagina varias vezes."""
     @functools.cache
     @functools.wraps(f)
-    def interno():
+    def interno(de=None, ate=None):
         with mock.patch.dict(os.environ, {"PORTAL_ARMAZENAMENTO": "arquivos"}), mock.patch.dict(os.environ, {"VERCEL": ""}):
-            return f()
+            return f(de, ate)
     return interno
 
 
@@ -35,10 +35,10 @@ for _p in (RAIZ, RAIZ / "Atendimento", RAIZ / "Cesta", RAIZ / "Suprimentos", RAI
 
 # ------------------------------------------------------------------ Atendimento
 @so_arquivos
-def pagina_atendimento() -> str:
+def pagina_atendimento(de=None, ate=None) -> str:
     import gerar_atendimento as ga
     rnd = random.Random(7)
-    setores = ["CLÍNICA DE SAÚDE E IMAGEM - CSI 1", "CLÍNICA DE SAÚDE E IMAGEM - CSI 2", "CLÍNICA DE SAÚDE E IMAGEM - PEDIATRIA"]
+    setores = ["CLÍNICA DE SAÚDE E IMAGEM - CSI", "CLÍNICA DE SAÚDE E IMAGEM - RM/TC", "DESENVOAR"]   # as unidades dos grupos do metas.json (CSI 1, CSI 2, CSI Pediatria)
     profs = [("DR ANA LIMA", "CARDIOLOGIA"), ("DR BRUNO REIS", "ORTOPEDIA"), ("DRA CARLA SOUZA", "PEDIATRIA"), ("RM 1", "RESSONANCIA"), ("TC 1", "TOMOGRAFIA")]
     linhas, fluxo = [], []
     d = datetime(2026, 9, 1)
@@ -69,12 +69,12 @@ def pagina_atendimento() -> str:
         raise FileNotFoundError("sem metas")
     with mock.patch.object(ga, "lido_com_cache", lambda arq, nome, fn: abas if nome == "atendimento" else pd.DataFrame()), \
             mock.patch.object(ga.gd, "carregar_dados", sem_metas):
-        return ga.gerar(devolver_html=True)
+        return ga.gerar(de, ate, devolver_html=True)
 
 
 # ------------------------------------------------------------------ Cesta
 @so_arquivos
-def pagina_cesta() -> str:
+def pagina_cesta(de=None, ate=None) -> str:
     import gerar_cesta as gc
     rnd = random.Random(11)
     procs = [("CONSULTA", 150), ("US ABDOME TOTAL", 220), ("US TRANSVAGINAL", 200), ("RX TÓRAX PA", 90), ("RESSONANCIA CRANIO", 800), ("TOMOGRAFIA TORAX", 650),
@@ -100,12 +100,12 @@ def pagina_cesta() -> str:
         d += timedelta(days=1)
     abas = {gc.ABA_BASE: pd.DataFrame(a), gc.ABA_EXAMES: pd.DataFrame(b), gc.ABA_PROC: pd.DataFrame(c)}
     with mock.patch.object(gc.k, "carregar", lambda pasta: abas), mock.patch.object(gc, "producao_do_faturamento", lambda: pd.DataFrame(p26)):
-        return gc.gerar(devolver_html=True)
+        return gc.gerar(de, ate, devolver_html=True)
 
 
 # ------------------------------------------------------------------ Suprimentos
 @so_arquivos
-def pagina_suprimentos() -> str:
+def pagina_suprimentos(de=None, ate=None) -> str:
     import gerar_suprimentos as gs
     rnd = random.Random(3)
     itens = [("LUVA DE PROCEDIMENTO", "UN", "DESCARTAVEIS", 0.9), ("CONTRASTE GADOLINIO", "ML", "CONTRASTE", 12.5), ("SERINGA 10ML", "UN", "DESCARTAVEIS", 0.4),
@@ -135,7 +135,9 @@ def pagina_suprimentos() -> str:
     with mock.patch.object(gs.k, "carregar", lambda pasta: abas), \
             mock.patch.object(gs, "exames_por_dia", lambda: {date(2026, 10, i): 40 for i in range(1, 14)}), \
             mock.patch.object(gs, "gravar_modelo_custos", lambda *a, **k: None):
-        return gs.gerar(devolver_html=True)
+        return gs.gerar(de, ate, devolver_html=True)
 
 
 PAGINAS = {"atendimento": pagina_atendimento, "cesta": pagina_cesta, "suprimentos": pagina_suprimentos}
+# visoes do filtro De/Ate que cada painel entrega (a pagina de sempre, varios meses, dias exatos): o servidor calcula cada uma e a limpeza vale para todas
+PERIODOS = [(None, None), ("2026-09", "2026-10"), ("2026-10-02", "2026-10-09")]

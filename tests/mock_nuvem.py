@@ -45,7 +45,8 @@ def _filtros(params):
 
 def _casa(linha, filtros):
     for col, (op, val) in filtros.items():
-        atual = str(linha.get(col))
+        bruto = linha.get(col)
+        atual = str(bruto).lower() if isinstance(bruto, bool) else str(bruto)   # o PostgREST escreve boolean como true/false
         if op == "eq" and atual != val:
             return False
         if op == "neq" and atual == val:

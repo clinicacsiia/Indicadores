@@ -182,6 +182,15 @@ def conferir_acesso(cabecalhos, painel: str, so_admin: bool = False) -> dict:
     return u
 
 
+def pode_ver_painel(u: dict, painel: str) -> bool:
+    """A mesma regra de conferir_acesso, sem levantar erro (e a mesma de podeVerPainel em lib/paineis.ts: tests/test_paineis_ts.py confere as duas)."""
+    if u["admin"]:
+        return True
+    if u["permissoes"].get(painel) is not True:
+        return False
+    return not (modo_financeiro(painel) == "total" and not u["financeiro"])
+
+
 # ---------------------------------------------------------------- pagina pronta
 def periodo_da_url(de: str, ate: str) -> tuple[str, str] | None:
     """('2026-09', '2026-10') se a URL pede varios meses, ou ('2026-09-10', '2026-10-25') se pede dias exatos; um mes inteiro so e a pagina

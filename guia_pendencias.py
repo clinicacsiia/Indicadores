@@ -12,6 +12,7 @@ link direto para uma fatura ou lancamento, por isso os itens vao numa tabela com
 Alerta sem guia (so informativo, ou nivel "ok") nao ganha botoes. Alerta de problema (critico/atencao) sem guia
 e avisado no log: acrescente a regra abaixo.
 """
+import json
 import re
 import sys
 from datetime import date, datetime
@@ -405,12 +406,12 @@ SENSIVEIS_PARCIAIS = {"cesta_menor_fat", "cesta_ticket_queda", "cesta_valor_zero
 LIBERADOS = {"ate_valor_zero"}
 # o resto e pego pelo texto: citar R$, receita, ticket, custo (que nao seja "centro de custo")... Errar para o lado de esconder: pior ficar sem um aviso
 _TEXTO_DINHEIRO = re.compile(r"R\$|receita|ticket|faturament|glosa|(?<!centro de )custo|pre[cç]o|despesa|compras?\b|pagamento|reais\b", re.I)
+_REAIS_CELULA = re.compile(r"R\$(?:&nbsp;|\s)*(?!0(?:[,.]0+)?(?![\d.,]))\d")
 _COLUNA_DINHEIRO = re.compile(r"R\$|valor|receita|ticket|custo|pre[cç]o|total", re.I)
 
 
 def financeiro_do_painel(painel: str) -> str | None:
     """'total', 'parcial' ou None ("nenhum"), conforme o modulos.json. Painel sem o campo conta como 'total'."""
-    import json
     from pathlib import Path
     cfg = json.loads((Path(__file__).parent / "modulos.json").read_text(encoding="utf-8-sig"))
     modulo = next((m for m in cfg["modulos"] if m["id"] == painel), None)
@@ -434,7 +435,8 @@ def sensivel(painel: str, alerta: dict) -> bool:
     itens = alerta.get("itens") if isinstance(alerta.get("itens"), dict) else {}
     colunas = " ".join(str(c) for c in itens.get("colunas", []))
     texto = " ".join(re.sub(r"<[^>]+>", " ", str(alerta.get(k) or "")) for k in ("titulo", "texto"))
-    return bool(_TEXTO_DINHEIRO.search(texto) or _COLUNA_DINHEIRO.search(colunas))
+    celulas = json.dumps(itens.get("linhas", []), ensure_ascii=False)   # um valor em R$ numa celula, mesmo de coluna com outro nome
+    return bool(_TEXTO_DINHEIRO.search(texto) or _COLUNA_DINHEIRO.search(colunas) or _REAIS_CELULA.search(celulas))
 
 
 def persistente(ident: str) -> bool:

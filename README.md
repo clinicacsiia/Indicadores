@@ -117,6 +117,17 @@ botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?
     receita, ticket, custo etc.) ficam invisíveis na aba Avisos e em `/api/pendencias` (`aviso.sensivel` + RLS `can_view_aviso`); a regra de antes
     segue por cima: o aviso só aparece se o painel dele estiver liberado.
   Quem já via Faturamento, Financeiro, Despesas ou Indicadores ficou com a permissão marcada (migration `20261016120000_dados_financeiros.sql`).
+
+  **Painel, relatório ou gráfico novo: o que fazer para já nascer protegido** (os testes forçam cada passo):
+  1. `modulos.json`: `"financeiro": "total"` (só dinheiro), `"parcial"` (misto) ou `"nenhum"`. **Sem o campo o painel conta como `"total"`**: esquecer bloqueia, não libera.
+  2. Painel `parcial`: campos de dinheiro em `sigilo.CHAVES`/`RAIZ`, nomes parecidos mas que não são dinheiro em `sigilo.MANTER`, colunas de dinheiro dos
+     relatórios em `sigilo.COLUNAS_DE_DINHEIRO`, uma página com dados em `tests/paineis_de_mentira.py` e, no modelo, `fin()`/`{fin: 1}`/`data-fin` nos
+     pedaços de dinheiro. Em produção, mesmo sem nada disso, o servidor já tira qualquer campo com nome de dinheiro e mascara `R$` solto nos textos; os
+     testes é que não deixam passar sem decisão por escrito.
+  3. Alerta novo com dinheiro num painel misto: o texto com `R$`/receita/ticket/custo e as colunas de valor já o marcam como sensível sozinhos
+     (`guia_pendencias.sensivel`); se o texto não cita dinheiro, acrescente o id em `SENSIVEIS_PARCIAIS`.
+  4. Relatório novo do Klingo num painel misto com coluna de valor: `tests/test_sigilo.py` falha até a coluna entrar em `COLUNAS_DE_DINHEIRO`.
+  Fora do alcance disto: o portal do computador da clínica (`servidor_portal.py`, `Gerar EXE.bat`), que tem usuários próprios e não lê `profiles`.
 - **Atualização (do banco):** os painéis **não consultam mais o Klingo**. Uma coleta só (Edge Function `sync-relatorios-dw`,
   pg_cron a cada 5 min) guarda os relatórios em `fact_relatorio_linha`; `fonte_banco.py` copia dali para `painel_dados`, no
   formato que os geradores já liam. O relatório dos painéis é coletado **por mês** (`dim_relatorio.granularidade = 'mes'`,
@@ -208,7 +219,10 @@ permissões, atualização (mês substituído, não somado), tipos das colunas, 
 corte por tempo. A regra da aba Avisos dentro do banco (novo / resolvido / voltou / justificado, permissões e RLS) é testada num
 Postgres de verdade: `createdb avisos_teste && psql -v ON_ERROR_STOP=1 -d avisos_teste -f supabase/tests/avisos.sql` (inclui "Dados financeiros": o preenchimento
 da permissão, `aviso.sensivel` e quem vê/fecha o aviso de dinheiro). `tests/test_sigilo.py` gera Atendimento, Cesta e Suprimentos COM DADOS
-(`tests/paineis_de_mentira.py`) e confere que a versão sem dinheiro não leva campo nem valor em R$, no JSON e (se houver Chromium) na tela. Os 7 painéis também foram gerados de ponta a ponta com dados de mentira e o botão **Atualizar agora**
+(`tests/paineis_de_mentira.py`, nos três períodos do filtro) e confere que a versão sem dinheiro não leva campo nem valor em R$, no JSON e (se houver
+Chromium) na tela: cada mês, cada responsável do Atendimento e cada gráfico da lista do Início. `tests/test_paineis_ts.py` roda o `podeVerPainel` do
+site no Node e compara com o do servidor em centenas de combinações; `tests/test_painel_base_js.py` testa os helpers que os 7 painéis usam e confere a
+sintaxe do JavaScript de cada modelo; `test_nuvem.py` tem a matriz painel × usuário × rota. `SIGILO_RAPIDO=1` pula a matriz grande de navegador. Os 7 painéis também foram gerados de ponta a ponta com dados de mentira e o botão **Atualizar agora**
 foi exercitado no Chromium. **Não foi testado:** o deploy na Vercel de verdade (funções Python junto do Next.js, tamanho do
 pacote com pandas, tempo da carga inicial) nem o Klingo/Supabase reais — confira o primeiro deploy e o log das funções.
 
