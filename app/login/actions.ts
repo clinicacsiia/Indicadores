@@ -38,7 +38,9 @@ export async function signIn(_prevState: unknown, formData: FormData) {
 const SENHA_MINIMA = 6;
 const LIMITE_PENDENTES = 50; // trava de spam: a tela de login é pública
 
-export type SolicitarAcessoState = { ok?: boolean; error?: string; usuario?: string; nome?: string };
+export type SolicitarAcessoState = { ok?: boolean; error?: string; usuario?: string; nome?: string; email?: string };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/;
 
 export async function solicitarAcesso(
   _prev: SolicitarAcessoState,
@@ -48,12 +50,15 @@ export async function solicitarAcesso(
   if (String(formData.get("site") ?? "") !== "") return { ok: true };
 
   const nome = String(formData.get("nome") ?? "").trim().slice(0, 80);
+  const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 254);
   const usuario = String(formData.get("usuario") ?? "").trim().toLowerCase();
   const senha = String(formData.get("senha") ?? "");
   const confirmar = String(formData.get("confirmar") ?? "");
-  const devolve = { usuario, nome };
+  const devolve = { usuario, nome, email };
 
   if (!nome) return { error: "Informe o seu nome.", ...devolve };
+  if (!email) return { error: "Informe o seu e-mail.", ...devolve };
+  if (!EMAIL_RE.test(email)) return { error: "Informe um e-mail válido, como nome@empresa.com.", ...devolve };
   if (!usuario) return { error: "Escolha um nome de usuário.", ...devolve };
   if (!usuario.includes("@") && !/^[a-z0-9._-]+$/.test(usuario)) {
     return { error: "Use só letras, números, ponto, hífen ou underline no usuário.", ...devolve };
@@ -69,9 +74,9 @@ export async function solicitarAcesso(
     return { error: "Há pedidos demais aguardando. Fale com um administrador.", ...devolve };
   }
 
-  const email = usuario.includes("@") ? usuario : `${usuario}@${DOMINIO_INTERNO}`;
+  const login = usuario.includes("@") ? usuario : `${usuario}@${DOMINIO_INTERNO}`;
   const { data, error } = await admin.auth.admin.createUser({
-    email,
+    email: login,
     password: senha,
     email_confirm: true,
     ban_duration: BLOQUEIO_PENDENTE,
@@ -85,7 +90,7 @@ export async function solicitarAcesso(
 
   const { error: perfilError } = await admin
     .from("profiles")
-    .update({ status: "pendente", nome, solicitado_em: new Date().toISOString(), permissions: { metas: false } })
+    .update({ status: "pendente", nome, email_contato: email, solicitado_em: new Date().toISOString(), permissions: { metas: false } })
     .eq("id", data.user.id);
 
   if (perfilError) {

@@ -23,7 +23,7 @@ export default async function ConfiguracoesPage() {
   const supabase = await createClient();
   const { data: perfis, error } = await supabase
     .from("profiles")
-    .select("id, email, role, permissions, status, nome, solicitado_em")
+    .select("id, email, role, permissions, status, nome, email_contato, solicitado_em")
     .order("email");
 
   if (error) {
@@ -94,6 +94,7 @@ export default async function ConfiguracoesPage() {
                 id={pedido.id}
                 usuario={nomeDe(pedido.email)}
                 nome={pedido.nome ?? ""}
+                emailContato={pedido.email_contato ?? ""}
                 desde={desde(pedido.solicitado_em)}
                 paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome }))}
               />

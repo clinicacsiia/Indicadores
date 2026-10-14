@@ -43,6 +43,23 @@ export function SolicitarAcessoForm({ onVoltar }: { onVoltar: () => void }) {
       </div>
 
       <div className="field">
+        <label className="field-label" htmlFor="sol-email">Seu e-mail</label>
+        <input
+          id="sol-email"
+          name="email"
+          type="email"
+          className="input"
+          required
+          maxLength={254}
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          placeholder="nome@empresa.com"
+          defaultValue={state.email}
+        />
+      </div>
+
+      <div className="field">
         <label className="field-label" htmlFor="sol-usuario">Usuário desejado</label>
         <input
           id="sol-usuario"
