@@ -491,27 +491,20 @@ function iniciarPeriodo(D, render, o = {}) {
   // ---- barra de filtros (a mesma das telas do site)
   let barraF = $('toolbar');
   if (!barraF) { barraF = document.createElement('section'); barraF.className = 'toolbar'; barraF.id = 'toolbar'; barraF.setAttribute('aria-label', 'Período'); (document.querySelector('header.top') || document.body).after(barraF); }
-  const hojeYm = hoje.slice(0, 7);
-  const SEIS = lista.filter(m => m <= hojeYm).slice(0, 6);   // os 6 meses ate o atual; meses futuros (previsoes) e antigos ficam em "Outros meses"
   const caixa = document.createElement('div');
   caixa.style.display = 'contents'; caixa.id = 'periodo-pick';
   caixa.innerHTML =
-    `<div><span class="toolbar-label" id="rot-meses">${esc(rotuloBase)}</span><div class="seg" role="group" aria-labelledby="rot-meses">` +
-      SEIS.map(m => `<button type="button" class="seg-item" data-mes="${m}">${esc(rotuloMesCurto(m))}</button>`).join('') + `</div></div>` +
-    (lista.length > SEIS.length ? `<label class="mes-pick">Outros meses <select id="p-outros" aria-label="Escolher outro mês"><option value="">Escolher…</option>${lista.filter(m => !SEIS.includes(m)).map(m => `<option value="${m}">${esc(rotuloMes(m))}</option>`).join('')}</select></label>` : '') +
-    `<div><span class="toolbar-label" id="rot-atalhos">Últimos dias</span><div class="seg" role="group" aria-labelledby="rot-atalhos">` +
-      [[7, '7 dias'], [30, '30 dias'], [90, '90 dias']].map(([n, t]) => `<button type="button" class="seg-item" data-dias="${n}">${t}</button>`).join('') + `</div></div>` +
     `<form class="range-form" id="p-form" aria-label="Período livre"><div class="field"><label class="field-label" for="p-de">De</label><input id="p-de" class="input" type="date" min="${minDia}" max="${maxDia}" required></div>` +
     `<div class="field"><label class="field-label" for="p-ate">Até</label><input id="p-ate" class="input" type="date" min="${minDia}" max="${maxDia}" required></div>` +
     `<button type="submit" class="btn btn-primary">Aplicar</button></form>`;
   lab.before(caixa); lab.style.display = 'none';
-  const iDe = $('p-de'), iAte = $('p-ate'), outros = $('p-outros');
+  const iDe = $('p-de'), iAte = $('p-ate');
   let linha = $('periodo-ativo'), aviso = $('periodo-aviso');
   if (!linha) { linha = document.createElement('div'); linha.id = 'periodo-ativo'; linha.className = 'periodo-ativo'; ($('sub') || document.querySelector('header.top > div')).after(linha); }
   if (!aviso) { aviso = document.createElement('div'); aviso.id = 'periodo-aviso'; aviso.className = 'periodo-aviso'; aviso.hidden = true; ($('aviso') || $('conteudo')).before(aviso); }
   const barra = barraCarregando();
   const ajuda = document.querySelector('details.ajuda .corpo ul');
-  if (ajuda && !ajuda.querySelector('[data-periodo]')) ajuda.insertAdjacentHTML('afterbegin', '<li data-periodo><b>Período:</b> use os botões de <b>mês</b> ou os <b>últimos dias</b>, ou escolha livremente a data inicial e a final em <b>De</b> e <b>Até</b> e clique em <b>Aplicar</b>. Com vários meses ou dias soltos, os números são os do período inteiro e as comparações são com o período anterior de mesmo tamanho; o que só existe dentro de um mês (ritmo dia a dia, projeção de fechamento) aparece quando o filtro é um mês só. Informações que o Klingo só entrega por mês inteiro (quando houver) são avisadas no alto da página. O período fica escrito no alto da página e em todas as folhas do PDF.</li>');
+  if (ajuda && !ajuda.querySelector('[data-periodo]')) ajuda.insertAdjacentHTML('afterbegin', '<li data-periodo><b>Período:</b> escolha a data inicial e a final em <b>De</b> e <b>Até</b> e clique em <b>Aplicar</b>. Com vários meses ou dias soltos, os números são os do período inteiro e as comparações são com o período anterior de mesmo tamanho; o que só existe dentro de um mês (ritmo dia a dia, projeção de fechamento) aparece quando o filtro é um mês só. Informações que o Klingo só entrega por mês inteiro (quando houver) são avisadas no alto da página. O período fica escrito no alto da página e em todas as folhas do PDF.</li>');
 
   function mostrarLinha(n) {
     const t = datasDoPeriodo(n.dia_de, n.dia_ate, D.hoje);
@@ -519,11 +512,8 @@ function iniciarPeriodo(D, render, o = {}) {
     linha.innerHTML = `Período: <b>${window.PERIODO_TXT}</b>` + (t.parcial ? ' <small>(o período ainda não terminou: só há dados até hoje)</small>' : '') +
       (baseTxt ? ` <small>· meses contados por ${esc(baseTxt)}</small>` : '');
   }
-  function marcar(n) {   // botoes de mes e de dias acesos conforme o periodo ativo; datas preenchidas com o periodo
+  function marcar(n) {   // datas preenchidas com o periodo ativo
     iDe.value = n.dia_de; iAte.value = n.dia_ate;
-    caixa.querySelectorAll('[data-mes]').forEach(b => b.setAttribute('aria-current', !n.exato && n.chave === b.dataset.mes ? 'true' : 'false'));
-    caixa.querySelectorAll('[data-dias]').forEach(b => { const d = +b.dataset.dias; b.setAttribute('aria-current', n.exato && n.dia_ate === hoje && n.dia_de === somarDias(hoje, 1 - d) ? 'true' : 'false'); });
-    if (outros) outros.value = !n.exato && outros.querySelector(`option[value="${n.chave}"]`) ? n.chave : '';
   }
   function escolher(n) {
     window.PERIODO_CHAVE = n.chave;   // quem precisa redesenhar por outro motivo (ex.: trocar de responsavel no Atendimento) usa esta chave
@@ -545,12 +535,6 @@ function iniciarPeriodo(D, render, o = {}) {
       location.search = q.toString();
     }
   }
-  caixa.addEventListener('click', e => {
-    const bm = e.target.closest('[data-mes]'), bd = e.target.closest('[data-dias]');
-    if (bm) pedir(bm.dataset.mes, bm.dataset.mes);
-    else if (bd) { const d = +bd.dataset.dias; const ini = somarDias(hoje, 1 - d); pedir(ini < minDia ? minDia : ini, hoje); }
-  });
-  if (outros) outros.addEventListener('change', () => { if (outros.value) pedir(outros.value, outros.value); });
   $('p-form').addEventListener('submit', e => {
     e.preventDefault();
     if (!iDe.value || !iAte.value) return;
