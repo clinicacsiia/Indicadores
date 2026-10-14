@@ -302,7 +302,7 @@ def atualizar_do_banco(pasta: Path, forcar: bool = False, historico: bool = Fals
             if not execs:
                 aguardando += 1
                 continue
-            ultimo = max(execs)
+            ultimo = max(execs, key=execs.get)   # a coleta mais recente (o periodo de um snapshot e fixo)
             quando, antes = execs[ultimo], guardados.get((aba, hoje_ym))
             if antes and quando <= antes:
                 continue
