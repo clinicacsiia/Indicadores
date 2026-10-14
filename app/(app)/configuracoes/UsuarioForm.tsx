@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { ExcluirUsuario } from "./ExcluirUsuario";
 import { RedefinirSenha } from "./RedefinirSenha";
 import { salvarUsuario, type SalvarUsuarioState } from "./actions";
 
@@ -107,6 +108,11 @@ export function UsuarioForm({ id, email, role, veMetas, paineis, ehVoce }: Props
 
       <div className="user-senha">
         <RedefinirSenha id={id} />
+        {!ehVoce && (
+          <span className="user-excluir">
+            <ExcluirUsuario id={id} nome={nome} />
+          </span>
+        )}
       </div>
     </li>
   );

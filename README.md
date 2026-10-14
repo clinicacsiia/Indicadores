@@ -31,7 +31,9 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `app/components/` — marca (`Brand`), ícones, navegação com item ativo
   (`NavLinks`), `Sparkline` (cards) e `TendenciaChart` (gráfico interativo
   de agendados × realizados, com tooltip e navegação por setas do teclado).
-- `app/login/` — tela de login (usuário/senha via Supabase Auth).
+- `app/login/` — tela de login (usuário/senha via Supabase Auth) e botão **Solicitar acesso**: a pessoa escolhe
+  usuário e senha, o usuário nasce **bloqueado** (ban no Auth, `profiles.status = 'pendente'`) e só entra depois que
+  um administrador aprova em Configurações (migration `20261015100000_solicitacao_acesso.sql`).
 - `app/(app)/layout.tsx` — menu lateral (Relatórios / Configurações) das
   telas logadas; vira barra no topo no celular. "Configurações" só aparece
   para quem tem `role = admin`.
@@ -60,7 +62,8 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
   `metas.json`).
 - `app/(app)/configuracoes/` — aba "Configurações" (admin): define quem é
   admin e quem pode ver Relatórios e Metas, com um "Salvar" por usuário e
-  aviso de sucesso/erro. Protegida tanto na página quanto por RLS.
+  aviso de sucesso/erro. Também aprova/recusa pedidos de acesso (já com permissão e telas) e exclui usuários.
+  Protegida tanto na página quanto por RLS.
 - `supabase/functions/sync-indicadores/` — Edge Function que busca a API
   externa e grava os dados no banco.
 - `supabase/functions/sync-relatorios-dw/` — Edge Function genérica que
