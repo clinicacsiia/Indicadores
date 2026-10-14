@@ -46,7 +46,7 @@ const FETCH_RETRIES = 1;
 const RETRY_DELAY_MS = 1_000;
 const REQUEST_DELAY_MS = 500;
 const MAX_LOTE_AUTO = 80;
-const ORCAMENTO_AUTO_MS = 100_000;
+const ORCAMENTO_AUTO_MS = 75_000;   // uma consulta mensal grande pode passar do orçamento: sobra folga até o limite da função
 
 type Row = Record<string, unknown>;
 type Grupo = { linha: unknown; repeticoes: number };
@@ -120,13 +120,19 @@ function resolveKlingoIds(body: Record<string, unknown>): string[] | undefined |
   return ids as string[];
 }
 
+// Último dia do mês de uma data AAAA-MM-DD (para relatórios de granularidade mensal).
+function ultimoDiaDoMes(dia: string): string {
+  const [a, m] = dia.split("-").map(Number);
+  return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // `titulos`: chave da coluna (col1, col2…) -> título que o Klingo dá a ela. Vazio quando o
 // período não tem registros ou o Klingo não informou as colunas.
-type Relatorio = { data: unknown[]; titulos: Record<string, string>; periodoConfirmado: boolean };
+type Relatorio = { data: unknown[]; titulos: Record<string, string>; periodoConfirmado: boolean; cortado: boolean };
 
 // Confere na resposta que o Klingo aplicou mesmo o período pedido. Filtro com nome errado não dá
 // erro: ele ignora o pedido e devolve o período padrão (hoje), e o dado cairia no dia errado ou
@@ -156,12 +162,12 @@ function validarPeriodo(payload: unknown, filtro: string): boolean {
 
 // `filtro`: id do filtro de período do relatório (dim_relatorio.filtro_periodo); null = relatório
 // sem filtro de data, que vem inteiro.
-async function fetchReportOnce(klingoId: string, day: string, token: string, filtro: string | null): Promise<Relatorio> {
+async function fetchReportOnce(klingoId: string, de: string, ate: string, token: string, filtro: string | null): Promise<Relatorio> {
   const params = new URLSearchParams({ id: klingoId });
   if (filtro) {
     params.set(`:${filtro}`, "l");
-    params.set(`:${filtro}-from`, day);
-    params.set(`:${filtro}-to`, day);
+    params.set(`:${filtro}-from`, de);
+    params.set(`:${filtro}-to`, ate);
   }
   const res = await fetch(`${KLINGO_URL}?${params}`, {
     headers: { "X-APP-TOKEN": token },
@@ -173,10 +179,12 @@ async function fetchReportOnce(klingoId: string, day: string, token: string, fil
   if (payload?.error) throw new Error("Klingo retornou erro no relatório");
   const periodoConfirmado = filtro ? validarPeriodo(payload, filtro) : false;
   // Período sem nenhum registro: o Klingo devolve result = "" (sem erro) em vez de data = [].
-  if (payload?.result === "") return { data: [], titulos: {}, periodoConfirmado };
+  // `limit` na resposta = o Klingo cortou o resultado (limite de linhas); só serve se pedido em pedaços menores.
+  const cortado = isPlainObject(payload) && Boolean(payload.limit);
+  if (payload?.result === "") return { data: [], titulos: {}, periodoConfirmado, cortado };
   const data = payload?.result?.data;
   if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
-  return { data, titulos: extrairTitulos(payload.result), periodoConfirmado };
+  return { data, titulos: extrairTitulos(payload.result), periodoConfirmado, cortado };
 }
 
 function extrairTitulos(result: unknown): Record<string, string> {
@@ -194,17 +202,48 @@ function extrairTitulos(result: unknown): Record<string, string> {
   return titulos;
 }
 
-async function fetchReport(klingoId: string, day: string, token: string, filtro: string | null): Promise<Relatorio> {
+async function fetchReportComRetry(klingoId: string, de: string, ate: string, token: string, filtro: string | null): Promise<Relatorio> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
     try {
-      return await fetchReportOnce(klingoId, day, token, filtro);
+      return await fetchReportOnce(klingoId, de, ate, token, filtro);
     } catch (error) {
       lastError = error;
       if (attempt < FETCH_RETRIES) await sleep(RETRY_DELAY_MS);
     }
   }
   throw lastError instanceof Error ? lastError : new Error("Falha desconhecida ao buscar relatório");
+}
+
+function diaMedio(de: string, ate: string): string {
+  const a = Date.parse(`${de}T00:00:00Z`);
+  const b = Date.parse(`${ate}T00:00:00Z`);
+  return new Date(Math.floor((a + b) / 2 / 86_400_000) * 86_400_000).toISOString().slice(0, 10);
+}
+
+function diaSeguinte(dia: string): string {
+  return new Date(Date.parse(`${dia}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+}
+
+// Pede o relatório de `de` a `ate`. Se o Klingo cortar o resultado, divide o período ao meio e junta
+// (como o painel em Python, klingo_relatorios.baixar_faixa). Sem filtro de data não há como dividir.
+async function fetchReport(klingoId: string, de: string, ate: string, token: string, filtro: string | null, nivel = 0): Promise<Relatorio> {
+  const r = await fetchReportComRetry(klingoId, de, ate, token, filtro);
+  if (!r.cortado) return r;
+  if (!filtro) throw new Error("O Klingo cortou o resultado (limite de linhas) e o relatório não tem filtro de data para dividir");
+  if (de >= ate || nivel >= 5) {
+    throw new Error(`O Klingo cortou o resultado (limite de linhas) mesmo para ${de} a ${ate}: as linhas que faltam não seriam gravadas`);
+  }
+  const meio = diaMedio(de, ate);
+  const primeira = await fetchReport(klingoId, de, meio, token, filtro, nivel + 1);
+  await sleep(REQUEST_DELAY_MS);
+  const segunda = await fetchReport(klingoId, diaSeguinte(meio), ate, token, filtro, nivel + 1);
+  return {
+    data: [...primeira.data, ...segunda.data],
+    titulos: { ...primeira.titulos, ...segunda.titulos },
+    periodoConfirmado: primeira.periodoConfirmado && segunda.periodoConfirmado,
+    cortado: false,
+  };
 }
 
 function isPlainObject(value: unknown): value is Row {
@@ -331,6 +370,7 @@ Deno.serve(async (req: Request) => {
   const bodyBruto = await req.json().catch(() => ({}));
   const body: Record<string, unknown> = isPlainObject(bodyBruto) ? bodyBruto : {};
   const auto = body.modo === "auto";
+  const manual = !auto;   // "Atualizar" por dia (from/to): sempre consulta o dia pedido, qualquer que seja a granularidade
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -344,8 +384,9 @@ Deno.serve(async (req: Request) => {
     supersedido_por: string | null;
     colunas_essenciais: string[] | null;
     filtro_periodo: string | null;
+    granularidade: string | null;
   };
-  const COLUNAS_RELATORIO = "id, klingo_id, nome, supersedido_por, colunas_essenciais, filtro_periodo";
+  const COLUNAS_RELATORIO = "id, klingo_id, nome, supersedido_por, colunas_essenciais, filtro_periodo, granularidade";
   let tarefas: Array<{ relatorio: RelatorioCadastro; periodo: string }> = [];
   let pulados: RelatorioCadastro[] = [];
   let restantesAuto = 0;
@@ -425,7 +466,14 @@ Deno.serve(async (req: Request) => {
     primeiraRequisicao = false;
 
     try {
-      const { data: dadosBrutos, titulos, periodoConfirmado } = await fetchReport(relatorio.klingo_id, periodo, token, relatorio.filtro_periodo);
+      const { data: dadosBrutos, titulos, periodoConfirmado } = await fetchReport(
+        relatorio.klingo_id,
+        periodo,
+        // Relatório mensal: `periodo` é o dia 1 e a consulta vai até o último dia do mês (como o painel em Python).
+        relatorio.granularidade === "mes" && !manual ? ultimoDiaDoMes(periodo) : periodo,
+        token,
+        relatorio.filtro_periodo,
+      );
       const data = normalizarCelulas(dadosBrutos);
       const grupos = await agruparLinhas(projetarColunas(data, relatorio.colunas_essenciais));
       const agora = new Date().toISOString();
