@@ -23,6 +23,11 @@ __CSS__
   .sus-leg { display: flex; gap: 16px; font-size: 12px; margin: 4px 0 2px; }
   .sus-leg span { display: inline-flex; align-items: center; gap: 6px; }
   .sus-leg i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); display: inline-block; }
+  .hist-dest { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; margin: 6px 0 14px; padding: 10px 14px; border: 1px solid var(--line, rgba(128,128,128,.25)); border-radius: 10px; }
+  .hist-dest b.grande { font-size: 26px; }
+  .tipo-sus { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: rgba(128,128,128,.14); }
+  .tipo-sus.so { background: var(--accent); color: #fff; }
+  .cel-hist { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -206,6 +211,52 @@ function susPorMetaGraf() {
     <div class="sus-leg"><span style="--c:${COR_SUS}"><i></i>SUS</span><span style="--c:${COR_NAO}"><i></i>Sem SUS</span></div>${blocos}</section>`;
 }
 
+
+// Quais metas são SUS: classifica cada meta pelo convênio dos atendimentos do mês (só SUS · maioria SUS · misto · sem SUS)
+function tipoSus(i) {
+  const tot = i.sus + i.nao_sus;
+  if (!tot) return { rot: 'Sem atendimentos', cls: '', p: null };
+  const p = i.sus / tot * 100;
+  if (p >= 99.5) return { rot: 'Só SUS', cls: 'so', p };
+  if (p <= 0.5) return { rot: 'Sem SUS', cls: '', p };
+  return { rot: p >= 50 ? 'Maioria SUS' : 'Misto', cls: '', p };
+}
+function susClassificacaoHtml(M) {
+  if (!M.convenio_ok) return '';
+  const todos = M.grupos.flatMap(g => g.itens.map(i => ({ ...i, grupo: g.nome, t: tipoSus(i) })));
+  const nSus = todos.filter(i => i.t.p != null && i.t.p >= 50).length, nNao = todos.filter(i => i.t.p != null && i.t.p < 50).length;
+  const totSus = soma(todos, i => i.sus), totTodos = soma(todos, i => i.sus + i.nao_sus);
+  const linhas = [...todos].sort((a, b) => (b.t.p ?? -1) - (a.t.p ?? -1)).map(i => [esc(i.nome), esc(i.grupo),
+    `<span class="tipo-sus ${i.t.cls}">${i.t.rot}</span>`, int(i.sus), int(i.nao_sus), i.t.p == null ? '—' : pct(i.t.p, 0), pct(i.pct, 0)]);
+  return `<section><h2>Quais metas são SUS e quais não são</h2>
+    <p class="nota">Pelo convênio dos atendimentos de ${esc(M.rotulo)}. <b>Só SUS</b> = todos pelo SUS · <b>Maioria SUS</b> = 50% ou mais · <b>Misto</b> = menos de 50% · <b>Sem SUS</b> = nenhum.</p>
+    <div class="hist-dest"><span><b class="grande">${nSus}</b> meta(s) com maioria SUS</span><span><b class="grande">${nNao}</b> meta(s) predominantemente sem SUS</span><span><b class="grande">${totTodos ? pct(totSus / totTodos * 100, 0) : '—'}</b> dos atendimentos das metas são SUS</span></div>
+    ${tabela([{ t: 'Meta' }, { t: 'Unidade' }, { t: 'Tipo' }, { t: 'SUS', n: 1 }, { t: 'Sem SUS', n: 1 }, { t: '% SUS', n: 1 }, { t: 'Meta cumprida', n: 1 }], linhas)}</section>`;
+}
+
+// Histórico: quanto das metas foi batido em cada mês (mês anterior em destaque) e meta a meta
+function historicoHtml(M, ant) {
+  const ks = [...CHAVES].reverse();   // do mais antigo ao mais novo
+  if (!ks.length) return '';
+  const ms = ks.map(k => D.meses[k]);
+  const antes = M.periodo ? null : ant;
+  const dest = antes ? `<div class="hist-dest"><span>No mês anterior (<b>${esc(antes.rotulo)}</b>) foram batidos</span><b class="grande">${pct(antes.geral.pct, 0)}</b><span>do total das metas · ${antes.geral.itens_ok} de ${antes.geral.itens_total} metas batidas</span>${M.fechado || M.periodo ? '' : comp(M.geral.pct - antes.geral.pct, 'contra o mês anterior (mês atual ainda em andamento)', { unidade: 'pp', d: 0 })}</div>` : '';
+  const grafico = barras(ms.map((x, n) => { const a = ms[n - 1], batidas = soma(x.grupos.flatMap(g => g.itens), i => i.status === 'batida' ? 1 : 0); return {
+    rotulo: x.rotulo + (x.fechado ? '' : ' (em andamento)'), valor: x.geral.pct, texto: pct(x.geral.pct, 0), extra: `${batidas} de ${x.geral.itens_total} metas batidas`,
+    cor: x.fechado ? (x.geral.pct < 100 ? 'var(--warn)' : undefined) : corSt(x.geral.status), marca: x.fechado ? 100 : x.esperado_pct,
+    tip: `${x.rotulo}\nMetas cumpridas: ${pct(x.geral.pct, 1)}${a ? `\nMês anterior: ${pct(a.geral.pct, 1)}` : ''}\n${batidas} de ${x.geral.itens_total} metas batidas (100%)\n${num(x.total_atendimentos)} atendimentos` }; }),
+    '', '30%', { max: Math.max(100, ...ms.map(x => x.geral.pct)) });
+  const cab = [{ t: 'Meta' }, { t: 'Unidade' }, ...ms.map(x => ({ t: x.rotulo, n: 1 }))];
+  const linhas = D.meses[ks[ks.length - 1]].grupos.flatMap(g => g.itens.map(it => [esc(it.nome), esc(g.nome), ...ms.map(x => {
+    const i = (x.grupos.find(y => y.id === g.id) || { itens: [] }).itens.find(y => y.id === it.id);
+    return i ? `<span class="cel-hist" style="color:${i.pct >= 100 ? 'var(--good)' : x.fechado ? 'var(--warn)' : 'inherit'}">${pct(i.pct, 0)}</span>` : '—'; })]));
+  const rodape = ['<b>Total das metas</b>', '', ...ms.map(x => `<b>${pct(x.geral.pct, 0)}</b>`)];
+  return `<section><h2>Histórico das metas, mês a mês</h2>
+    <p class="nota">Percentual do total das metas cumprido em cada mês (cada meta conta até 100%; a marca preta é a meta de 100%, ou o esperado até hoje no mês em andamento).</p>
+    ${dest}${grafico}
+    ${acordeao('Percentual de cada meta em cada mês', `<p class="nota">Verde = meta batida · amarelo = abaixo da meta em mês fechado.</p>` + tabela(cab, linhas, rodape), { dica: `${ms.length} mês(es)` })}</section>`;
+}
+
 // ====================== DETALHES ======================
 // SUS x sem SUS: linhas gravadas antes da coluna Convênio existir não entram em nenhum dos dois (baixar o ano inteiro completa)
 const semConv = gr => { const n = soma(gr.itens, i => i.sem_conv); return n ? `<p class="nota">${int(n)} atendimento(s) deste mês estão sem convênio na planilha e não entram em SUS nem em Sem SUS.</p>` : ''; };
@@ -231,8 +282,8 @@ function render(ym) {
   const M = D.meses[ym], ant = anteriorDe(D, CHAVES, ym);
   $('sub').textContent = `${M.rotulo} · último atendimento: ${M.ultimo_atendimento} · dados consultados no Klingo em ${D.dados_em}`;
   $('conteudo').innerHTML =
-    tier('Resumo', 'Os números do mês e o ritmo das metas', kpisHtml(M, ant) + ritmoHtml(M, ant)) +
-    tier('Análise', 'Cada meta e cada unidade', rankingGraf(M) + ritmoPorMetaGraf(M) + unidadesGraf(M) + susPorMetaGraf()) +
+    tier('Resumo', 'Os números do mês e o ritmo das metas', kpisHtml(M, ant) + ritmoHtml(M, ant) + historicoHtml(M, ant)) +
+    tier('Análise', 'Cada meta e cada unidade', rankingGraf(M) + ritmoPorMetaGraf(M) + unidadesGraf(M) + susClassificacaoHtml(M) + susPorMetaGraf()) +
     tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(M)}</section>`);
   $('rodape').textContent = `Fonte: Klingo, relatório “Atendimentos – Acompanhamento de Metas por Unidade e Procedimento – Mensal”. Dados consultados em ${D.dados_em}; página montada em ${D.gerado_em}.`;
 }
