@@ -46,6 +46,9 @@ const FETCH_RETRIES = 1;
 const RETRY_DELAY_MS = 1_000;
 const REQUEST_DELAY_MS = 500;
 const MAX_LOTE_AUTO = 80;
+// Cada chamada da Edge Function tem poucos segundos de CPU: um pedido com mais linhas que isto (um mes de 32 mil linhas derrubou a funcao)
+// e recusado com erro claro antes de calcular os hashes; a saida e coletar o relatorio dia a dia (dim_relatorio.granularidade = 'dia').
+const MAX_LINHAS_POR_PEDIDO = 16_000;
 const ORCAMENTO_AUTO_MS = 75_000;   // uma consulta mensal grande pode passar do orçamento: sobra folga até o limite da função
 
 type Row = Record<string, unknown>;
@@ -184,6 +187,11 @@ async function fetchReportOnce(klingoId: string, de: string, ate: string, token:
   if (payload?.result === "") return { data: [], titulos: {}, periodoConfirmado, cortado };
   const data = payload?.result?.data;
   if (!Array.isArray(data)) throw new Error("Formato inesperado na resposta do Klingo");
+  if (data.length > MAX_LINHAS_POR_PEDIDO) {
+    throw new Error(
+      `O pedido de ${de} a ${ate} trouxe ${data.length} linhas (máximo ${MAX_LINHAS_POR_PEDIDO} por chamada): mude dim_relatorio.granularidade para 'dia' e coleta por dia`,
+    );
+  }
   return { data, titulos: extrairTitulos(payload.result), periodoConfirmado, cortado };
 }
 
