@@ -3,6 +3,7 @@ import hashlib
 import json
 import math
 import re
+import threading
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 from functools import lru_cache
@@ -251,8 +252,18 @@ def marca_layout() -> str:
     return f"<!-- layout:{versao_layout()} -->"
 
 
+_ULTIMA = threading.local()
+
+
+def payload_montado() -> dict | None:
+    """O payload da ultima pagina montada nesta linha de execucao (e esquece): e dele que sai a aba Avisos, sem calcular o painel duas vezes."""
+    payload, _ULTIMA.payload = getattr(_ULTIMA, "payload", None), None
+    return payload
+
+
 def montar_html(modelo: Path, payload: dict) -> str:
     completar_payload(payload)
+    _ULTIMA.payload = payload
     css = (RAIZ / "painel_base.css").read_text(encoding="utf-8")
     js = (RAIZ / "painel_base.js").read_text(encoding="utf-8")
     dados = json.dumps(limpo(payload), ensure_ascii=False, allow_nan=False).replace("</", "<\\/")

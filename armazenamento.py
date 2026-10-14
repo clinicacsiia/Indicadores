@@ -244,21 +244,19 @@ def limpar_paginas(painel: str, manter_versao: int, manter_dia: date) -> None:
            cabecalhos={"Prefer": "return=minimal"})
 
 
-# ---------------------------------------------------------------- marcacoes de alertas resolvidos
-def listar_pendencias(painel: str) -> list[dict]:
-    _, _, res = _pedir("GET", "/rest/v1/painel_pendencia", {"painel": f"eq.{painel}", "select": "chave,titulo,usuario,quando,versao", "order": "quando.desc"})
-    return res or []
+# ---------------------------------------------------------------- avisos (aba Avisos)
+def sincronizar_avisos(painel: str, escopos: list[str], versao: int, alertas: list[dict]) -> dict:
+    """Compara os alertas que o painel mostra agora com os avisos registrados (novo, resolvido, voltou...). Quem decide e o banco: aviso_sincronizar."""
+    _, _, res = _pedir("POST", "/rest/v1/rpc/aviso_sincronizar",
+                       corpo={"p_painel": painel, "p_escopos": escopos, "p_versao": int(versao), "p_alertas": alertas})
+    return res or {}
 
 
-def marcar_pendencia(painel: str, chave: str, titulo: str, usuario: str, versao: int) -> None:
-    _pedir("POST", "/rest/v1/painel_pendencia", params={"on_conflict": "painel,chave"},
-           corpo=[{"painel": painel, "chave": chave, "titulo": titulo, "usuario": usuario, "versao": int(versao),
-                   "quando": datetime.now(timezone.utc).isoformat(timespec="seconds")}],
-           cabecalhos={"Prefer": "resolution=merge-duplicates,return=minimal"})
-
-
-def desmarcar_pendencia(painel: str, chave: str) -> None:
-    _pedir("DELETE", "/rest/v1/painel_pendencia", {"painel": f"eq.{painel}", "chave": f"eq.{chave}"}, cabecalhos={"Prefer": "return=minimal"})
+def listar_avisos(painel: str) -> list[dict]:
+    """Avisos do painel que ja tiveram desfecho ou historico (justificados, resolvidos ou que voltaram): e o que a pagina do painel mostra junto dos alertas."""
+    campos = "id,chave,titulo,status,recorrencias,reaberturas,justificativa,justificado_por,justificado_em,resolvido_em"
+    _, _, res = _pedir("GET", "/rest/v1/aviso", {"painel": f"eq.{painel}", "select": campos, "order": "id.asc"})
+    return [r for r in (res or []) if r["status"] != "aberto" or r["recorrencias"] or r["reaberturas"]]
 
 
 # ---------------------------------------------------------------- historico de atualizacoes e custos

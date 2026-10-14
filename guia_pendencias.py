@@ -35,6 +35,13 @@ ESCOPO_MES = {"fat_sem_fatura", "fat_falta_faturar", "fat_pouco_recebido", "fat_
               "ate_metas", "ate_metas_revisar", "ate_sem_meta", "ate_dif_metas", "ate_fora_expediente", "ate_teste",
               "ate_sem_checkin", "ate_etapa_aberta", "ate_ea_curta", "ate_sem_final", "ate_dif_fluxo"}
 MAX_ITENS = 25   # linhas da tabela "quais são" (o resto se procura no relatorio)
+# alertas que a clinica pode ACEITAR com justificativa (cortesia, retorno, queda sazonal, meta decidida...): o problema nao e um erro de cadastro que
+# some ao corrigir. Na aba Avisos eles ficam fechados enquanto continuarem aparecendo e so reabrem se piorarem (ver aviso_sincronizar no banco).
+# Os demais (erro de cadastro, lancamento esquecido...) sao conferidos na atualizacao seguinte: se fechou com justificativa e continua nos dados, reabre.
+PERSISTENTES = {"fat_glosa", "fat_receita_queda", "des_repetidas", "sup_encerrados", "sup_parciais", "sup_baixas_bloco", "fin_pagar_maior",
+                "cesta_atend_queda", "cesta_ticket_queda", "cesta_multi_queda", "cesta_valor_zero", "cesta_poucos_multi",
+                "ate_abertos", "ate_valor_zero", "ate_espera", "ate_duracao", "ate_producao", "ate_queda", "ate_metas", "ate_metas_revisar",
+                "ate_fora_expediente"}
 
 # (painel, regex do titulo, id, relatorios, passos, resolve)
 REGRAS = [
@@ -387,6 +394,11 @@ def anotar(painel: str, alertas: list[dict], escopo: str = "") -> list[dict]:
         a["id"], a["escopo"] = ident, (escopo if ident in ESCOPO_MES else "")
         a["guia"] = {"relatorios": [_relatorio(r) for r in rels], "passos": passos, "resolve": resolve}
     return alertas
+
+
+def persistente(ident: str) -> bool:
+    """O alerta pode ser aceito com justificativa (so reabre se piorar)?"""
+    return ident in PERSISTENTES
 
 
 def sem_guia(painel: str, titulo: str) -> bool:

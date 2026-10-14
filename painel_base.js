@@ -31,6 +31,7 @@ const chip = nivel => `<span class="chip"><svg viewBox="0 0 24 24" aria-hidden="
 // ---- alertas: cada um pode trazer "guia" (onde achar no Klingo, passos) e "itens" (tabela dos registros afetados)
 // ym = mes que a tela mostra (alertas de "hoje" tem escopo vazio; os do mes, o proprio mes). Ver guia_pendencias.py.
 const chaveAlerta = a => (a.escopo || '') + '|' + a.id;
+const linkAviso = a => `/avisos?painel=${encodeURIComponent(painelAtual())}&aviso=${encodeURIComponent(chaveAlerta(a))}`;
 
 function guiaHtml(a) {
   const g = a.guia, it = a.itens;
@@ -56,7 +57,10 @@ function alertasHtml(lista, ym) {
     const guia = a.guia && a.id;
     return `<li class="alerta n-${a.nivel}" data-ordem="${n}"${guia ? ` data-chave="${esc(chaveAlerta(a))}" data-titulo="${esc(a.titulo)}"` : ''}>${chip(a.nivel)}<div><span class="tit">${esc(a.titulo)}</span><p>${a.texto}</p>` +
       (guia ? `<div class="al-acoes"><button type="button" class="btn-mini" data-al="guia" aria-expanded="false">Como achar o problema</button>` +
-        `<button type="button" class="btn-mini ok" data-al="resolver">Marcar como resolvido</button></div><div class="al-nota" hidden></div>${guiaHtml(a)}` : '') +
+        (window.PAINEL_NUVEM
+          ? `<a class="btn-mini ok" data-al="justificar" href="${esc(linkAviso(a))}" target="_top">Justificar e fechar</a>`   // na nuvem quem fecha e a aba Avisos, e exige justificativa
+          : `<button type="button" class="btn-mini ok" data-al="resolver">Marcar como resolvido</button>`) +
+        `</div><div class="al-nota" hidden></div>${guiaHtml(a)}` : '') +
       `</div></li>`;
   }).join('') + '</ul>';
 }
@@ -85,14 +89,67 @@ const marcasPorChave = lista => Object.fromEntries((lista || []).map(m => [m.cha
 // Painel recortado (ex.: Atendimento filtrado por responsavel) liga window.PAINEL_FILTRADO: o alerta passa a mostrar so uma parte dos dados,
 // entao "Marcar como resolvido" fica desligado (a marcacao e da clinica inteira) e "resolvido, nao aparece mais" nao vale (o alerta pode so ter saido do recorte).
 const servidoEditavel = () => location.protocol.startsWith('http') && !window.PAINEL_FILTRADO;
-function aplicarMarcas(ul) {
-  const servido = servidoEditavel(), filtrado = !!window.PAINEL_FILTRADO;
+function desfazerResolvidos(ul) {
   const velho = ul.nextElementSibling && ul.nextElementSibling.matches('details.resolvidas') ? ul.nextElementSibling : null;
   if (velho) {   // devolve os alertas que estavam guardados em "Resolvidos" a lista principal, na ordem de antes
     velho.querySelectorAll('li[data-ordem]').forEach(li => ul.appendChild(li));
     [...ul.children].sort((a, b) => (a.dataset.ordem ?? 1e9) - (b.dataset.ordem ?? 1e9)).forEach(li => ul.appendChild(li));
     velho.remove();
   }
+}
+
+// Painel na nuvem: o que a aba Avisos sabe de cada alerta. m = {chave, titulo, status: aberto|justificado|resolvido, recorrencias, reaberturas,
+// justificativa, justificado_por, justificado_em, resolvido_em}. Quem decide se voltou, continua ou foi corrigido e o banco (ver avisos.py); aqui so se mostra.
+const historicoAviso = m => [m.recorrencias ? `voltou a acontecer ${m.recorrencias} ${m.recorrencias === 1 ? 'vez' : 'vezes'}` : '',
+  m.reaberturas ? `reaberto ${m.reaberturas} ${m.reaberturas === 1 ? 'vez' : 'vezes'} por continuar nos dados depois de fechado` : ''].filter(Boolean).join(' · ');
+const nomeUsuario = email => String(email || 'alguém').replace(/@csi\.local$/, '');   // "ana@csi.local" aparece como "ana", igual ao menu do site
+const citacao = m => m.justificativa ? ` Justificativa: “${esc(m.justificativa)}”` : '';
+function aplicarAvisos(ul) {
+  const filtrado = !!window.PAINEL_FILTRADO;
+  desfazerResolvidos(ul);
+  const lis = [...ul.querySelectorAll('li[data-chave]')];
+  const todas = alertasPrincipais();
+  const presentes = new Set([...document.querySelectorAll('li[data-chave]')].map(li => li.dataset.chave));
+  const guardadas = [];
+  lis.forEach(li => {
+    const nota = li.querySelector('.al-nota'), link = li.querySelector('[data-al="justificar"]');
+    li.classList.remove('resolvida', 'reaparece'); nota.hidden = true; nota.innerHTML = '';
+    if (link) link.hidden = filtrado;
+    const m = !filtrado && ALERTAS.marcas && ALERTAS.marcas[li.dataset.chave];
+    if (!m) return;
+    if (m.status === 'justificado') {
+      li.classList.add('resolvida');
+      nota.innerHTML = `✔ Fechado por ${esc(nomeUsuario(m.justificado_por))} em ${dataHora(m.justificado_em)}.${citacao(m)} O painel confere na próxima atualização dos dados e reabre se o problema continuar.`;
+      nota.hidden = false; if (link) link.hidden = true;
+      guardadas.push(li);
+    } else if (m.status === 'aberto') {
+      li.classList.add('reaparece');
+      nota.innerHTML = `⚠ ${esc(historicoAviso(m))}.${citacao(m)}`;
+      nota.hidden = false;
+    }
+  });
+  const escopos = new Set(['', ...todas.map(u => u.dataset.escopo || '')]);
+  const limite = Date.now() - 30 * 86400000;
+  const confirmadas = todas[0] !== ul || filtrado ? [] : Object.values(ALERTAS.marcas || {})
+    .filter(m => m.status === 'resolvido' && escopos.has(m.chave.split('|')[0]) && !presentes.has(m.chave) && new Date(m.resolvido_em) > limite);
+  if (!guardadas.length && !confirmadas.length) return;
+  const det = document.createElement('details'); det.className = 'resolvidas';
+  det.innerHTML = `<summary>Resolvidos (${guardadas.length + confirmadas.length})</summary><ul class="alertas"></ul>`;
+  const alvo = det.querySelector('ul');
+  guardadas.forEach(li => alvo.appendChild(li));
+  confirmadas.forEach(m => {
+    const li = document.createElement('li'); li.className = 'alerta n-ok'; li.dataset.chave = m.chave;
+    const volta = historicoAviso(m);
+    li.innerHTML = `${chip('ok')}<div><span class="tit">${esc(m.titulo || m.chave)}</span><p>✔ Resolvido: não aparece mais nos dados desde ${dataHora(m.resolvido_em)}.${volta ? ` (${esc(volta)})` : ''}${citacao(m)}</p></div>`;
+    alvo.appendChild(li);
+  });
+  ul.after(det);
+}
+
+function aplicarMarcas(ul) {
+  if (window.PAINEL_NUVEM) return aplicarAvisos(ul);
+  const servido = servidoEditavel(), filtrado = !!window.PAINEL_FILTRADO;
+  desfazerResolvidos(ul);
   const lis = [...ul.querySelectorAll('li[data-chave]')];
   const todas = alertasPrincipais();   // a pagina pode ter mais de uma lista (ex.: atencao e conferencia): o que sumiu so e conferido na primeira
   const presentes = new Set([...document.querySelectorAll('li[data-chave]')].map(li => li.dataset.chave));
@@ -169,7 +226,7 @@ document.addEventListener('click', async e => {
 
 if (location.protocol.startsWith('http')) {   // busca as marcacoes e acompanha cada vez que o painel redesenha os alertas (troca de mes)
   fetch(apiPendencias(''), { cache: 'no-store' }).then(r => r.json())
-    .then(j => { ALERTAS.marcas = marcasPorChave(j.resolvidas); reaplicarMarcas(); }).catch(() => { ALERTAS.marcas = {}; reaplicarMarcas(); });
+    .then(j => { ALERTAS.marcas = marcasPorChave(j.avisos || j.resolvidas); reaplicarMarcas(); }).catch(() => { ALERTAS.marcas = {}; reaplicarMarcas(); });
 }
 new MutationObserver(ms => {
   const novos = alertasPrincipais().filter(ul => !ul.dataset.pronto);

@@ -42,6 +42,8 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
 - `app/(app)/atualizar-form.tsx` + `atualizar-actions.ts` — botão "Atualizar"
   (só admin): escolhe o relatório do catálogo `dim_relatorio` e o período.
   O relatório `13397` também atualiza os totais mostrados na tela.
+- `app/(app)/avisos/` + `lib/avisos.ts` — aba "Avisos": as pendências de todos os painéis, com justificativa obrigatória para
+  fechar e conferência de recorrência. Ver "Aba Avisos" abaixo.
 - `app/(app)/metas/page.tsx` — aba "Metas": escolhe o mês (de `primeiro_mes`
   até o mês atual) e mostra, por grupo (CSI 1, CSI 2, CSI Pediatria), meta ×
   realizado, % de cumprimento, quanto falta, quanto fazer por dia útil,
@@ -68,7 +70,7 @@ código de cálculo (`*/gerar_*.py`, `klingo_relatorios.py`, `painel_comum.py`) 
 | No programa local | Aqui |
 | --- | --- |
 | Excel por painel (`Faturamento.xlsx`...) | tabelas `painel_dados` / `painel_mes` no Supabase (`armazenamento.py`) |
-| SQLite (marcações "resolvido", histórico) | `painel_pendencia`, `painel_atualizacao` |
+| SQLite (marcações "resolvido", histórico) | `aviso` e `aviso_evento` (aba Avisos); `painel_atualizacao` guarda o histórico de atualizações. `painel_pendencia` ficou sem uso |
 | `Custos dos Itens.xlsx` (Suprimentos) | tabela `painel_custo_item` (preencher no Table Editor: colunas `item` e `custo`) |
 | Login/usuários do portal (`autenticacao.py`) | login do Supabase (o mesmo do site) + `profiles.permissions.<painel>` |
 | Servidor local, rede, certificado, `.exe` | funções Python da Vercel em `api/` |
@@ -135,7 +137,8 @@ Todas as abas (Início, Metas, Configurações e os 7 painéis em Python) seguem
 
 ### Para colocar no ar
 
-1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` (SQL Editor do Supabase).
+1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
+   `supabase/migrations/20261014210000_avisos.sql` (SQL Editor do Supabase).
 2. **Variáveis da Vercel** (Settings → Environment Variables):
    - `KLINGO_APP_TOKEN` — marcar *Sensitive*; Production (e Preview se for testar). É o mesmo token do secret da Edge Function.
    - `SUPABASE_SERVICE_ROLE_KEY` — **já existe** (criada pela integração Supabase), mas só em *Production*: marque também
@@ -152,17 +155,57 @@ Todas as abas (Início, Metas, Configurações e os 7 painéis em Python) seguem
   no servidor, e **depois** de conferir o login (`/auth/v1/user`) e a permissão (`profiles`).
 - **Mudança consciente em relação ao resto do site:** o site Next.js continua sem chave privilegiada, mas as funções Python
   precisam da `service_role` (gravam dados e leem as tabelas fechadas). Ela fica só como variável de servidor da Vercel.
-- Escritas (`atualizar`, marcar "resolvido") exigem o cabeçalho `X-Painel: 1`, que um site de fora não consegue mandar com o
+- Escritas (`atualizar`) exigem o cabeçalho `X-Painel: 1`, que um site de fora não consegue mandar com o
   cookie do usuário; o quadro do painel só aparece dentro do próprio site (`frame-ancestors 'self'`).
-- Quem marcou um alerta como resolvido vem do login, nunca do corpo do pedido.
+- Fechar um alerta é feito só na aba Avisos (`fechar_aviso`, no banco, com justificativa). Quem fechou vem do login (`auth.uid()`),
+  nunca do corpo do pedido.
 
 ### Testes
 
 `python -m unittest discover -s tests -v` — sobe um Supabase e um Klingo simulados (`tests/mock_nuvem.py`) e confere login,
-permissões, atualização (mês substituído, não somado), tipos das colunas, página pronta guardada e invalidada, pendências e
-corte por tempo. Os 7 painéis também foram gerados de ponta a ponta com dados de mentira e o botão **Atualizar agora**
+permissões, atualização (mês substituído, não somado), tipos das colunas, página pronta guardada e invalidada, avisos e
+corte por tempo. A regra da aba Avisos dentro do banco (novo / resolvido / voltou / justificado, permissões e RLS) é testada num
+Postgres de verdade: `createdb avisos_teste && psql -v ON_ERROR_STOP=1 -d avisos_teste -f supabase/tests/avisos.sql`. Os 7 painéis também foram gerados de ponta a ponta com dados de mentira e o botão **Atualizar agora**
 foi exercitado no Chromium. **Não foi testado:** o deploy na Vercel de verdade (funções Python junto do Next.js, tamanho do
 pacote com pandas, tempo da carga inicial) nem o Klingo/Supabase reais — confira o primeiro deploy e o log das funções.
+
+## Aba Avisos
+
+Todas as pendências dos painéis num lugar só (menu **Avisos**, com o contador de abertos). Cada alerta com guia que um painel calcula
+(os mesmos de "Como achar o problema") vira um **aviso**. **O administrador vê tudo; os demais só os avisos dos painéis liberados
+em Configurações** (RLS: `can_view_painel`, a mesma regra de `profiles.permissions.<painel>`).
+
+**Como os avisos nascem e se atualizam.** Quando a página de um painel é refeita (dados novos, novo dia ou **Atualizar agora**),
+`portal_nuvem.registrar_avisos` pega os alertas dela (`avisos.py`) e chama `aviso_sincronizar` no Supabase. Só a página padrão
+conta (não um período escolhido no filtro) e, para os alertas de um mês, o mês atual e o anterior (`JANELA_MESES`); aviso de um mês
+que saiu da janela fica como estava. Painel sem dados não resolve nada. Falhar aqui nunca impede de abrir o painel.
+
+| O que o painel mostra agora | O que acontece com o aviso |
+| --- | --- |
+| alerta novo | aviso **aberto** (histórico: "apareceu nos dados") |
+| continua aparecendo | segue aberto |
+| deixou de aparecer | **resolvido** (o painel segue conferindo) |
+| estava resolvido e **voltou** | aberto de novo, selo **"Voltou a acontecer N×"** |
+| fechado com justificativa, os dados foram atualizados e **continua** | aberto de novo, selo **"Reaberto N×"** (a justificativa não resolveu) |
+| fechado com justificativa e **some** | resolvido e confirmado |
+
+**Fechar exige justificativa** (mínimo de 15 e máximo de 1000 caracteres; conferido no formulário, na action e no banco). O aviso
+fica "fechado com justificativa" até a próxima atualização dos dados: se o problema sumiu, vira resolvido; se continuar, reabre.
+"Ainda não resolvi" desfaz o fechamento. Quem justificou, quando e o texto ficam no aviso e em todo o **histórico**.
+
+**Avisos que podem ser aceitos** (`guia_pendencias.PERSISTENTES`: cortesia com valor zero, glosa conhecida, queda sazonal, meta
+decidida...): não são erro de cadastro e continuam aparecendo mesmo depois de resolvidos. Fechados com justificativa, **ficam
+fechados enquanto o painel mostrar o mesmo problema** e só reabrem se **piorar** (nível mais grave ou 25% mais registros, e ao
+menos 1 a mais). Para mudar a lista ou o limite: `PERSISTENTES` e a função `aviso_sincronizar`.
+
+**Nos painéis** o botão "Marcar como resolvido" virou **"Justificar e fechar"** (abre o aviso na aba Avisos) e cada alerta mostra
+o que se sabe dele: fechado por quem e por quê, quantas vezes voltou, e os resolvidos dos últimos 30 dias. `/api/pendencias?id=<painel>`
+agora só lista (GET); no programa local (sem Supabase) o botão antigo continua como era. As marcações antigas de `painel_pendencia`
+não foram migradas: esses alertas aparecem como abertos na primeira conferência.
+
+**Limites a saber:** os avisos só são conferidos quando a página do painel é refeita — por alguém abrindo o painel, pelo botão **Atualizar
+agora** ou pelo cron diário —, então um aviso pode estar até um dia atrasado. "Voltou a acontecer" só é detectado entre uma conferência
+e outra (um problema que some e volta entre duas conferências não é visto).
 
 ## Aba Metas
 

@@ -1,3 +1,4 @@
+import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { signOut } from "@/app/actions";
 import { Brand } from "@/app/components/Brand";
@@ -6,12 +7,24 @@ import { IconSair } from "@/app/components/icons";
 import { PAINEIS, podeVerPainel } from "@/lib/paineis";
 import { APP_VERSION } from "@/lib/version";
 
+// RLS (can_view_painel) já limita aos painéis que a pessoa pode ver; o administrador conta todos.
+async function contarAvisosAbertos() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("aviso").select("nivel").eq("status", "aberto");
+  if (error) {
+    console.error("Falha ao contar avisos abertos:", error.message);
+    return { abertos: 0, criticos: 0 };
+  }
+  return { abertos: data.length, criticos: data.filter((a) => a.nivel === "critico").length };
+}
+
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const profile = await getCurrentProfile();
+  const avisos = await contarAvisosAbertos();
   const isAdmin = profile?.role === "admin";
   const paineis = PAINEIS.filter((p) => podeVerPainel(profile, p.id));
   const email = profile?.email ?? "";
@@ -30,7 +43,7 @@ export default async function AppLayout({
           <span className="version-tag">v{APP_VERSION}</span>
         </div>
 
-        <NavLinks isAdmin={isAdmin} paineis={paineis} />
+        <NavLinks isAdmin={isAdmin} paineis={paineis} avisos={avisos} />
 
         <div className="sidebar-user">
           <span className="avatar" aria-hidden="true">

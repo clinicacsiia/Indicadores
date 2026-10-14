@@ -1,4 +1,4 @@
-"""Alertas marcados como resolvidos (GET /api/pendencias?id=..., POST ...&acao=resolver|reabrir)."""
+"""O que a aba Avisos sabe dos alertas de um painel (GET /api/pendencias?id=...): justificados, resolvidos e os que voltaram."""
 import sys
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
