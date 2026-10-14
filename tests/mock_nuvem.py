@@ -196,7 +196,7 @@ def criar_klingo(colunas_extras: dict[int, list[str]] | None = None, linhas_por_
                 cols = ["Exames Realizados", "Unidade", "Procedimento - Classes", "Especialidade", "Data do Atendimento", "Procedimento", "Operadora"]
                 hoje = date.today()
                 dados = [{f"c{i}": v for i, v in enumerate([str(1000 + n), "CLÍNICA DE SAÚDE E IMAGEM - CSI 1", '["RESSONANCIA"]', "RESSONÂNCIA",
-                                                           f"{hoje.strftime('%Y-%m')}-0{n + 1}T10:00:00", "RM CRANIO", "SUS" if n % 2 else "UNIMED"])} for n in range(linhas_por_mes)]
+                                                           f"{hoje.strftime('%Y-%m')}-{n % 28 + 1:02d}T10:00:00", "RM CRANIO", "SUS" if n % 2 else "UNIMED"])} for n in range(linhas_por_mes)]
                 corpo = {"id": 13339, "inputs": [{"id": "periodo0", "value": q.get(":periodo0", "m")}],
                          "result": {"columns": [{"name": f"c{i}", "title": t} for i, t in enumerate(cols)], "rows": len(dados), "data": dados}}
             else:
@@ -212,7 +212,7 @@ def criar_klingo(colunas_extras: dict[int, list[str]] | None = None, linhas_por_
                         if t in numeros or re.search(r"(Valor|Qtd|Quant|Saldo|Taxa|Custo|Tempo|Minuto|Idade|Total|Preço)", t):
                             linha[f"c{i}"] = str(100 + n + (i * 7))
                         elif t in datas or re.search(r"\b(Data|Emiss|Vencimento|Compet|Validade)", t):
-                            linha[f"c{i}"] = (base + timedelta(days=n)).strftime("%Y-%m-%d 09:58:25")
+                            linha[f"c{i}"] = (base + timedelta(days=n % 28)).strftime("%Y-%m-%d 09:58:25")   # as datas ficam dentro do mes baixado
                         elif "Faixa" in t:
                             linha[f"c{i}"] = ("0-9", "10-19", "20-29")[n % 3]
                         else:

@@ -365,90 +365,150 @@ document.addEventListener('mousemove', e => { const m = e.target.closest && e.ta
 document.addEventListener('focusin', e => { const m = e.target.closest && e.target.closest('[data-tip]'); if (m) { const r = m.getBoundingClientRect(); mostrarTip(m, r.left, r.bottom); } });
 document.addEventListener('focusout', () => { tip.style.display = 'none'; });
 
-// ---- filtro de periodo (De / Ate) -------------------------------------------------------------------------------------------------------
-// Cada painel tem os meses calculados (D.meses["2026-09"]). Um periodo de varios meses ("2026-09..2026-10") e calculado pelo servidor quando
-// pedido (?de=2026-09&ate=2026-10), com a mesma conta de um mes sobre todos os meses juntos, e chega em D.meses[chave] + D.periodo.
+// ---- filtro de periodo --------------------------------------------------------------------------------------------------------------------
+// Barra de filtros igual a das telas do site: atalhos de mes, atalhos de dias e periodo livre (De / Ate, em datas).
+// Cada painel tem os meses calculados (D.meses["2026-09"]). Um periodo que nao e um mes ("2026-09..2026-10", varios meses, ou
+// "2026-09-10..2026-10-25", dias exatos) e calculado pelo servidor quando pedido (?de=2026-09-10&ate=2026-10-25), com a mesma conta de um mes
+// sobre todas as linhas do periodo, e chega em D.meses[chave] + D.periodo. Datas que cobrem meses inteiros viram o filtro por mes.
 // O painel chama iniciarPeriodo(D, render) no lugar de montar o seletor "Mes" por conta propria.
 const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const rotuloMes = ym => `${NOMES_MES[+ym.slice(5) - 1]}/${ym.slice(0, 4)}`;
+const rotuloMesCurto = ym => `${NOMES_MES[+ym.slice(5) - 1].slice(0, 3)}/${ym.slice(2, 4)}`;
 const ehPeriodo = ym => String(ym).includes('..');
 const chavesMeses = D => Object.keys(D.meses).filter(k => !ehPeriodo(k)).sort().reverse();   // so os meses simples, do mais novo ao mais antigo
 // mes (ou periodo) anterior ao escolhido: num periodo, e o periodo de mesmo tamanho logo antes (chave_anterior, calculado junto)
 const anteriorDe = (D, CHAVES, ym) => { const M = D.meses[ym]; return M && M.periodo ? (D.meses[M.chave_anterior] || null) : (D.meses[CHAVES[CHAVES.indexOf(ym) + 1]] || null); };
-const mesesEntre = (a, b) => { const r = []; for (let t = +a.slice(0, 4) * 12 + +a.slice(5) - 1, f = +b.slice(0, 4) * 12 + +b.slice(5) - 1; t <= f; t++) r.push(`${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`); return r; };
-function datasDoPeriodo(de, ate, hojeIso) {   // primeiro e ultimo dia do periodo; se hoje cai dentro dele, o ultimo dia com dado e hoje
-  const ultimo = new Date(+ate.slice(0, 4), +ate.slice(5), 0).getDate(), fimMes = `${ate}-${String(ultimo).padStart(2, '0')}`, ini = `${de}-01`;
-  const parcial = !!hojeIso && hojeIso >= ini && hojeIso < fimMes;
-  return { ini, fim: parcial ? hojeIso : fimMes, parcial };
+const mesesEntre = (a, b) => { const r = []; for (let t = +a.slice(0, 4) * 12 + +a.slice(5, 7) - 1, f = +b.slice(0, 4) * 12 + +b.slice(5, 7) - 1; t <= f; t++) r.push(`${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`); return r; };
+
+const ehMesTxt = s => /^\d{4}-(0[1-9]|1[0-2])$/.test(s);
+const ehDiaTxt = s => /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(s) && new Date(s + 'T12:00:00').getMonth() + 1 === +s.slice(5, 7);
+const ultimoDiaDoMes = ym => new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
+const dia2 = n => String(n).padStart(2, '0');
+const somarDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${dia2(d.getMonth() + 1)}-${dia2(d.getDate())}`; };
+// a mesma regra do servidor (painel_comum.Periodo): meses inteiros viram o filtro por mes; o resto e um recorte de dias
+function normalizarPeriodo(de, ate) {
+  if (!(ehMesTxt(de) || ehDiaTxt(de)) || !(ehMesTxt(ate) || ehDiaTxt(ate))) return null;
+  const ini = x => x.length === 7 ? x + '-01' : x, fim = x => x.length === 7 ? `${x}-${dia2(ultimoDiaDoMes(x))}` : x;
+  let a = ini(de), b = fim(ate);
+  if (a > b) { a = ini(ate); b = fim(de); }
+  const mA = a.slice(0, 7), mB = b.slice(0, 7);
+  const inteiro = a.endsWith('-01') && +b.slice(8) === ultimoDiaDoMes(mB);
+  return inteiro ? { de: mA, ate: mB, exato: false, chave: mA === mB ? mA : `${mA}..${mB}`, dia_de: a, dia_ate: b }
+    : { de: a, ate: b, exato: true, chave: `${a}..${b}`, dia_de: a, dia_ate: b };
+}
+function datasDoPeriodo(diaDe, diaAte, hojeIso) {   // primeiro e ultimo dia do periodo; se hoje cai dentro dele, o ultimo dia com dado e hoje
+  const parcial = !!hojeIso && hojeIso >= diaDe && hojeIso < diaAte;
+  return { ini: diaDe, fim: parcial ? hojeIso : diaAte, parcial };
 }
 window.PERIODO_TXT = '';   // "de 01/09/2026 a 30/09/2026": o gerador de PDF le daqui para escrever o periodo no rodape
 
 function iniciarPeriodo(D, render, o = {}) {
   const sel = $('mes'), lab = sel.closest('label');
+  const consulta = new URLSearchParams(location.search);
   let P = D.periodo || null;
-  if (!P) {   // um mes so (?de=2026-09&ate=2026-09, como o PDF e o filtro dos outros menus pedem): a pagina de sempre ja o traz
-    const q = new URLSearchParams(location.search), de = q.get('de');
-    if (de && de === q.get('ate') && /^\d{4}-(0[1-9]|1[0-2])$/.test(de))
-      P = D.meses[de] ? { de, ate: de, chave: de, vazio: false, recortado: false } : { de, ate: de, vazio: true, pedido_de: de, pedido_ate: de };
+  if (!P) {   // um mes inteiro so (?de=2026-09&ate=2026-09 ou de 01 a 30/09, como o PDF e o filtro dos outros menus pedem): a pagina de sempre ja o traz
+    const n = normalizarPeriodo(consulta.get('de') || '', consulta.get('ate') || '');
+    if (n && !n.exato && ehMesTxt(n.chave))
+      P = D.meses[n.chave] ? { de: n.de, ate: n.ate, dia_de: n.dia_de, dia_ate: n.dia_ate, exato: false, chave: n.chave, vazio: false, recortado: false }
+        : { de: n.de, ate: n.ate, dia_de: n.dia_de, dia_ate: n.dia_ate, exato: false, vazio: true, pedido_de: n.de, pedido_ate: n.ate };
   }
   const simples = chavesMeses(D).slice().reverse();
   const todos = D.todos_meses && D.todos_meses.length ? D.todos_meses : simples;
   const baseTxt = ((lab && lab.firstChild && lab.firstChild.textContent) || '').trim().toLowerCase().replace(/^mês de /, '').replace(/^mês$/, '');
+  const rotuloBase = ((lab && lab.firstChild && lab.firstChild.textContent) || '').trim() || 'Mês';
+  const pedido = P ? { de: P.pedido_dia_de || P.dia_de || P.pedido_de || P.de, ate: P.pedido_dia_ate || P.dia_ate || P.pedido_ate || P.ate } : null;
   const pedDe = P ? (P.pedido_de || P.de) : D.mes_padrao, pedAte = P ? (P.pedido_ate || P.ate) : D.mes_padrao;
   const lista = mesesEntre([todos[0], pedDe].sort()[0], [todos[todos.length - 1], pedAte].sort().reverse()[0]).reverse();
-  const opcoes = lista.map(m => `<option value="${m}">${esc(rotuloMes(m))}</option>`).join('');
+  const hoje = D.hoje || new Date().toISOString().slice(0, 10);
+  const minDia = `${lista[lista.length - 1]}-01`, maxDia = `${lista[0]}-${dia2(ultimoDiaDoMes(lista[0]))}`;
+
+  // ---- barra de filtros (a mesma das telas do site)
+  let barraF = $('toolbar');
+  if (!barraF) { barraF = document.createElement('section'); barraF.className = 'toolbar'; barraF.id = 'toolbar'; barraF.setAttribute('aria-label', 'Período'); (document.querySelector('header.top') || document.body).after(barraF); }
+  const hojeYm = hoje.slice(0, 7);
+  const SEIS = lista.filter(m => m <= hojeYm).slice(0, 6);   // os 6 meses ate o atual; meses futuros (previsoes) e antigos ficam em "Outros meses"
   const caixa = document.createElement('div');
-  caixa.className = 'periodo-pick'; caixa.id = 'periodo-pick';
-  caixa.innerHTML = `<label class="mes-pick">De <select id="p-de" aria-label="Período: mês inicial">${opcoes}</select></label>` +
-    `<label class="mes-pick">até <select id="p-ate" aria-label="Período: mês final">${opcoes}</select></label>`;
+  caixa.style.display = 'contents'; caixa.id = 'periodo-pick';
+  caixa.innerHTML =
+    `<div><span class="toolbar-label" id="rot-meses">${esc(rotuloBase)}</span><div class="seg" role="group" aria-labelledby="rot-meses">` +
+      SEIS.map(m => `<button type="button" class="seg-item" data-mes="${m}">${esc(rotuloMesCurto(m))}</button>`).join('') + `</div></div>` +
+    (lista.length > SEIS.length ? `<label class="mes-pick">Outros meses <select id="p-outros" aria-label="Escolher outro mês"><option value="">Escolher…</option>${lista.filter(m => !SEIS.includes(m)).map(m => `<option value="${m}">${esc(rotuloMes(m))}</option>`).join('')}</select></label>` : '') +
+    `<div><span class="toolbar-label" id="rot-atalhos">Últimos dias</span><div class="seg" role="group" aria-labelledby="rot-atalhos">` +
+      [[7, '7 dias'], [30, '30 dias'], [90, '90 dias']].map(([n, t]) => `<button type="button" class="seg-item" data-dias="${n}">${t}</button>`).join('') + `</div></div>` +
+    `<form class="range-form" id="p-form" aria-label="Período livre"><div class="field"><label class="field-label" for="p-de">De</label><input id="p-de" class="input" type="date" min="${minDia}" max="${maxDia}" required></div>` +
+    `<div class="field"><label class="field-label" for="p-ate">Até</label><input id="p-ate" class="input" type="date" min="${minDia}" max="${maxDia}" required></div>` +
+    `<button type="submit" class="btn btn-primary">Aplicar</button></form>`;
   lab.before(caixa); lab.style.display = 'none';
-  const sDe = $('p-de'), sAte = $('p-ate');
+  const iDe = $('p-de'), iAte = $('p-ate'), outros = $('p-outros');
   let linha = $('periodo-ativo'), aviso = $('periodo-aviso');
   if (!linha) { linha = document.createElement('div'); linha.id = 'periodo-ativo'; linha.className = 'periodo-ativo'; ($('sub') || document.querySelector('header.top > div')).after(linha); }
   if (!aviso) { aviso = document.createElement('div'); aviso.id = 'periodo-aviso'; aviso.className = 'periodo-aviso'; aviso.hidden = true; ($('aviso') || $('conteudo')).before(aviso); }
   const barra = barraCarregando();
   const ajuda = document.querySelector('details.ajuda .corpo ul');
-  if (ajuda && !ajuda.querySelector('[data-periodo]')) ajuda.insertAdjacentHTML('afterbegin', '<li data-periodo><b>Período:</b> escolha em <b>De</b> e <b>até</b> um mês ou vários meses seguidos. Com vários meses, os números são os do período inteiro e as comparações são com o período anterior de mesmo tamanho; o que só existe dentro de um mês (ritmo dia a dia, projeção de fechamento) aparece quando o filtro é um mês só. O período fica escrito no alto da página e em todas as folhas do PDF.</li>');
+  if (ajuda && !ajuda.querySelector('[data-periodo]')) ajuda.insertAdjacentHTML('afterbegin', '<li data-periodo><b>Período:</b> use os botões de <b>mês</b> ou os <b>últimos dias</b>, ou escolha livremente a data inicial e a final em <b>De</b> e <b>Até</b> e clique em <b>Aplicar</b>. Com vários meses ou dias soltos, os números são os do período inteiro e as comparações são com o período anterior de mesmo tamanho; o que só existe dentro de um mês (ritmo dia a dia, projeção de fechamento) aparece quando o filtro é um mês só. Informações que o Klingo só entrega por mês inteiro (quando houver) são avisadas no alto da página. O período fica escrito no alto da página e em todas as folhas do PDF.</li>');
 
-  function mostrarLinha(de, ate) {
-    const t = datasDoPeriodo(de, ate, D.hoje);
-    window.PERIODO_TXT = `de ${dataBR(t.ini)} a ${dataBR(t.fim)}`;
-    linha.innerHTML = `Período: <b>${window.PERIODO_TXT}</b>` + (t.parcial ? ' <small>(o último mês ainda não terminou: só há dados até hoje)</small>' : '') +
+  function mostrarLinha(n) {
+    const t = datasDoPeriodo(n.dia_de, n.dia_ate, D.hoje);
+    window.PERIODO_TXT = t.ini === t.fim ? `em ${dataBR(t.ini)}` : `de ${dataBR(t.ini)} a ${dataBR(t.fim)}`;
+    linha.innerHTML = `Período: <b>${window.PERIODO_TXT}</b>` + (t.parcial ? ' <small>(o período ainda não terminou: só há dados até hoje)</small>' : '') +
       (baseTxt ? ` <small>· meses contados por ${esc(baseTxt)}</small>` : '');
   }
-  function escolher(chave, de, ate) {
-    window.PERIODO_CHAVE = chave;   // quem precisa redesenhar por outro motivo (ex.: trocar de responsavel no Atendimento) usa esta chave
-    sDe.value = de; sAte.value = ate;
-    mostrarLinha(de, ate);
-    render(chave);
+  function marcar(n) {   // botoes de mes e de dias acesos conforme o periodo ativo; datas preenchidas com o periodo
+    iDe.value = n.dia_de; iAte.value = n.dia_ate;
+    caixa.querySelectorAll('[data-mes]').forEach(b => b.setAttribute('aria-current', !n.exato && n.chave === b.dataset.mes ? 'true' : 'false'));
+    caixa.querySelectorAll('[data-dias]').forEach(b => { const d = +b.dataset.dias; b.setAttribute('aria-current', n.exato && n.dia_ate === hoje && n.dia_de === somarDias(hoje, 1 - d) ? 'true' : 'false'); });
+    if (outros) outros.value = !n.exato && outros.querySelector(`option[value="${n.chave}"]`) ? n.chave : '';
   }
-  function trocar() {   // quem muda "De" para depois de "Até" (ou o contrario) leva o outro junto
-    let de = sDe.value, ate = sAte.value;
-    if (this === sDe && de > ate) ate = de; else if (this === sAte && ate < de) de = ate;
-    const chave = de === ate ? de : `${de}..${ate}`;
-    const q = new URLSearchParams(location.search); q.set('de', de); q.set('ate', ate);
-    try { parent.postMessage({ tipo: 'periodo', de, ate }, location.origin); } catch (e) {}
-    if (D.meses[chave]) {   // ja esta na pagina (um mes simples ou o periodo que o servidor montou): nao precisa buscar
+  function escolher(n) {
+    window.PERIODO_CHAVE = n.chave;   // quem precisa redesenhar por outro motivo (ex.: trocar de responsavel no Atendimento) usa esta chave
+    marcar(n);
+    mostrarLinha(n);
+    render(n.chave);
+  }
+  function pedir(de, ate) {   // de / ate: mes (AAAA-MM) ou dia (AAAA-MM-DD)
+    const n = normalizarPeriodo(de, ate);
+    if (!n) return;
+    const q = new URLSearchParams(location.search); q.set('de', n.de); q.set('ate', n.ate);
+    try { parent.postMessage({ tipo: 'periodo', de: n.de, ate: n.ate }, location.origin); } catch (e) {}
+    if (D.meses[n.chave]) {   // ja esta na pagina (um mes simples ou o periodo que o servidor montou): nao precisa buscar
       history.replaceState(null, '', location.pathname + '?' + q.toString());
-      aviso.hidden = true; escolher(chave, de, ate);
-    } else {                // periodo novo: o servidor refaz a conta e devolve a pagina
-      sDe.value = de; sAte.value = ate; barra.mostrar();
+      aviso.hidden = true; escolher(n);
+    } else {                  // periodo novo: o servidor refaz a conta e devolve a pagina
+      marcar(n); barra.mostrar();
       aviso.hidden = false; aviso.textContent = 'Calculando o período…';
       location.search = q.toString();
     }
   }
-  sDe.addEventListener('change', trocar); sAte.addEventListener('change', trocar);
+  caixa.addEventListener('click', e => {
+    const bm = e.target.closest('[data-mes]'), bd = e.target.closest('[data-dias]');
+    if (bm) pedir(bm.dataset.mes, bm.dataset.mes);
+    else if (bd) { const d = +bd.dataset.dias; const ini = somarDias(hoje, 1 - d); pedir(ini < minDia ? minDia : ini, hoje); }
+  });
+  if (outros) outros.addEventListener('change', () => { if (outros.value) pedir(outros.value, outros.value); });
+  $('p-form').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!iDe.value || !iAte.value) return;
+    pedir(iDe.value, iAte.value);
+  });
 
+  const notas = (P && P.notas) || [];
+  function avisos(extra) {
+    const t = [...(extra ? [extra] : []), ...notas];
+    aviso.hidden = !t.length; aviso.innerHTML = t.map(x => esc(x)).join('<br>');
+  }
   if (P && P.vazio) {   // nada do painel cai dentro do periodo pedido
-    sDe.value = pedDe; sAte.value = pedAte; mostrarLinha(pedDe, pedAte);
+    const n = normalizarPeriodo(pedido.de, pedido.ate) || { dia_de: minDia, dia_ate: maxDia, chave: '', exato: false };
+    marcar(n); mostrarLinha(n);
     aviso.hidden = false;
-    aviso.textContent = `Este painel não tem dados entre ${rotuloMes(pedDe)} e ${rotuloMes(pedAte)}. Os dados vão de ${rotuloMes(todos[0])} a ${rotuloMes(todos[todos.length - 1])}: escolha outro período.`;
+    aviso.textContent = `Este painel não tem dados entre ${dataBR(n.dia_de)} e ${dataBR(n.dia_ate)}. Os dados vão de ${rotuloMes(todos[0])} a ${rotuloMes(todos[todos.length - 1])}: escolha outro período.`;
     $('conteudo').innerHTML = '';
     return;
   }
-  const chave = P && P.chave ? P.chave : D.mes_padrao;
-  if (P && P.recortado) { aviso.hidden = false; aviso.textContent = `O painel só tem dados de ${rotuloMes(P.de)} a ${rotuloMes(P.ate)}; é esse o recorte mostrado (você pediu ${rotuloMes(P.pedido_de)} a ${rotuloMes(P.pedido_ate)}).`; }
-  escolher(chave, P && P.chave ? P.de : chave, P && P.chave ? P.ate : chave);
+  const inicial = P && P.chave ? { de: P.exato ? P.dia_de : P.de, ate: P.exato ? P.dia_ate : P.ate } : { de: D.mes_padrao, ate: D.mes_padrao };
+  const n0 = normalizarPeriodo(inicial.de, inicial.ate);
+  if (P && P.recortado) avisos(`O painel só tem dados de ${dataBR(P.dia_de)} a ${dataBR(P.dia_ate)}; é esse o recorte mostrado (você pediu ${dataBR(pedido.de.length === 7 ? pedido.de + '-01' : pedido.de)} a ${dataBR(pedido.ate.length === 7 ? pedido.ate + '-' + dia2(ultimoDiaDoMes(pedido.ate)) : pedido.ate)}).`);
+  else avisos('');
+  escolher(n0);
 }
 
 // barra fina no topo da pagina, para mostrar que algo esta carregando (ex.: "Atualizar agora")

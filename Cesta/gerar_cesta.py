@@ -374,7 +374,7 @@ def montar_mes(ym: str, a: pd.DataFrame, b: pd.DataFrame, c: pd.DataFrame, hoje:
     g = a[a[k.COL_MES] == ym]
     ym_ant = k.mes_mais(ym, -1)
     g_ant = a[a[k.COL_MES] == ym_ant]
-    fechado = date(ano, mes, 1) < date(hoje.year, hoje.month, 1)
+    fechado = per.fechado(hoje) if per else date(ano, mes, 1) < date(hoje.year, hoje.month, 1)
     kp = kpis(g)
 
     # comparacao com o mes anterior (mes aberto: so os dias ja completos; mes fechado: totais)
@@ -515,8 +515,9 @@ def montar_mes(ym: str, a: pd.DataFrame, b: pd.DataFrame, c: pd.DataFrame, hoje:
 
 def montar_periodo(per: pc.Periodo, a, b, c, hoje, p26, ajustada, ate_comum) -> dict:
     """Varios meses juntos, com a mesma conta de um mes (ver pc.reagrupar)."""
-    return montar_mes(per.fim, pc.reagrupar(a, k.COL_MES, per), pc.reagrupar(b, k.COL_MES, per), pc.reagrupar(c, k.COL_MES, per), hoje,
-                      pc.reagrupar(p26, k.COL_MES, per) if p26 is not None else None, ajustada, ate_comum, per=per, a_todos=a)
+    return montar_mes(per.fim, pc.reagrupar(a, k.COL_MES, per, datacol="Data"), pc.reagrupar(b, k.COL_MES, per, datacol="Data"),
+                      pc.reagrupar(c, k.COL_MES, per, datacol="Data"), hoje,
+                      pc.reagrupar(p26, k.COL_MES, per, datacol="Data") if p26 is not None else None, ajustada, ate_comum, per=per, a_todos=a)
 
 
 def qualidade(a_completo: pd.DataFrame) -> list[dict]:

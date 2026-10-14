@@ -325,8 +325,9 @@ def montar_mes(ym: str, hoje: date, m: pd.DataFrame, s: pd.DataFrame, exames: di
     """Um mes, ou (per) um periodo de varios meses: as linhas de todos os meses juntas; o dia a dia (que so existe dentro de um mes) nao e montado."""
     yms = per.yms if per else [ym]
     rot = per.rotulo if per else pc.rotulo_mes(ym)
-    sm = s[s["_ym"].isin(yms)] if len(s) else s
-    mm = m[m["_ym"].isin(yms)] if len(m) else m
+    exato = bool(per and per.exato)   # recorte de dias: a data de cada linha decide, nao o mes dela
+    sm = (s[per.dentro(s[S_DATA])] if exato else s[s["_ym"].isin(yms)]) if len(s) else s
+    mm = (m[per.dentro(m[M_DATA])] if exato else m[m["_ym"].isin(yms)]) if len(m) else m
     sol, mov = montar_sol_mes(sm), montar_mov_mes(mm)
     alertas = []
     if sol["linhas"]:

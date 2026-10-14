@@ -380,10 +380,14 @@ def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, ho
     do periodo e o 'mes anterior' e o periodo anterior de mesmo tamanho."""
     ano, mes = int(ym[:4]), int(ym[5:])
     ultimo = monthrange(ano, mes)[1]
-    fechado = date(ano, mes, ultimo) < hoje
+    fechado = per.fechado(hoje) if per else date(ano, mes, ultimo) < hoje
     ym_ant = k.mes_mais(ym, -1)
     rot = per.rotulo if per else pc.rotulo_mes(ym)
-    rot_ant = (ref or per.anterior).rotulo if per else pc.rotulo_mes(ym_ant)
+    rot_ant = per.anterior.rotulo if per else pc.rotulo_mes(ym_ant)   # base da comparacao da receita (que tem data de cada linha)
+    # convenios, recebido e funil so existem por mes: num recorte de dias os rotulos desses blocos sao os dos meses inteiros que ele toca
+    per_m = per.meses_inteiros if per else None
+    rot_m = per_m.rotulo if per else rot
+    rot_m_ant = (ref or per_m.anterior).rotulo if per else rot_ant
     p = prod[prod[k.COL_MES] == ym]
     p_ant = prod[prod[k.COL_MES] == ym_ant]
     c = ctrl[ctrl[k.COL_MES] == ym]
@@ -409,7 +413,7 @@ def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, ho
     # dias uteis e projecao (a projecao e do mes corrente; um periodo so soma os dias uteis)
     semana = set(cfg.get("dias_semana_atendimento", [0, 1, 2, 3, 4, 5]))
     feriados = {date.fromisoformat(f) for f in cfg.get("feriados", [])}
-    uteis = [d for y in (per.yms if per else [ym]) for d in gd.dias_uteis(int(y[:4]), int(y[5:]), semana, feriados)]
+    uteis = gd.uteis_do_periodo(per, semana, feriados) if per else gd.dias_uteis(ano, mes, semana, feriados)
     completos = len(uteis) if fechado else sum(1 for d in uteis if d < hoje)
     receita_completa = receita if fechado else float(p.loc[p["Data"].dt.date < hoje, "Valor"].sum())
     ritmo = receita_completa / completos if completos else None
@@ -457,7 +461,7 @@ def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, ho
     # recebido de convenio: olha o proprio mes se ja fechou; senao, o mes anterior
     ref = c if fechado else ctrl[ctrl[k.COL_MES] == ym_ant]
     ref_ym = ym if fechado else ym_ant
-    rot_ref = rot if fechado else rot_ant
+    rot_ref = rot_m if fechado else rot_m_ant
     ref_prod, ref_rec = float(ref["Produzido"].fillna(0).sum()), float(ref["Recebido"].fillna(0).sum())
 
     # funil produzido -> faturado -> enviado -> recebido (competencia = o mes escolhido; a referencia segue a mesma regra do "recebido")
@@ -479,7 +483,7 @@ def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, ho
     if glosa > 0 and total_prod_conv:
         alertas.append({"nivel": "atencao", "titulo": "Glosa registrada",
                         "itens": gp.tabela(["Convênio", "Produzido", "Glosa"], [[x["nome"], gp.reais(x["produzido"]), gp.reais(x["glosa"])] for x in conv if (x["glosa"] or 0) > 0], numericas=(1, 2)),
-                        "texto": f"<b>{pc_brl(glosa)}</b> glosados ({glosa / total_prod_conv * 100:.1f}% do produzido com convênios em {rot})."})
+                        "texto": f"<b>{pc_brl(glosa)}</b> glosados ({glosa / total_prod_conv * 100:.1f}% do produzido com convênios em {rot_m})."})
     if aberto["sem_valor"]:
         alertas.append({"nivel": "atencao", "titulo": "Faturas em aberto sem valor", "itens": aberto["sem_valor_itens"],
                         "texto": f"<b>{aberto['sem_valor']}</b> fatura(s) estão com valor bruto vazio ou zero, o que reduz o total “em aberto” mostrado."})
@@ -551,9 +555,9 @@ def montar_periodo(per: pc.Periodo, prod, ctrl, aberto, hoje, cfg, fat, fg) -> d
     if per.fim >= atual:
         fechados = [m for m in per.yms if m < atual]
         ref = pc.Periodo(fechados[0], fechados[-1]) if fechados else None
-    prod2 = pc.reagrupar(prod, k.COL_MES, per)
-    ctrl2 = somar_convenios(pc.reagrupar(ctrl, k.COL_MES, per, ref=ref))
-    fat2 = pc.reagrupar(fat, "_comp", per, ref=ref) if len(fat) else fat
+    prod2 = pc.reagrupar(prod, k.COL_MES, per, datacol="Data")
+    ctrl2 = somar_convenios(pc.reagrupar(ctrl, k.COL_MES, per, ref=ref))   # so existe por mes: num recorte de dias entra o mes inteiro
+    fat2 = pc.reagrupar(fat, "_comp", per, ref=ref) if len(fat) else fat   # competencia = mes em que comeca o periodo faturado: so existe por mes
     return montar_mes(per.fim, prod2, ctrl2, aberto, hoje, cfg, fat2, fg, per=per, ref=ref)
 
 
@@ -581,6 +585,9 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         mes_padrao = per.chave
         if not per.unico:
             pc.acrescentar_periodo(meses, per, lambda p: montar_periodo(p, prod, ctrl, aberto, hoje, cfg, fat, fg))
+            if per.exato:
+                info["notas"] = ["Controle por Convênio (produzido, recebido e glosa por convênio) e o funil de faturas só existem por mês: nesses blocos entram os meses "
+                                 "inteiros que o período toca. Receita, procedimentos, pacientes e dias úteis seguem exatamente os dias escolhidos."]
 
     arq = arquivo_dados()
     dados_em = datetime.fromtimestamp(arq.stat().st_mtime) if arq.exists() else datetime.now()

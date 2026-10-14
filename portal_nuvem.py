@@ -138,10 +138,10 @@ def conferir_acesso(cabecalhos, painel: str, so_admin: bool = False) -> dict:
 
 # ---------------------------------------------------------------- pagina pronta
 def periodo_da_url(de: str, ate: str) -> tuple[str, str] | None:
-    """('2026-09', '2026-10') se a URL pede um periodo de VARIOS meses; um mes so e a pagina de sempre (o proprio painel escolhe)."""
-    if not (PADRAO_MES.match(de or "") and PADRAO_MES.match(ate or "")) or de == ate:
-        return None
-    return (de, ate) if de < ate else (ate, de)
+    """('2026-09', '2026-10') se a URL pede varios meses, ou ('2026-09-10', '2026-10-25') se pede dias exatos; um mes inteiro so e a pagina
+    de sempre (o proprio painel escolhe)."""
+    import painel_comum as pc
+    return pc.periodo_da_consulta(de, ate)
 
 
 def montar_pagina(painel: str, periodo: tuple[str, str] | None) -> str:
@@ -169,7 +169,9 @@ def garantir_pagina(painel: str, periodo: tuple[str, str] | None = None, guardar
 
 def com_marcas(html: str, painel: str, admin: bool) -> str:
     """Poe no HTML o que o painel_base.js precisa saber (painel, nuvem, se o usuario e admin). Feito a cada pedido: a pagina guardada e a mesma para todos."""
-    marca = f"<script>window.PAINEL_NUVEM=true;window.PAINEL_ID={json.dumps(painel)};window.PAINEL_ADMIN={'true' if admin else 'false'};</script>"
+    # "embutido": a pagina aparece dentro de uma tela do site, que ja da o respiro e o fundo (ver .embutido em painel_base.css)
+    marca = (f"<script>window.PAINEL_NUVEM=true;window.PAINEL_ID={json.dumps(painel)};window.PAINEL_ADMIN={'true' if admin else 'false'};"
+             "document.documentElement.classList.add('embutido');</script>")
     return html.replace("<head>", "<head>" + marca, 1) if "<head>" in html else marca + html
 
 

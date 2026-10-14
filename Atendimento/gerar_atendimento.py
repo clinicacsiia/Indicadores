@@ -184,15 +184,18 @@ def eh_equipamento(nome, p: dict) -> bool:
     return n in {gd.norm(e) for e in p["equipamentos"]} or any(n.startswith(gd.norm(pf)) for pf in p["prefixos_equipamento"])
 
 
-def calendario(ym: str, cfg: dict, agora: datetime, yms: list[str] | None = None) -> tuple[int, float, bool]:
+def calendario(ym: str, cfg: dict, agora: datetime, yms: list[str] | None = None, per: pc.Periodo | None = None) -> tuple[int, float, bool]:
     """(dias uteis do mes, dias uteis ja decorridos, mes fechado) com a mesma regra do painel de Metas. Com `yms` (periodo de varios meses),
-    "ym" e o ultimo mes e os dias uteis somam os de todos."""
+    "ym" e o ultimo mes e os dias uteis somam os de todos; com `per` de dias exatos, so contam os dias do periodo."""
     ano, mes = int(ym[:4]), int(ym[5:])
     semana = set(cfg.get("dias_semana_atendimento", [0, 1, 2, 3, 4, 5]))
     feriados = {date.fromisoformat(f) for f in cfg.get("feriados", [])}
-    uteis = [d for y in (yms or [ym]) for d in gd.dias_uteis(int(y[:4]), int(y[5:]), semana, feriados)]
+    if per is not None and per.exato:
+        uteis = gd.uteis_do_periodo(per, semana, feriados)
+    else:
+        uteis = [d for y in (yms or [ym]) for d in gd.dias_uteis(int(y[:4]), int(y[5:]), semana, feriados)]
     hoje = agora.date()
-    fechado = date(ano, mes, monthrange(ano, mes)[1]) < hoje
+    fechado = per.fechado(hoje) if (per is not None and per.exato) else date(ano, mes, monthrange(ano, mes)[1]) < hoje
     if fechado:
         return len(uteis), float(len(uteis)), True
     dec = float(sum(1 for d in uteis if d < hoje))
@@ -445,13 +448,14 @@ def montar_fluxo(mv: pd.DataFrame, me: pd.DataFrame, p: dict) -> dict:
     return {"kpis": kp, "etapas": etapas, "setores": setores, "filas": filas}
 
 
-def resumo_anterior(m: pd.DataFrame, ym_ant: str, cfg: dict, agora: datetime, yms_ant: list[str] | None = None) -> dict | None:
+def resumo_anterior(m: pd.DataFrame, ym_ant: str, cfg: dict, agora: datetime, yms_ant: list[str] | None = None, per_ant: pc.Periodo | None = None) -> dict | None:
     """Ritmo por dia util do mes anterior (por setor, convenio e procedimento), para dizer se subiu ou caiu. Num periodo de varios
-    meses, `ym_ant` e o ultimo mes do periodo anterior e `yms_ant` sao os meses dele."""
-    a = m[m["_ym"].isin(yms_ant or [ym_ant])]
+    meses, `ym_ant` e o ultimo mes do periodo anterior e `yms_ant` sao os meses dele; num recorte de dias, `per_ant` e o periodo anterior."""
+    exato = per_ant is not None and per_ant.exato
+    a = m[per_ant.dentro(m["_dia"])] if exato else m[m["_ym"].isin(yms_ant or [ym_ant])]
     if not len(a):
         return None
-    uteis, dec, _ = calendario(ym_ant, cfg, agora, yms_ant)
+    uteis, dec, _ = calendario(ym_ant, cfg, agora, yms_ant, per_ant)
     if dec < 1:
         return None
     return {"ritmo": len(a) / dec, "uteis": uteis,
@@ -462,7 +466,10 @@ def resumo_anterior(m: pd.DataFrame, ym_ant: str, cfg: dict, agora: datetime, ym
 
 # ---------------------------------------------------------------- metas (lidas do painel de Metas)
 def metas_do_mes(df_metas: pd.DataFrame, ym: str, cfg: dict, agora: datetime, dec: float, setores_13402: pd.Series, p: dict, per: pc.Periodo | None = None) -> dict | None:
-    dm = df_metas[df_metas["Data do Atendimento"].dt.strftime("%Y-%m").isin(per.yms if per else [ym])] if len(df_metas) else df_metas
+    if len(df_metas):
+        dm = df_metas[per.dentro(df_metas["Data do Atendimento"])] if (per and per.exato) else df_metas[df_metas["Data do Atendimento"].dt.strftime("%Y-%m").isin(per.yms if per else [ym])]
+    else:
+        dm = df_metas
     if not len(dm):
         return None
     r = gd.montar_mes(dm, ym, cfg, agora, [], per=per)
@@ -737,14 +744,15 @@ def montar_mes(ym: str, x: pd.DataFrame, df_metas: pd.DataFrame, cfg: dict, p: d
     comparacao e com o periodo anterior de mesmo tamanho. O dia a dia (que so existe dentro de um mes) nao e montado."""
     hoje = agora.date()
     yms = per.yms if per else [ym]
-    m = x[x["_ym"].isin(yms)]
-    mv = visitas[visitas["ym"].isin(yms)] if len(visitas) else None
-    me = etapas[etapas["_ym"].isin(yms)] if len(etapas) else None
+    exato = bool(per and per.exato)   # recorte de dias: a data de cada linha decide, nao o mes dela
+    m = x[per.dentro(x["_dia"])] if exato else x[x["_ym"].isin(yms)]
+    mv = (visitas[per.dentro(visitas["_dia"])] if exato else visitas[visitas["ym"].isin(yms)]) if len(visitas) else None
+    me = (etapas[per.dentro(etapas["_dt"])] if exato else etapas[etapas["_ym"].isin(yms)]) if len(etapas) else None
     fluxo = montar_fluxo(mv, me, p) if mv is not None and len(mv) else None
     n = len(m)
     rot = per.rotulo if per else pc.rotulo_mes(ym)
-    uteis, dec, fechado = calendario(ym, cfg, agora, yms)
-    ant = resumo_anterior(x, k.mes_mais(ym, -1), cfg, agora) if not per else resumo_anterior(x, per.anterior.fim, cfg, agora, per.anterior.yms)
+    uteis, dec, fechado = calendario(ym, cfg, agora, yms, per)
+    ant = resumo_anterior(x, k.mes_mais(ym, -1), cfg, agora) if not per else resumo_anterior(x, per.anterior.fim, cfg, agora, per.anterior.yms, per.anterior)
     tempo = stats_tempo(m, p["espera_meta_min"])
     ritmo = n / dec if dec >= 0.5 else None
     receita = float(m["_valor"].fillna(0).sum())
@@ -809,7 +817,7 @@ def montar_visao(resp: dict, meses_geral, x, df_metas, cfg, p, agora, visitas, e
     vv = visitas[visitas["setor"].isin(nomes)] if len(visitas) else visitas
     ev = etapas[etapas["_setor"].isin(nomes)] if len(etapas) else etapas
     res = {ym: montar_mes(ym, xv, mt, cfg_v, p, agora, vv, ev) for ym in meses_geral if (xv["_ym"] == ym).any()}
-    if per and not per.unico and any(y in res for y in per.yms):   # o periodo so entra na visao que tem atendimentos nele
+    if per and not per.unico and (bool((per.dentro(xv["_dia"])).any()) if per.exato else any(y in res for y in per.yms)):   # o periodo so entra na visao que tem atendimentos nele
         pc.acrescentar_periodo(res, per, lambda q: montar_mes(q.fim, xv, mt, cfg_v, p, agora, vv, ev, per=q))
     return res
 
@@ -839,6 +847,8 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     por_visao = {v["id"]: montar_visao(v, meses, x, df_metas, cfg, p, agora, visitas, etapas, per=per) for v in visoes}
     if per and not per.unico:
         pc.acrescentar_periodo(meses, per, lambda q: montar_mes(q.fim, x, df_metas, cfg, p, agora, visitas, etapas, per=q))
+        if per.exato:
+            info["notas"] = ["A meta de cada serviço no período é a meta mensal proporcional aos dias úteis do período em cada mês."]
     arq = arquivo_dados()
     dados_em = datetime.fromtimestamp(arq.stat().st_mtime) if arq.exists() else agora
     payload = {"gerado_em": agora.strftime("%d/%m/%Y %H:%M"), "dados_em": dados_em.strftime("%d/%m/%Y %H:%M"), "versao": int(dados_em.timestamp()),

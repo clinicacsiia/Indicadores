@@ -138,13 +138,18 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
     """Um mes, ou (per) um periodo de varios meses: cada filtro "do mes" vira "dos meses do periodo" (a conta e a mesma, sobre as linhas de todos)."""
     g, f, ab, prod, ctrl, part, baixas, glosas = d["g"], d["f"], d["ab"], d["prod"], d["ctrl"], d["part"], d["baixas"], d["glosas"]
     yms = per.yms if per else [ym]
+    pp = per or pc.Periodo(ym, ym)   # os dias do mes (ou do periodo): cada filtro "do mes" olha a data de cada linha
     rot = per.rotulo if per else pc.rotulo_mes(ym)
+    rot_m = pp.meses_inteiros.rotulo   # os blocos por competencia (faturas, recebido por convenio) so existem por mes
     hoje_ts = pd.Timestamp(hoje)
-    gm = g[g["_ym"].isin(yms)] if len(g) else g
+    gm = g[pp.dentro(g["Guia - Data"])] if len(g) else g
     gm_ativas = gm[gm["_st"] != "Cancelada"] if len(gm) else gm
 
     # ---------------------------------------------------------------- bloco 1: producao e faturamento
-    p = prod[prod[k.COL_MES].isin(yms)] if tem_colunas(prod, k.COL_MES, "Valor") else prod.iloc[0:0]
+    if pp.exato and tem_colunas(prod, "Data", "Valor"):
+        p = prod[pp.dentro(prod["Data"])]
+    else:
+        p = prod[prod[k.COL_MES].isin(yms)] if tem_colunas(prod, k.COL_MES, "Valor") else prod.iloc[0:0]
     produzido = float(p["Valor"].sum()) if len(p) else 0.0
     particular = float(p.loc[p["Operadora"].map(norm) == PARTICULAR, "Valor"].sum()) if len(p) else 0.0
     c = ctrl[ctrl[k.COL_MES].isin(yms)] if tem_colunas(ctrl, k.COL_MES) else ctrl.iloc[0:0]
@@ -154,13 +159,13 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
                       f"Convênios <b>{brl(produzido - particular)}</b> · particular <b>{brl(particular)}</b>" + (f" · <b>{len(gm_ativas):,}</b> guias".replace(",", ".") if len(gm_ativas) else ""),
                       "Faturamento · Receita Produzida (Valor); convênios conferidos no relatório de Produção por Convênio", f"Competência: {rot}"))
 
-    fm = f[f["_comp"].isin(yms)] if len(f) else f
+    fm = f[f["_comp"].isin(yms)] if len(f) else f   # competencia = mes em que comeca o periodo faturado: so existe por mes
     fa = fm[fm["_st"] == A_ENVIAR] if len(fm) else fm
     guias_ef = int((gm_ativas["_st"] == "Em Fatura").sum()) if len(gm_ativas) else 0
     cards.append(card("pre_fatura", 1, "Pré-fatura", PROXY, float(fa["_valor"].fillna(0).sum()) if len(fa) else 0.0, "brl",
                       f"<b>{len(fa)}</b> fatura(s) “A enviar” · <b>{guias_ef:,}</b> guia(s) “Em fatura”".replace(",", "."),
                       "Faturas Emitidas · status A Enviar (FA); guias “Em fatura” do relatório de Guias",
-                      f"Competência: {rot}", "O Klingo não tem uma etapa de “auditoria interna”: “A enviar” é fatura emitida e ainda não transmitida."))
+                      f"Competência: {rot_m}", "O Klingo não tem uma etapa de “auditoria interna”: “A enviar” é fatura emitida e ainda não transmitida."))
 
     fe = fm[fm["_st"].isin(ENVIADAS)] if len(fm) else fm
     sem_prot = fe[fe["Fatura - Envio - Protocolo"].isna()] if len(fe) else fe
@@ -168,7 +173,7 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
     cards.append(card("faturado", 1, "Faturado", DERIVADO, float(fe["_valor"].fillna(0).sum()) if len(fe) else 0.0, "brl",
                       f"<b>{len(fe)}</b> fatura(s) enviadas, <b>{len(fe) - len(sem_prot)}</b> com protocolo · <b>{guias_ft:,}</b> guia(s)".replace(",", ".")
                       + (f" · sem protocolo: <b>{brl(float(sem_prot['_valor'].fillna(0).sum()))}</b>" if len(sem_prot) else ""),
-                      "Faturas Emitidas · status Enviada + Movimentada; protocolo como sinal de envio por XML", f"Competência: {rot}"))
+                      "Faturas Emitidas · status Enviada + Movimentada; protocolo como sinal de envio por XML", f"Competência: {rot_m}"))
 
     pend = gm[gm["_st"] == "Pendente Recepção"] if len(gm) else gm
     pend_total = int((g["_st"] == "Pendente Recepção").sum()) if len(g) else 0
@@ -189,18 +194,18 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
     cards.append(card("fatura_mes", 2, "Fatura do período" if per else "Fatura do mês", DERIVADO, float(ativas["_valor"].fillna(0).sum()) if len(ativas) else 0.0, "brl",
                       f"<b>{len(ativas)}</b> fatura(s): a enviar <b>{brl(float(fa['_valor'].fillna(0).sum())) if len(fa) else 'R$ 0,00'}</b> · enviadas <b>{brl(float(fe['_valor'].fillna(0).sum())) if len(fe) else 'R$ 0,00'}</b>"
                       + (f" · {int((fm['_st'] == CANCELADA).sum())} cancelada(s), fora da soma" if len(fm) and (fm["_st"] == CANCELADA).any() else ""),
-                      "Faturas Emitidas · Fatura - Valor (sem canceladas)", f"Competência: {rot}"))
+                      "Faturas Emitidas · Fatura - Valor (sem canceladas)", f"Competência: {rot_m}"))
 
     ab_ok = tem_colunas(ab, "Vencimento", "Valor Bruto")
     aberto_hoje = ab[ab["Vencimento"].dt.normalize() >= hoje_ts] if ab_ok else ab
     vencidas = ab[ab["Vencimento"].dt.normalize() < hoje_ts] if ab_ok else ab
-    ab_mes = ab[ym_de(ab["Vencimento"]).isin(yms)] if ab_ok else ab
+    ab_mes = ab[pp.dentro(ab["Vencimento"])] if ab_ok else ab
     cards.append(card("em_aberto", 2, "Em aberto", DIRETO, float(aberto_hoje["Valor Bruto"].fillna(0).sum()) if ab_ok else 0.0, "brl",
                       f"<b>{len(aberto_hoje)}</b> fatura(s) a vencer · vencidas sem baixa <b>{brl(float(vencidas['Valor Bruto'].fillna(0).sum())) if ab_ok else 'R$ 0,00'}</b> ({len(vencidas)}) · vencem em {rot}: <b>{brl(float(ab_mes['Valor Bruto'].fillna(0).sum())) if ab_ok else 'R$ 0,00'}</b>",
                       "Faturas em Aberto (Valor Bruto, Vencimento)", "Posição de hoje"))
 
     pt_ok = tem_colunas(part, "Data de Recebimento", "Valor Líquido", "Data do Atendimento")
-    prev_part = part[(ym_de(part["Data de Recebimento"]).isin(yms)) & (part["Data de Recebimento"].dt.normalize() > hoje_ts)] if pt_ok else part
+    prev_part = part[pp.dentro(part["Data de Recebimento"]) & (part["Data de Recebimento"].dt.normalize() > hoje_ts)] if pt_ok else part
     prev_conv = float(ab_mes["Valor Bruto"].fillna(0).sum()) if ab_ok else 0.0
     prev_p = float(prev_part["Valor Líquido"].fillna(0).sum()) if pt_ok else 0.0
     cards.append(card("previsto", 2, "Previsto pagamento", PROXY, prev_conv + prev_p, "brl",
@@ -213,7 +218,7 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
                       "Falta no Klingo: campo “antecipado” e valor antecipado no relatório de baixas", "—"))
 
     rec_conv = float(c["Recebido"].fillna(0).sum()) if len(c) else 0.0
-    pt_rec = part[(ym_de(part["Data do Atendimento"]).isin(yms)) & (part["Data de Recebimento"].dt.normalize() <= hoje_ts)] if pt_ok else part
+    pt_rec = part[pp.dentro(part["Data do Atendimento"]) & (part["Data de Recebimento"].dt.normalize() <= hoje_ts)] if pt_ok else part
     rec_part = float(pt_rec["Valor Líquido"].fillna(0).sum()) if pt_ok else 0.0
     bx_ok = tem_colunas(baixas, "Baixa - Conciliado", "Valor Bruto")
     if bx_ok:
@@ -224,18 +229,18 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
     cards.append(card("recebido", 2, "Recebido", DERIVADO, rec_conv + rec_part, "brl",
                       f"Convênios <b>{brl(rec_conv)}</b> · particular já liquidado <b>{brl(rec_part)}</b>. {conc_txt}",
                       "Produção por Convênio · Recebido (convênios) + Recebimento Particular · Valor Líquido com recebimento até hoje (particular); conciliação do relatório de Baixas",
-                      f"Competência: {rot}",
+                      f"Competência: {rot_m}",
                       "“Liquidado” é o que foi baixado; “conciliado” depende de marcar a baixa como conciliada no Klingo (hoje nenhuma está)."))
 
     faturado_conv = float(fe["_valor"].fillna(0).sum()) if len(fe) else 0.0
     acatada_ctrl = float(ctrl["Glosa Acatada"].fillna(0).sum()) if tem_colunas(ctrl, "Glosa Acatada") else 0.0
     gl_mes_acat = float(c["Glosa Acatada"].fillna(0).sum()) if len(c) and "Glosa Acatada" in c else 0.0
     saldo_conv = faturado_conv - rec_conv - gl_mes_acat
-    a_rec_part = float(part[(ym_de(part["Data do Atendimento"]).isin(yms)) & (part["Data de Recebimento"].dt.normalize() > hoje_ts)]["Valor Líquido"].fillna(0).sum()) if pt_ok else 0.0
+    a_rec_part = float(part[pp.dentro(part["Data do Atendimento"]) & (part["Data de Recebimento"].dt.normalize() > hoje_ts)]["Valor Líquido"].fillna(0).sum()) if pt_ok else 0.0
     cards.append(card("saldo", 2, "A receber / Saldo", DERIVADO, saldo_conv + a_rec_part, "brl",
                       f"Convênios: faturado <b>{brl(faturado_conv)}</b> − recebido <b>{brl(rec_conv)}</b> − glosa acatada <b>{brl(gl_mes_acat)}</b> = <b>{brl(saldo_conv)}</b> · particular a cair <b>{brl(a_rec_part)}</b>",
                       "Faturado − Recebido − Glosa acatada, mais parcelas futuras do relatório de Recebimento Particular",
-                      f"Competência: {rot}",
+                      f"Competência: {rot_m}",
                       "O campo “A Receber (Saldo)” do relatório de Produção por Convênio só vem preenchido para um convênio; por isso o saldo é calculado aqui."))
 
     # ---------------------------------------------------------------- bloco 3: glosas (acumulado, de todas as competencias)
@@ -376,6 +381,9 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     per, info = pc.periodo_pedido(de, ate, meses)
     if per and not per.unico:
         pc.acrescentar_periodo(meses, per, lambda p: montar_mes(p.fim, hoje, d, per=p))
+        if per.exato:
+            info["notas"] = ["O Controle por Convênio (produzido, recebido e glosa por convênio) e as faturas por competência só existem por mês: nesses valores entram os meses "
+                             "inteiros que o período toca. Receita produzida, guias, vencimentos e recebimentos seguem exatamente os dias escolhidos."]
     alertas = alertas_gerais(d, d["glosas"], hoje) if (len(g) or len(d["f"]) or len(d["prod"])) else []
     ordem = {"critico": 0, "atencao": 1, "ok": 2, "info": 3}
     alertas.sort(key=lambda a: ordem[a["nivel"]])
