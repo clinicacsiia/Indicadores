@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Brand } from "@/app/components/Brand";
 import { AcessoPanel } from "./AcessoPanel";
+import { APP_VERSION } from "@/lib/version";
 
 export const metadata: Metadata = { title: "Entrar" };
 
@@ -47,7 +48,7 @@ export default function LoginPage() {
           <p>Agendamentos, atendimentos finalizados e valores dos procedimentos num só lugar.</p>
         </div>
         <ArteIndicadores />
-        <div className="login-foot">Clínica CSI · Acesso restrito à equipe</div>
+        <div className="login-foot">Clínica CSI · Acesso restrito à equipe · v{APP_VERSION}</div>
       </section>
 
       <section className="login-panel">
@@ -56,6 +57,7 @@ export default function LoginPage() {
             <Brand />
           </div>
           <AcessoPanel />
+          <span className="login-version">v{APP_VERSION}</span>
         </div>
       </section>
     </main>
