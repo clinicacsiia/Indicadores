@@ -65,7 +65,7 @@ export function SolicitacaoForm({ id, usuario, nome, desde, paineis }: Props) {
           </span>
           <div className="user-switches">
             <label className="switch">
-              <input type="checkbox" name="metas" />
+              <input type="checkbox" name="metas" defaultChecked />
               <span className="switch-track" aria-hidden="true" />
               <span className="switch-text">Metas</span>
             </label>

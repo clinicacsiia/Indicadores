@@ -86,9 +86,7 @@ export default async function Home() {
         </div>
       )}
 
-      {paineisDisponiveis.length > 0 && (
-        <FavoritosPaineis paineis={paineisDisponiveis} favoritos={favoritos} />
-      )}
+      <FavoritosPaineis paineis={paineisDisponiveis} favoritos={favoritos} />
 
       {error && (
         <div className="notice" role="alert">
@@ -97,7 +95,7 @@ export default async function Home() {
         </div>
       )}
 
-      {!error && relatorios.length === 0 && (
+      {ehAdmin && !error && relatorios.length === 0 && (
         <section className="panel empty">
           <span className="empty-icon">
             <IconCalendario size={26} />
@@ -107,26 +105,28 @@ export default async function Home() {
         </section>
       )}
 
-      {relatorios.length > 0 && (
-        <section aria-labelledby="titulo-sincronizacao">
-          <h2 className="panel-title" id="titulo-sincronizacao" style={{ marginBottom: 4 }}>
-            Coleta dos relatórios
-          </h2>
-          <p className="panel-sub" style={{ marginBottom: 12 }}>
-            {resumo.completos} de {resumo.total} completos
-            {resumo.incompletos > 0 && ` · ${resumo.incompletos} ainda sendo coletados`}
-            {resumo.problemas > 0 && ` · ${resumo.problemas} com pausa ou erro`}
-            {resumo.ultimo && ` · última coleta ${haQuanto(resumo.ultimo, agora)} (${horaLocal(resumo.ultimo)})`}
-          </p>
+      {ehAdmin && relatorios.length > 0 && (
+        <details className="panel coleta-grupo">
+          <summary>
+            <h2 className="panel-title" id="titulo-sincronizacao">
+              Coleta dos relatórios
+            </h2>
+            <span className="panel-sub">
+              {resumo.completos} de {resumo.total} completos
+              {resumo.incompletos > 0 && ` · ${resumo.incompletos} ainda sendo coletados`}
+              {resumo.problemas > 0 && ` · ${resumo.problemas} com pausa ou erro`}
+              {resumo.ultimo && ` · última coleta ${haQuanto(resumo.ultimo, agora)} (${horaLocal(resumo.ultimo)})`}
+            </span>
+          </summary>
           {resumo.parada && (
-            <div className="notice" role="alert" style={{ marginBottom: 12 }}>
+            <div className="notice" role="alert" style={{ margin: "0 20px 12px" }}>
               <IconAlerta />
               {resumo.ultimo
                 ? "Nenhum relatório foi coletado nos últimos 30 minutos. A coleta automática (a cada 5 minutos) pode estar parada."
                 : "Nenhum relatório foi coletado ainda."}
             </div>
           )}
-          <div className="status-grid" aria-label="Status dos relatórios">
+          <div className="status-grid coleta-grupo-corpo" aria-label="Status dos relatórios">
             {relatorios.map((r) => {
               const situacao = situacaoDe(r);
               const alertas = alertasDoCartao(r);
@@ -159,7 +159,7 @@ export default async function Home() {
               );
             })}
           </div>
-        </section>
+        </details>
       )}
     </>
   );

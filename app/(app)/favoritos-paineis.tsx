@@ -7,6 +7,23 @@ export function FavoritosPaineis({ paineis, favoritos }: { paineis: Painel[]; fa
     .map((id) => paineis.find((p) => p.id === id))
     .filter((p): p is Painel => p !== undefined);
 
+  if (paineis.length === 0) {
+    return (
+      <section className="panel" aria-labelledby="titulo-favoritos">
+        <div className="panel-head" style={{ paddingBottom: 12 }}>
+          <div>
+            <h2 className="panel-title" id="titulo-favoritos">
+              Meus painéis
+            </h2>
+            <p className="panel-sub">
+              Você ainda não tem nenhum painel liberado. Peça a um administrador para liberar os painéis que você precisa; eles vão aparecer aqui.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel" aria-labelledby="titulo-favoritos">
       <div className="panel-head" style={{ paddingBottom: 12 }}>
