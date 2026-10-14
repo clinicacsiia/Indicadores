@@ -2,16 +2,14 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
-import { AtualizarForm } from "../atualizar-form";
 import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
-import { metasConfig, RELATORIO_METAS } from "@/lib/metas/config";
+import { metasConfig } from "@/lib/metas/config";
 import {
   agoraSaoPaulo,
   calcularPeriodo,
   fimDoMes,
   mesesDisponiveis,
   mesesInteiros,
-  somarDias,
   type LinhaAtendimento,
   type ResultadoItem,
   type Situacao,
@@ -131,7 +129,6 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
     );
   }
 
-  const isAdmin = profile?.role === "admin";
   const agora = agoraSaoPaulo();
   const mesAtual = agora.hoje.slice(0, 7);
   const primeiroMes = metasConfig.primeiro_mes > mesAtual ? mesAtual : metasConfig.primeiro_mes;
@@ -165,21 +162,10 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const nomePeriodo = mesUnico ? "mês" : "período";
 
   const supabase = await createClient();
-  const [{ data: bruto, error }, { data: catalogo }] = await Promise.all([
-    // A função aplica a permissão "Pode ver Metas" e já entrega os atendimentos do mês contados.
-    mesUnico
-      ? supabase.rpc("metas_atendimentos_mes", { p_mes: mesUnico })
-      : supabase.rpc("metas_atendimentos_periodo", { p_de: de, p_ate: ate }),
-    // Admin escolhe qualquer relatório para atualizar; os demais nem consultam o catálogo.
-    isAdmin
-      ? supabase
-          .from("dim_relatorio")
-          .select("klingo_id, nome, ativo")
-          .is("supersedido_por", null)
-          .order("ativo", { ascending: false })
-          .order("nome")
-      : Promise.resolve({ data: null }),
-  ]);
+  // A função aplica a permissão "Pode ver Metas" e já entrega os atendimentos do mês contados.
+  const { data: bruto, error } = mesUnico
+    ? await supabase.rpc("metas_atendimentos_mes", { p_mes: mesUnico })
+    : await supabase.rpc("metas_atendimentos_periodo", { p_de: de, p_ate: ate });
 
   // Nunca mostrar error.message na tela: pode conter detalhes internos do Postgres.
   if (error) console.error("Falha ao carregar atendimentos das metas:", error.message);
@@ -188,10 +174,6 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const linhas = resposta?.mapeado ? (resposta.linhas ?? []) : [];
   const temDados = linhas.length > 0;
   const resultado = temDados ? calcularPeriodo(metasConfig, de, ate, linhas, agora) : null;
-
-  // "Atualizar" (admin) busca no Klingo até 31 dias por vez: do começo do período, até hoje se ele ainda não terminou
-  const ultimoDia = ate > agora.hoje ? agora.hoje : ate;
-  const primeiroDia = de > ultimoDia ? ultimoDia : somarDias(ultimoDia, -30) > de ? somarDias(ultimoDia, -30) : de;
 
   let sync: { texto: string; estado: "ok" | "stale" | "none" } = { texto: "Ainda sem sincronização", estado: "none" };
   if (resposta?.ultimo_sync) {
@@ -235,16 +217,6 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
         hoje={agora.hoje}
       />
 
-      {isAdmin && catalogo && catalogo.length > 0 && (
-        <AtualizarForm
-          relatorios={catalogo}
-          relatorioPadrao={RELATORIO_METAS}
-          de={primeiroDia}
-          ate={ultimoDia}
-          max={agora.hoje}
-        />
-      )}
-
       {error && (
         <div className="notice" role="alert">
           <IconAlerta />
@@ -258,11 +230,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
             <IconCalendario size={26} />
           </span>
           <h2>Nenhum atendimento em {rotulo}</h2>
-          <p>
-            {isAdmin
-              ? `Ainda não há atendimentos do relatório #${RELATORIO_METAS} para ${mesUnico ? "este mês" : "este período"}. Use "Atualizar" acima para buscar no Klingo.`
-              : `Ainda não há atendimentos sincronizados para ${mesUnico ? "este mês" : "este período"}. Peça a um administrador para atualizar.`}
-          </p>
+          <p>{`Ainda não há atendimentos sincronizados para ${mesUnico ? "este mês" : "este período"}.`}</p>
         </section>
       )}
 
