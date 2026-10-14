@@ -103,7 +103,8 @@ botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?
   mês que o banco ainda não coletou, relatório sem filtro de período comprovado, desativado ou sem título de coluna ficam
   como estavam e viram aviso. Só regrava o mês cujo dado no banco é mais novo que o do painel. O botão **Atualizar agora**
   (só administrador) copia na hora; além disso, quando alguém abre um painel cuja última atualização tem mais de **5 h**, ele
-  copia sozinho (`portal_nuvem.sincronizar_se_vencido`, também no cron diário). `PAINEL_FONTE=klingo` (variável da Vercel)
+  copia sozinho (`portal_nuvem.renovar`, também no cron diário), **sem fazer ninguém esperar** (ver "Abertura rápida" abaixo).
+  `PAINEL_FONTE=klingo` (variável da Vercel)
   volta ao caminho antigo, que consulta o Klingo direto.
 - **Horário:** as funções rodam com fuso de Brasília (`TZ=BRT3`), senão "hoje" viraria amanhã depois das 21h.
 - **Cron (opcional):** `vercel.json` agenda `/api/preaquecer` todo dia às 06:30 (Brasília) para refazer as páginas e o primeiro
@@ -111,6 +112,24 @@ botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?
 - **Não existe na Vercel:** exportar PDF (precisa do Chromium do `exportar_pdf.py`), acesso em rede/`.exe`, usuários próprios
   do portal e as "visões" em PDF do Atendimento. A aba **Metas** continua sendo a do site (abaixo); a base das Metas em Python
   só existe para o Atendimento.
+
+### Abertura rápida e renovação em segundo plano
+
+Abrir um painel **nunca espera a atualização**. `/api/painel` entrega na hora a última página guardada (`painel_pagina`), mesmo velha, e
+marca no HTML se ela está **vencida** (`window.PAINEL_VENCIDO`): dado novo no banco, dia novo, layout novo ou cópia do banco com mais de 5 h.
+Só espera a conta quem não tem nenhuma página guardada, ou pediu um período livre cuja página está velha.
+
+Quando vencida, a tela do site (`app/(app)/painel/[id]/PainelFrame.tsx`) lê isso do iframe e mostra o aviso **"Atualizando os dados deste
+painel…"** com uma barra e **quanto falta** (estimativa: mediana das últimas 5 renovações do mesmo tipo em `painel_atualizacao`; sem
+histórico, 40 s com cópia do banco ou 20 s só refazendo a página). Em segundo plano ela chama `POST /api/renovar?id=<painel>`
+(`portal_nuvem.renovar`: copia do banco se venceu, refaz a página) e, ao terminar, recarrega o quadro. Qualquer pessoa com acesso ao painel
+pode pedir (só copia do banco, não consulta o Klingo). No máximo 2 renovações por abertura da tela, para nunca entrar em laço.
+
+**Só uma renovação por painel de cada vez** (`painel_renovacao`, uma linha por painel enquanto renova; vence sozinha em 6 min se a função
+morrer). Duas gravando o mesmo painel se atropelavam: a troca atômica de uma (`painel_publicar_mes`) apagava os lotes ainda em gravação
+da outra e a atualização falhava com `Nenhum lote gravado para ...`. Quem chega depois recebe o andamento da que já roda
+(`/api/estado` devolve `atualizando` e `andamento`) e acompanha o mesmo aviso; o botão **Atualizar agora** e o cron respeitam a mesma trava.
+Sem a tabela, o código segue sem trava (como antes). Refazer só a página fica no histórico com `status = 'pagina'` e não conta como atualização dos dados.
 
 ### Visual e filtros padronizados
 

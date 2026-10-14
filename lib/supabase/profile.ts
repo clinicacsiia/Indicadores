@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "./server";
 
 export type Profile = {
@@ -8,7 +9,9 @@ export type Profile = {
 };
 
 // RLS garante que isso só retorna o perfil do próprio usuário logado.
-export async function getCurrentProfile(): Promise<Profile | null> {
+// `cache` (React) guarda o resultado durante UM pedido: o layout e a página chamam isto na mesma navegação, e sem isso cada uma
+// refazia a conferência do login (ida ao Supabase Auth) e a leitura do perfil.
+export const getCurrentProfile = cache(async function getCurrentProfile(): Promise<Profile | null> {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return null;
@@ -25,4 +28,4 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   }
 
   return data as Profile;
-}
+});

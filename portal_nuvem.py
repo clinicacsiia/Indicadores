@@ -18,6 +18,8 @@ import sys
 import time
 import traceback
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -39,6 +41,10 @@ PRAZO_TOTAL_S = 270          # a funcao da Vercel para em 300 s (maxDuration em 
 FIM_DAS_ATUALIZACOES_S = 190  # ate aqui baixa do Klingo; o resto do tempo e para calcular e guardar a pagina
 SINCRONIA_S = 5 * 3600        # o painel copia do banco sozinho quando a ultima atualizacao tem mais de 5 h (alem do botao)
 CACHE_LOGIN_S = 60
+USUARIO_SYNC = "automático (a cada 5 h)"    # como a copia do banco e registrada em painel_atualizacao (e de onde sai o tempo previsto)
+USUARIO_PAGINA = "automático (página)"      # so refez a pagina (dia novo, layout novo): status 'pagina', nao conta como atualizacao dos dados
+PREVISTO_SYNC_PADRAO_S = 40                 # sem historico ainda: quanto se espera que a copia + a pagina levem
+PREVISTO_PAGINA_PADRAO_S = 20
 _LOGINS: dict[str, tuple[float, dict | None]] = {}
 _CODIGOS: dict[str, object] = {}
 
@@ -105,6 +111,16 @@ def token_do_pedido(cabecalhos) -> str | None:
     return None
 
 
+def _sub_do_token(token: str) -> str | None:
+    """O 'sub' (id do usuario) escrito no JWT, sem conferir assinatura (quem confere e o Supabase); None se nao for um JWT."""
+    try:
+        corpo = token.split(".")[1]
+        sub = json.loads(base64.urlsafe_b64decode(corpo + "=" * (-len(corpo) % 4))).get("sub")
+        return sub if isinstance(sub, str) and sub else None
+    except Exception:
+        return None
+
+
 def autenticar(cabecalhos) -> dict:
     """{'id', 'email', 'admin', 'permissoes'} do usuario logado; levanta Negado(401) sem login valido."""
     token = token_do_pedido(cabecalhos)
@@ -114,10 +130,22 @@ def autenticar(cabecalhos) -> dict:
     guardado = _LOGINS.get(token)
     if guardado and agora - guardado[0] < CACHE_LOGIN_S and guardado[1]:
         return guardado[1]
-    u = arm.usuario_do_token(token)
+    # o token e um JWT: o id do dono ja vem escrito nele, entao o perfil e buscado junto com a conferencia do login (uma ida ao Supabase a menos).
+    # So vale se o Supabase confirmar que o token e valido E e daquele mesmo id; senao nada do que veio do token e usado.
+    sub = _sub_do_token(token)
+    if sub:
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            f_login, f_perfil = ex.submit(arm.usuario_do_token, token), ex.submit(arm.perfil, sub)
+            u = f_login.result()
+            p = (f_perfil.result() if u and u["id"] == sub else None)
+        if u and p is None:
+            p = arm.perfil(u["id"])
+    else:
+        u = arm.usuario_do_token(token)
+        p = arm.perfil(u["id"]) if u else None
     if not u:
         raise Negado(401, "Sua sessão expirou. Recarregue a página para entrar de novo.")
-    p = arm.perfil(u["id"]) or {}
+    p = p or {}
     info = {"id": u["id"], "email": u["email"], "admin": p.get("role") == "admin", "permissoes": p.get("permissions") or {}}
     if len(_LOGINS) > 200:
         _LOGINS.clear()
@@ -167,14 +195,26 @@ def registrar_avisos(painel: str, versao: int) -> None:
         print(f">>> AVISO: não consegui atualizar os avisos de {painel}: {type(e).__name__}: {e}", flush=True)
 
 
+def _chave_da_pagina(periodo: tuple[str, str] | None) -> str:
+    return "padrao" if not periodo else f"{periodo[0]}..{periodo[1]}"
+
+
+def _pagina_vale(pronta: dict | None, versao: int, hoje: date) -> bool:
+    """A pagina guardada so vale se os dados, o dia E o layout (CSS/JS/modelo, ver painel_comum.versao_layout) sao os de agora."""
+    return bool(pronta and pronta["dados_versao"] == versao and pronta["dia"] == hoje.isoformat() and _marca_layout() in pronta["html"])
+
+
 def garantir_pagina(painel: str, periodo: tuple[str, str] | None = None, guardar: bool = True) -> str:
     """HTML do painel: o guardado se os dados e o dia ainda valem; senao calcula (e guarda para os proximos)."""
-    chave = "padrao" if not periodo else f"{periodo[0]}..{periodo[1]}"
+    chave = _chave_da_pagina(periodo)
     hoje, versao = date.today(), arm.versao_com_dependencias(painel)
     pronta = arm.ler_pagina(painel, chave)
-    # a pagina guardada so vale se os dados, o dia E o layout (CSS/JS/modelo, ver painel_comum.versao_layout) sao os de agora
-    if pronta and pronta["dados_versao"] == versao and pronta["dia"] == hoje.isoformat() and _marca_layout() in pronta["html"]:
+    if _pagina_vale(pronta, versao, hoje):
         return pronta["html"]
+    return _calcular_e_guardar(painel, periodo, chave, hoje, versao, guardar)
+
+
+def _calcular_e_guardar(painel: str, periodo: tuple[str, str] | None, chave: str, hoje: date, versao: int, guardar: bool = True) -> str:
     html = montar_pagina(painel, periodo)
     if not periodo:   # os avisos descrevem a posicao de hoje; um recorte de periodo mostra so uma parte dos dados
         registrar_avisos(painel, versao)
@@ -188,10 +228,34 @@ def garantir_pagina(painel: str, periodo: tuple[str, str] | None = None, guardar
     return html
 
 
-def com_marcas(html: str, painel: str, admin: bool) -> str:
-    """Poe no HTML o que o painel_base.js precisa saber (painel, nuvem, se o usuario e admin). Feito a cada pedido: a pagina guardada e a mesma para todos."""
+def pagina_para_abrir(painel: str, periodo: tuple[str, str] | None) -> tuple[str, bool, int]:
+    """(HTML, vencido, previsto_s) para abrir o painel SEM esperar a atualizacao.
+
+    Se ha uma pagina guardada ela sai na hora, mesmo velha (dados novos, dia novo ou layout novo): `vencido` avisa a tela do site, que pede a
+    renovacao em segundo plano (POST /api/renovar) e mostra o andamento. So espera a conta quem nao tem pagina guardada, ou pediu um periodo
+    cuja pagina esta velha. `vencido` tambem vale quando a ultima copia do banco tem mais de 5 h. `previsto_s` = quanto a renovacao costuma levar."""
+    chave, hoje = _chave_da_pagina(periodo), date.today()
+    with ThreadPoolExecutor(max_workers=3) as ex:   # as tres consultas sao independentes: uma ida so ao Supabase em vez de tres em fila
+        f_pronta = ex.submit(arm.ler_pagina, painel, chave)
+        f_versao = ex.submit(arm.versao_com_dependencias, painel)
+        f_sincronia = ex.submit(sincronia_vencida, painel)
+    pronta, versao, sincronia = f_pronta.result(), f_versao.result(), f_sincronia.result()
+    if _pagina_vale(pronta, versao, hoje):
+        html, vencido = pronta["html"], sincronia
+    elif pronta and not periodo:
+        html, vencido = pronta["html"], True
+    else:
+        html, vencido = _calcular_e_guardar(painel, periodo, chave, hoje, versao), sincronia
+    previsto = previsto_da_renovacao(painel, sincronia) if vencido else 0
+    return html, vencido, previsto
+
+
+def com_marcas(html: str, painel: str, admin: bool, vencido: bool = False, previsto_s: int = 0) -> str:
+    """Poe no HTML o que o painel_base.js precisa saber (painel, nuvem, se o usuario e admin). Feito a cada pedido: a pagina guardada e a mesma para todos.
+    `vencido`/`previsto_s` sao para a tela do site (PainelFrame), que le o iframe e pede a renovacao."""
     # "embutido": a pagina aparece dentro de uma tela do site, que ja da o respiro e o fundo (ver .embutido em painel_base.css)
     marca = (f"<script>window.PAINEL_NUVEM=true;window.PAINEL_ID={json.dumps(painel)};window.PAINEL_ADMIN={'true' if admin else 'false'};"
+             f"window.PAINEL_VENCIDO={'true' if vencido else 'false'};window.PAINEL_PREVISTO_S={int(previsto_s)};"
              "document.documentElement.classList.add('embutido');</script>")
     return html.replace("<head>", "<head>" + marca, 1) if "<head>" in html else marca + html
 
@@ -223,20 +287,73 @@ def atualizar(painel: str, usuario: str) -> dict:
         k.PRAZO_FINAL = None
 
 
-def sincronizar_se_vencido(painel: str) -> None:
-    """Atualizacao automatica: se a ultima atualizacao do painel (botao ou automatica) tem mais de 5 h, copia do banco agora. Nao consulta o
-    Klingo (a coleta do Supabase ja o faz), entao e rapido; qualquer pessoa que abrir o painel dispara, e o botao Atualizar continua valendo
-    a qualquer hora. Uma falha aqui nunca impede de abrir o painel."""
+def sincronia_vencida(painel: str) -> bool:
+    """Verdadeiro se a copia do banco para o painel esta valendo ha mais de 5 h (botao ou automatica; None = nunca). Sempre falso fora do modo
+    banco (PAINEL_FONTE=klingo) e se a consulta falhar: abrir o painel nunca depende disso."""
     import fonte_banco as fb
     if not fb.ativa():
-        return
+        return False
     try:
         ultima = arm.ultima_atualizacao(painel)
-        if ultima and (datetime.now(timezone.utc) - ultima).total_seconds() < SINCRONIA_S:
-            return
-        atualizar(painel, "automático (a cada 5 h)")
+    except arm.ErroArmazenamento as e:
+        print(f">>> AVISO: não consegui ver a última atualização de {painel}: {e}", flush=True)
+        return False
+    return not ultima or (datetime.now(timezone.utc) - ultima).total_seconds() >= SINCRONIA_S
+
+
+def previsto_da_renovacao(painel: str, com_copia: bool) -> int:
+    """Quantos segundos a renovacao costuma levar (mediana das ultimas do mesmo tipo): copiar do banco + refazer a pagina, ou so refazer a pagina."""
+    if com_copia:
+        return arm.previsto_s(painel, USUARIO_SYNC, PREVISTO_SYNC_PADRAO_S)
+    return arm.previsto_s(painel, USUARIO_PAGINA, PREVISTO_PAGINA_PADRAO_S)
+
+
+class Ocupado(Exception):
+    """Ja existe uma renovacao deste painel rodando; `andamento` diz ha quanto tempo e quanto costuma levar."""
+
+    def __init__(self, andamento: dict | None):
+        super().__init__("renovação em andamento")
+        self.andamento = andamento
+
+
+@contextmanager
+def trava_do_painel(painel: str, usuario: str, previsto_s: int):
+    """Uma renovacao por painel de cada vez. Duas gravando o mesmo painel se atropelavam (a troca de uma apagava os lotes da outra e dava
+    'Nenhum lote gravado'). Levanta Ocupado se outra ja roda; sem a tabela da trava segue sem trava."""
+    achou = arm.travar_painel(painel, usuario, previsto_s)
+    if achou is False:
+        raise Ocupado(arm.andamento(painel))
+    try:
+        yield
+    finally:
+        if achou:
+            arm.liberar_painel(painel)
+
+
+def renovar(painel: str, usuario: str) -> dict:
+    """Renovacao em segundo plano de um painel (chamada pela tela do site e pelo cron): copia do banco se a copia venceu, refaz a pagina e
+    deixa tudo pronto para a proxima abertura. Devolve {'ok', 'ocupado', 'atualizou', 'falhou', 'andamento'}; nunca levanta."""
+    com_copia = sincronia_vencida(painel)
+    previsto = previsto_da_renovacao(painel, com_copia)
+    inicio, falhou, atualizou = time.time(), False, False
+    try:
+        with trava_do_painel(painel, usuario, previsto):
+            if com_copia:
+                try:
+                    atualizou = bool(atualizar(painel, USUARIO_SYNC).get("atualizou"))   # registra o resultado (ou o erro) no historico
+                except Exception as e:
+                    falhou = True   # o painel continua com os dados da ultima atualizacao; a pagina de hoje sai do mesmo jeito
+                    print(f">>> AVISO: não consegui sincronizar {painel} com o banco: {type(e).__name__}: {e}", flush=True)
+            garantir_pagina(painel)
+            if not com_copia:
+                arm.registrar_atualizacao(painel, "pagina", "Página refeita.", time.time() - inicio, USUARIO_PAGINA)
+    except Ocupado as o:
+        return {"ok": True, "ocupado": True, "atualizou": False, "falhou": False, "andamento": o.andamento}
     except Exception as e:
-        print(f">>> AVISO: não consegui sincronizar {painel} com o banco: {type(e).__name__}: {e}", flush=True)
+        traceback.print_exc()
+        print(f">>> AVISO: não consegui renovar {painel}: {type(e).__name__}: {e}", flush=True)
+        return {"ok": False, "ocupado": False, "atualizou": False, "falhou": True}
+    return {"ok": True, "ocupado": False, "atualizou": atualizou, "falhou": falhou}
 
 
 def _preparar_paginas(painel: str, inicio: float) -> None:
@@ -306,14 +423,13 @@ def rota_pagina(h) -> None:
         painel = q.get("id", "")
         u = conferir_acesso(h.headers, painel)
         periodo = periodo_da_url(q.get("de", ""), q.get("ate", ""))
-        sincronizar_se_vencido(painel)
         try:
-            html = garantir_pagina(painel, periodo)
+            html, vencido, previsto = pagina_para_abrir(painel, periodo)   # nunca espera a atualizacao: ver pagina_para_abrir
         except Exception as e:
             traceback.print_exc()
             detalhe = f"{type(e).__name__}: {e}" if u["admin"] else "Avise um administrador."
             return responder(h, 500, _pagina_de_aviso("Não consegui montar este painel", detalhe), "text/html; charset=utf-8")
-        responder(h, 200, com_marcas(html, painel, u["admin"]), "text/html; charset=utf-8")
+        responder(h, 200, com_marcas(html, painel, u["admin"], vencido, previsto), "text/html; charset=utf-8")
     tratar(h, fazer)
 
 
@@ -322,8 +438,10 @@ def rota_estado(h) -> None:
         painel = _consulta(h).get("id", "")
         conferir_acesso(h.headers, painel)
         v = arm.versao_dados(painel)
+        andamento = arm.andamento(painel)   # renovacao em curso (a da tela do site, a do botao ou a do cron): a pagina mostra o aviso e espera
         # a mesma conta do "versao" que o gerador poe na pagina (int do timestamp de datetime.fromtimestamp)
-        responder(h, 200, {"versao": int(datetime.fromtimestamp(v).timestamp()) if v else int(datetime.now().timestamp()), "atualizando": False, "aviso": None})
+        responder(h, 200, {"versao": int(datetime.fromtimestamp(v).timestamp()) if v else int(datetime.now().timestamp()), "atualizando": bool(andamento),
+                           "andamento": andamento, "aviso": None})
     tratar(h, fazer)
 
 
@@ -334,11 +452,29 @@ def rota_atualizar(h) -> None:
         painel = _consulta(h).get("id", "")
         u = conferir_acesso(h.headers, painel, so_admin=True)
         try:
-            resposta = atualizar(painel, u["email"])
+            with trava_do_painel(painel, u["email"], arm.previsto_s(painel, USUARIO_SYNC, PREVISTO_SYNC_PADRAO_S)):
+                resposta = atualizar(painel, u["email"])
+        except Ocupado as o:
+            a = o.andamento or {}
+            return responder(h, 200, {"ok": True, "atualizou": False, "avisos": [],
+                                      "mensagem": "Este painel já está sendo atualizado" + (f" (começou há {int(a['decorrido_s'])} s)" if a else "") +
+                                                  ". Quando terminar, a página recarrega sozinha."})
         except Exception as e:
             traceback.print_exc()
             return responder(h, 200, {"ok": False, "mensagem": f"Não consegui atualizar: {type(e).__name__}: {e}"})
         responder(h, 200, resposta)
+    tratar(h, fazer)
+
+
+def rota_renovar(h) -> None:
+    """POST /api/renovar?id=<painel>: a tela do site pede isso quando o painel abriu com dados vencidos. Qualquer pessoa com acesso ao painel pode
+    pedir (so copia do banco e refaz a pagina; nao consulta o Klingo). Se outra renovacao ja roda, devolve o andamento dela."""
+    def fazer():
+        if h.headers.get("X-Painel") != "1":   # barra paginas de outros sites chamando a API com o cookie do usuario
+            raise Negado(403, "Pedido recusado.")
+        painel = _consulta(h).get("id", "")
+        u = conferir_acesso(h.headers, painel)
+        responder(h, 200, renovar(painel, u["email"]))
     tratar(h, fazer)
 
 
@@ -365,11 +501,7 @@ def rota_preaquecer(h) -> None:
             if time.time() - inicio > PRAZO_TOTAL_S - 60:
                 resultado[painel] = "adiado"
                 continue
-            try:
-                sincronizar_se_vencido(painel)
-                garantir_pagina(painel)
-                resultado[painel] = "ok"
-            except Exception as e:
-                resultado[painel] = f"erro: {type(e).__name__}: {e}"
+            r = renovar(painel, "cron")   # copia do banco se venceu + refaz a pagina; se uma pessoa ja esta renovando este painel, deixa para ela
+            resultado[painel] = "ocupado" if r["ocupado"] else ("ok" if r["ok"] and not r["falhou"] else "erro")
         responder(h, 200, {"ok": True, "paineis": resultado})
     tratar(h, fazer)

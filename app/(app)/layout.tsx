@@ -23,8 +23,8 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await getCurrentProfile();
-  const avisos = await contarAvisosAbertos();
+  // independentes: uma espera só em vez de duas em fila (a página reaproveita o perfil: getCurrentProfile é cacheado por pedido)
+  const [profile, avisos] = await Promise.all([getCurrentProfile(), contarAvisosAbertos()]);
   const isAdmin = profile?.role === "admin";
   const paineis = PAINEIS.filter((p) => podeVerPainel(profile, p.id));
   const email = profile?.email ?? "";

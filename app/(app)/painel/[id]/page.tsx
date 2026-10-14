@@ -49,7 +49,7 @@ export default async function PainelPage({ params, searchParams }: Props) {
           Ative o JavaScript para ver o painel.
         </div>
       </noscript>
-      <PainelFrame titulo={painel.nome} src={`/api/painel?${q.toString()}`} />
+      <PainelFrame titulo={painel.nome} painelId={id} src={`/api/painel?${q.toString()}`} />
     </>
   );
 }

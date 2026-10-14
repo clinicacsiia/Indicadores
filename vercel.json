@@ -11,6 +11,11 @@
       "includeFiles": "{*.py,modulos.json,config.json,painel_base.js,painel_base.css,Acompanhamento de META/**,Faturamento/**,Financeiro/**,Despesas/**,Indicadores/**,Cesta/**,Suprimentos/**,Atendimento/**}",
       "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
     },
+    "api/renovar.py": {
+      "maxDuration": 300,
+      "includeFiles": "{*.py,modulos.json,config.json,painel_base.js,painel_base.css,Acompanhamento de META/**,Faturamento/**,Financeiro/**,Despesas/**,Indicadores/**,Cesta/**,Suprimentos/**,Atendimento/**}",
+      "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
+    },
     "api/preaquecer.py": {
       "maxDuration": 300,
       "includeFiles": "{*.py,modulos.json,config.json,painel_base.js,painel_base.css,Acompanhamento de META/**,Faturamento/**,Financeiro/**,Despesas/**,Indicadores/**,Cesta/**,Suprimentos/**,Atendimento/**}",

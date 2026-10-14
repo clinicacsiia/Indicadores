@@ -18,7 +18,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -270,9 +270,64 @@ def registrar_atualizacao(painel: str, status: str, mensagem: str, duracao_segun
 
 
 def ultima_atualizacao(painel: str) -> datetime | None:
-    """Quando o painel foi atualizado pela ultima vez (botao ou automatica), mesmo que nao tenha mudado nada; None = nunca."""
-    _, _, res = _pedir("GET", "/rest/v1/painel_atualizacao", {"painel": f"eq.{painel}", "select": "criado_em", "order": "criado_em.desc", "limit": "1"})
+    """Quando o painel foi atualizado pela ultima vez (botao ou automatica), mesmo que nao tenha mudado nada; None = nunca.
+    Refazer so a pagina (status 'pagina') nao conta: ela nao traz dados novos."""
+    _, _, res = _pedir("GET", "/rest/v1/painel_atualizacao", {"painel": f"eq.{painel}", "status": "neq.pagina", "select": "criado_em",
+                                                              "order": "criado_em.desc", "limit": "1"})
     return _dt(res[0]["criado_em"]) if res else None
+
+
+# ---------------------------------------------------------------- renovacao em andamento (trava + andamento)
+TRAVA_VENCE_S = 6 * 60   # a funcao da Vercel para em 300 s: trava mais velha que isso e de uma execucao que morreu
+
+
+def travar_painel(painel: str, usuario: str, previsto_s: int) -> bool | None:
+    """Tenta ser a unica renovacao deste painel. True = conseguiu (chame liberar_painel no fim); False = ja ha outra rodando;
+    None = a tabela painel_renovacao nao existe/nao respondeu (segue sem trava, como antes da trava existir)."""
+    try:
+        limite = (datetime.now(timezone.utc) - timedelta(seconds=TRAVA_VENCE_S)).isoformat(timespec="seconds")
+        _pedir("DELETE", "/rest/v1/painel_renovacao", {"painel": f"eq.{painel}", "iniciado_em": f"lt.{limite}"}, cabecalhos={"Prefer": "return=minimal"})
+        _, _, res = _pedir("POST", "/rest/v1/painel_renovacao", params={"on_conflict": "painel"},
+                           corpo=[{"painel": painel, "usuario": usuario, "previsto_s": int(previsto_s),
+                                   "iniciado_em": datetime.now(timezone.utc).isoformat(timespec="seconds")}],
+                           cabecalhos={"Prefer": "resolution=ignore-duplicates,return=representation"})
+        return bool(res)
+    except ErroArmazenamento as e:
+        print(f">>> AVISO: sem trava de renovação em {painel} ({e})", flush=True)
+        return None
+
+
+def liberar_painel(painel: str) -> None:
+    try:
+        _pedir("DELETE", "/rest/v1/painel_renovacao", {"painel": f"eq.{painel}"}, cabecalhos={"Prefer": "return=minimal"})
+    except ErroArmazenamento as e:   # a trava vence sozinha
+        print(f">>> AVISO: não consegui liberar a trava de {painel} ({e})", flush=True)
+
+
+def andamento(painel: str) -> dict | None:
+    """{'decorrido_s', 'previsto_s', 'usuario'} da renovacao em andamento; None se nao ha (ou a trava ja venceu)."""
+    try:
+        _, _, res = _pedir("GET", "/rest/v1/painel_renovacao", {"painel": f"eq.{painel}", "select": "iniciado_em,previsto_s,usuario"})
+    except ErroArmazenamento:
+        return None
+    if not res:
+        return None
+    inicio = _dt(res[0]["iniciado_em"])
+    decorrido = (datetime.now(timezone.utc) - inicio).total_seconds() if inicio else 0.0
+    if decorrido > TRAVA_VENCE_S:
+        return None
+    return {"decorrido_s": round(max(decorrido, 0.0), 1), "previsto_s": int(res[0].get("previsto_s") or 30), "usuario": res[0].get("usuario") or ""}
+
+
+def previsto_s(painel: str, usuario: str, padrao: int) -> int:
+    """Quanto costuma levar (mediana das ultimas 5 execucoes bem-sucedidas do mesmo tipo, `usuario`); `padrao` se nao ha historico."""
+    try:
+        _, _, res = _pedir("GET", "/rest/v1/painel_atualizacao", {"painel": f"eq.{painel}", "usuario": f"eq.{usuario}", "status": "neq.erro",
+                                                                  "select": "duracao_segundos", "order": "criado_em.desc", "limit": "5"})
+    except ErroArmazenamento:
+        return padrao
+    duracoes = sorted(float(r["duracao_segundos"]) for r in (res or []) if r.get("duracao_segundos"))
+    return max(int(round(duracoes[len(duracoes) // 2])), 5) if duracoes else padrao
 
 
 def custos_informados() -> dict[str, float]:

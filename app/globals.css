@@ -1659,6 +1659,53 @@ select {
   background: transparent;
 }
 
+/* Aviso "atualizando os dados" acima do painel (PainelFrame): o painel já aparece com a última atualização enquanto os dados novos chegam. */
+.painel-aviso {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+.painel-aviso[data-tipo="info"] {
+  border-left-color: var(--brand);
+}
+.painel-aviso[data-tipo="ok"] {
+  border-left-color: var(--ok);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.painel-aviso[data-tipo="erro"] {
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.painel-aviso-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.painel-aviso-nome {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.painel-aviso .meter {
+  height: 8px;
+  margin-top: 2px;
+}
+.painel-aviso .panel-sub {
+  margin: 0;
+}
+
 /* ───────── Avisos (pendências de todos os painéis) ───────── */
 
 .nav-contador {
