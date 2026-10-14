@@ -144,6 +144,11 @@ def periodo_da_url(de: str, ate: str) -> tuple[str, str] | None:
     return pc.periodo_da_consulta(de, ate)
 
 
+def _marca_layout() -> str:
+    import painel_comum as pc
+    return pc.marca_layout()
+
+
 def montar_pagina(painel: str, periodo: tuple[str, str] | None) -> str:
     codigo = codigo_do(painel)
     return codigo.gerar(*(periodo or (None, None)), devolver_html=True)
@@ -154,7 +159,8 @@ def garantir_pagina(painel: str, periodo: tuple[str, str] | None = None, guardar
     chave = "padrao" if not periodo else f"{periodo[0]}..{periodo[1]}"
     hoje, versao = date.today(), arm.versao_com_dependencias(painel)
     pronta = arm.ler_pagina(painel, chave)
-    if pronta and pronta["dados_versao"] == versao and pronta["dia"] == hoje.isoformat():
+    # a pagina guardada so vale se os dados, o dia E o layout (CSS/JS/modelo, ver painel_comum.versao_layout) sao os de agora
+    if pronta and pronta["dados_versao"] == versao and pronta["dia"] == hoje.isoformat() and _marca_layout() in pronta["html"]:
         return pronta["html"]
     html = montar_pagina(painel, periodo)
     if guardar:
