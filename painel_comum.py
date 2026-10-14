@@ -2,7 +2,8 @@
 import json
 import math
 import re
-from datetime import date, datetime
+from calendar import monthrange
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -31,14 +32,46 @@ def meses_entre(ini: str, fim: str) -> list[str]:
     return [mes_mais(ini, i) for i in range(t1 - t0 + 1)]
 
 
-class Periodo:
-    """Intervalo de meses ("AAAA-MM" a "AAAA-MM", inclusive) que o usuario escolheu no filtro De/Ate.
+PADRAO_DIA = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 
-    A conta de um periodo e a MESMA de um mes: cada painel junta as linhas de todos os meses do periodo numa so (ver `reagrupar`) e chama
-    o calculo mensal de sempre. `anterior` e o periodo de mesmo tamanho logo antes (base das comparacoes)."""
+
+def _dia(texto: str, inicio: bool) -> date:
+    """'AAAA-MM' vira o primeiro (inicio) ou o ultimo dia do mes; 'AAAA-MM-DD' e o proprio dia."""
+    if len(texto) == 7:
+        a, m = int(texto[:4]), int(texto[5:])
+        return date(a, m, 1) if inicio else date(a, m, monthrange(a, m)[1])
+    return date.fromisoformat(texto)
+
+
+def _valido(texto) -> bool:
+    texto = str(texto or "").strip()
+    if PADRAO_YM.match(texto):
+        return True
+    if not PADRAO_DIA.match(texto):
+        return False
+    try:
+        date.fromisoformat(texto)
+    except ValueError:
+        return False
+    return True
+
+
+class Periodo:
+    """Intervalo que o usuario escolheu no filtro De/Ate: de um mes inteiro a varios meses, ou dias exatos ("2026-09-10" a "2026-10-25").
+
+    As pontas aceitam "AAAA-MM" (o mes inteiro) ou "AAAA-MM-DD". `ini`/`fim` sao sempre os MESES das pontas e `yms` os meses que o periodo
+    toca; `dia_ini`/`dia_fim` sao os dias exatos e `exato` diz se o periodo corta algum mes no meio.
+
+    A conta de um periodo e a MESMA de um mes: cada painel junta as linhas do periodo numa so (ver `reagrupar`) e chama o calculo mensal de
+    sempre. `anterior` e o periodo de mesmo tamanho logo antes (base das comparacoes)."""
 
     def __init__(self, ini: str, fim: str):
-        self.ini, self.fim = (ini, fim) if ini <= fim else (fim, ini)
+        a, b = _dia(ini, True), _dia(fim, False)
+        if a > b:
+            a, b = _dia(fim, True), _dia(ini, False)
+        self.dia_ini, self.dia_fim = a, b
+        self.exato = not (a.day == 1 and b.day == monthrange(b.year, b.month)[1])
+        self.ini, self.fim = a.strftime("%Y-%m"), b.strftime("%Y-%m")
         self.yms = meses_entre(self.ini, self.fim)
 
     @property
@@ -46,68 +79,129 @@ class Periodo:
         return len(self.yms)
 
     @property
+    def n_dias(self) -> int:
+        return (self.dia_fim - self.dia_ini).days + 1
+
+    @property
     def unico(self) -> bool:
-        return self.n == 1
+        """Um mes inteiro so (a pagina de sempre). Um recorte de dias dentro de um mes NAO e unico: precisa ser calculado."""
+        return self.n == 1 and not self.exato
 
     @property
     def chave(self) -> str:
+        if self.exato:
+            return f"{self.dia_ini.isoformat()}..{self.dia_fim.isoformat()}"
         return self.ini if self.unico else f"{self.ini}..{self.fim}"
 
     @property
     def rotulo(self) -> str:
+        if self.exato:
+            if self.dia_ini == self.dia_fim:
+                return self.dia_ini.strftime("%d/%m/%Y")
+            return f"{self.dia_ini.strftime('%d/%m/%Y')} a {self.dia_fim.strftime('%d/%m/%Y')}"
         return rotulo_mes(self.ini) if self.unico else f"{rotulo_mes(self.ini)} a {rotulo_mes(self.fim)}"
 
     @property
     def anterior(self) -> "Periodo":
+        if self.exato:   # mesma quantidade de dias, terminando na vespera
+            fim = self.dia_ini - timedelta(days=1)
+            return Periodo((fim - timedelta(days=self.n_dias - 1)).isoformat(), fim.isoformat())
         return Periodo(mes_mais(self.ini, -self.n), mes_mais(self.ini, -1))
 
+    @property
+    def meses_inteiros(self) -> "Periodo":
+        """Os meses inteiros que o periodo toca (o proprio periodo, se ele ja e de meses inteiros): para dados que so existem por mes."""
+        return Periodo(self.ini, self.fim) if self.exato else self
+
     def contem(self, serie: pd.Series) -> pd.Series:
+        """Serie de meses 'AAAA-MM' -> True nos meses que o periodo toca (para dados que so existem por mes)."""
         return serie.isin(self.yms)
+
+    def dentro(self, datas: pd.Series) -> pd.Series:
+        """Serie de datas -> True nos dias do periodo (a hora e ignorada)."""
+        d = pd.to_datetime(datas, errors="coerce")
+        return (d >= pd.Timestamp(self.dia_ini)) & (d < pd.Timestamp(self.dia_fim) + pd.Timedelta(days=1))
+
+    def dias(self) -> list[date]:
+        return [self.dia_ini + timedelta(days=i) for i in range(self.n_dias)]
+
+    def fechado(self, hoje: date) -> bool:
+        """O ultimo dia do periodo ja passou (hoje, que ainda esta em curso, nao conta)."""
+        return self.dia_fim < hoje
+
+
+def periodo_da_consulta(de, ate) -> "tuple[str, str] | None":
+    """(de, ate) no formato do pedido que o servidor repassa ao painel: meses inteiros ('AAAA-MM') ou dias exatos ('AAAA-MM-DD').
+    None quando nao ha pedido valido ou quando e um mes inteiro so (essa e a pagina de sempre, em que o proprio painel escolhe o mes)."""
+    de, ate = str(de or "").strip(), str(ate or "").strip()
+    if not (_valido(de) and _valido(ate)):
+        return None
+    per = Periodo(de, ate)
+    if per.unico:
+        return None
+    return (per.dia_ini.isoformat(), per.dia_fim.isoformat()) if per.exato else (per.ini, per.fim)
 
 
 def periodo_pedido(de, ate, existentes) -> "tuple[Periodo | None, dict | None]":
-    """(periodo, info) do que o usuario pediu (?de=AAAA-MM&ate=AAAA-MM). `existentes` = meses que o painel tem.
+    """(periodo, info) do que o usuario pediu (?de=AAAA-MM&ate=AAAA-MM, ou com dias: AAAA-MM-DD). `existentes` = meses que o painel tem.
     Sem pedido valido: (None, None). O periodo pedido e recortado ao que o painel tem; sem nenhum mes dentro dele, `info["vazio"]` = True.
     `info` e o que vai no payload["periodo"] para a pagina mostrar o filtro e o texto 'de ... a ...'."""
     de, ate = str(de or "").strip(), str(ate or "").strip()
-    if not (PADRAO_YM.match(de) and PADRAO_YM.match(ate)):
+    if not (_valido(de) and _valido(ate)):
         return None, None
-    if de > ate:
-        de, ate = ate, de
+    pedido = Periodo(de, ate)
     tem = sorted(m for m in existentes if PADRAO_YM.match(str(m)))
-    dentro = [m for m in tem if de <= m <= ate]
-    info = {"de": de, "ate": ate, "vazio": not dentro, "recortado": False, "chave": None}
+    dentro = [m for m in tem if pedido.ini <= m <= pedido.fim]
+    info = {"de": pedido.ini, "ate": pedido.fim, "dia_de": pedido.dia_ini.isoformat(), "dia_ate": pedido.dia_fim.isoformat(),
+            "exato": pedido.exato, "vazio": not dentro, "recortado": False, "chave": None}
     if not dentro:
         return None, info
-    per = Periodo(dentro[0], dentro[-1])
-    info.update(de=per.ini, ate=per.fim, recortado=(per.ini, per.fim) != (de, ate), chave=per.chave, pedido_de=de, pedido_ate=ate)
+    # recorta ao que o painel tem: o primeiro e o ultimo mes com dados dentro do pedido (e, num recorte de dias, nao passa das pontas do pedido)
+    ini = max(pedido.dia_ini, _dia(dentro[0], True))
+    fim = min(pedido.dia_fim, _dia(dentro[-1], False))
+    per = Periodo(ini.isoformat(), fim.isoformat())
+    info.update(de=per.ini, ate=per.fim, dia_de=per.dia_ini.isoformat(), dia_ate=per.dia_fim.isoformat(), exato=per.exato,
+                recortado=(per.dia_ini, per.dia_fim) != (pedido.dia_ini, pedido.dia_fim), chave=per.chave,
+                pedido_de=pedido.ini, pedido_ate=pedido.fim, pedido_dia_de=pedido.dia_ini.isoformat(), pedido_dia_ate=pedido.dia_fim.isoformat())
     return per, info
 
 
 def acrescentar_periodo(meses: dict, per: "Periodo", montar) -> None:
-    """Poe em `meses` o periodo de varios meses e, se o painel tem dados antes dele, o periodo anterior (base das comparacoes; so entra
-    na pagina, fora da lista do filtro). `montar(periodo)` devolve o dict do periodo, como o do mes."""
+    """Poe em `meses` o periodo (varios meses ou um recorte de dias) e, se o painel tem dados antes dele, o periodo anterior (base das
+    comparacoes; so entra na pagina, fora da lista do filtro). `montar(periodo)` devolve o dict do periodo, como o do mes."""
     ant = per.anterior
     tem_anterior = any(m in meses for m in ant.yms)
     meses[per.chave] = montar(per)
-    meses[per.chave].update(periodo=True, n_meses=per.n, meses_do_periodo=per.yms, chave_anterior=ant.chave if tem_anterior else None)
+    meses[per.chave].update(periodo=True, n_meses=per.n, n_dias=per.n_dias, exato=per.exato, meses_do_periodo=per.yms,
+                            chave_anterior=ant.chave if tem_anterior else None)
     if tem_anterior:
         meses[ant.chave] = montar(ant)
 
 
-def reagrupar(df: pd.DataFrame, col: str, per: "Periodo", incluir_anterior: bool = True, ref: "Periodo | None" = None) -> pd.DataFrame:
-    """Copia de `df` so com as linhas dos meses do periodo (e do anterior), com a coluna de mes `col` trocada: tudo do periodo vira o
-    ultimo mes dele (per.fim) e tudo do periodo anterior vira o mes antes dele. Assim o calculo mensal de sempre, chamado com
-    `per.fim`, enxerga o periodo inteiro como 'o mes' e o periodo anterior como 'o mes anterior'.
+def reagrupar(df: pd.DataFrame, col: str, per: "Periodo", incluir_anterior: bool = True, ref: "Periodo | None" = None,
+              datacol: str | None = None) -> pd.DataFrame:
+    """Copia de `df` so com as linhas do periodo (e do anterior), com a coluna de mes `col` trocada: tudo do periodo vira o ultimo mes
+    dele (per.fim) e tudo do periodo anterior vira o mes antes dele. Assim o calculo mensal de sempre, chamado com `per.fim`, enxerga o
+    periodo inteiro como 'o mes' e o periodo anterior como 'o mes anterior'.
+    `datacol` = coluna de data da linha: num periodo de DIAS EXATOS e ela quem recorta (sem ela, dados que so existem por mes entram
+    pelos meses inteiros que o periodo toca). Num periodo de meses inteiros, o mes em `col` basta.
     `ref` = outro conjunto de meses para fazer o papel do 'mes anterior' (ex.: so os meses ja fechados do proprio periodo, quando o
     ultimo mes ainda esta aberto); pode se sobrepor ao periodo."""
+    if per.exato and datacol is None:   # dado que so existe por mes: os meses inteiros que o periodo toca, e os meses antes deles
+        return reagrupar(df, col, per.meses_inteiros, incluir_anterior, ref)
     alvo_ant = mes_mais(per.fim, -1)
     ant = ref or per.anterior
-    atual = df[df[col].isin(per.yms)].copy()
+
+    def recorte(p: "Periodo") -> pd.DataFrame:
+        if datacol is not None and (p.exato or per.exato) and datacol in df.columns:
+            return df[p.dentro(df[datacol])].copy()
+        return df[df[col].isin(p.yms)].copy()
+
+    atual = recorte(per)
     atual[col] = per.fim
     if not incluir_anterior:
         return atual
-    antes = df[df[col].isin(ant.yms)].copy()
+    antes = recorte(ant)
     antes[col] = alvo_ant
     return pd.concat([atual, antes], ignore_index=True)
 

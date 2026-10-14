@@ -87,6 +87,11 @@ def dias_uteis(ano: int, mes: int, semana: set, feriados: set) -> list[date]:
             if date(ano, mes, d).weekday() in semana and date(ano, mes, d) not in feriados]
 
 
+def uteis_do_periodo(per: pc.Periodo, semana: set, feriados: set) -> list[date]:
+    """Dias uteis dentro dos dias exatos do periodo (num periodo de meses inteiros, sao os dos meses)."""
+    return [d for d in per.dias() if d.weekday() in semana and d not in feriados]
+
+
 def status_de(pct: float, esperado: float) -> str:
     if pct >= 100:
         return "batida"
@@ -121,9 +126,15 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
     yms = per.yms if per else [ym]
     semana = set(cfg.get("dias_semana_atendimento", [0, 1, 2, 3, 4, 5]))
     feriados = {date.fromisoformat(f) for f in cfg.get("feriados", [])}
-    uteis = [d for y in yms for d in dias_uteis(int(y[:4]), int(y[5:]), semana, feriados)]
+    uteis = uteis_do_periodo(per, semana, feriados) if per else dias_uteis(ano, mes, semana, feriados)
     total_uteis = len(uteis)
-    fechado = date(ano, mes, monthrange(ano, mes)[1]) < hoje
+    fechado = per.fechado(hoje) if per else date(ano, mes, monthrange(ano, mes)[1]) < hoje
+    # meta de cada mes do periodo: o mes inteiro, ou (recorte de dias) a parte proporcional aos dias uteis do recorte dentro dele
+    fracao_mes = {y: 1.0 for y in yms}
+    if per and per.exato:
+        for y in yms:
+            do_mes = len(dias_uteis(int(y[:4]), int(y[5:]), semana, feriados))
+            fracao_mes[y] = sum(1 for u in uteis if u.strftime("%Y-%m") == y) / do_mes if do_mes else 0.0
     if fechado:
         decorridos = float(total_uteis)
     else:
@@ -146,7 +157,7 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
             realizado = int(m.sum())
             sus = int((m & df_mes["_sus"]).sum())
             sem_conv = int((m & ~df_mes["_conv"]).sum())
-            meta = sum(int(ajustes_mes.get(y, {}).get(f"{g['id']}/{it['id']}", it["meta"])) for y in yms)
+            meta = round(sum(int(ajustes_mes.get(y, {}).get(f"{g['id']}/{it['id']}", it["meta"])) * fracao_mes[y] for y in yms))
             if not per:
                 por_item_dia.append((meta, m.groupby(dia_do_mes[m]).size().reindex(range(1, monthrange(ano, mes)[1] + 1), fill_value=0).cumsum()))
             pct = realizado / meta * 100 if meta else 0.0
@@ -199,7 +210,7 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
         "fechado": fechado,
         "uteis_total": total_uteis, "uteis_decorridos": round(decorridos, 1), "uteis_restantes": round(restantes, 1),
         "esperado_pct": esperado,
-        "ultimo_atendimento": df_mes["Data do Atendimento"].max().strftime("%d/%m/%Y %H:%M"),
+        "ultimo_atendimento": df_mes["Data do Atendimento"].max().strftime("%d/%m/%Y %H:%M") if len(df_mes) else None,
         "convenio_ok": bool(df_mes["_conv"].any()),
         "total_atendimentos": int(len(df_mes)), "total_fora": int((contagem == 0).sum()),
         "geral": {"pct": geral_pct, "status": status_de(geral_pct, esperado),
@@ -210,8 +221,9 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
 
 
 def montar_periodo(per: pc.Periodo, df: pd.DataFrame, ym_de_cada: pd.Series, cfg: dict, agora: datetime, avisos: list) -> dict:
-    """Varios meses juntos: as linhas de todos os meses do periodo, com a conta de um mes (ver montar_mes)."""
-    return montar_mes(df[ym_de_cada.isin(per.yms)], per.fim, cfg, agora, avisos, per=per)
+    """Varios meses (ou dias exatos) juntos: as linhas do periodo, com a conta de um mes (ver montar_mes)."""
+    linhas = df[per.dentro(df["Data do Atendimento"])] if per.exato else df[ym_de_cada.isin(per.yms)]
+    return montar_mes(linhas, per.fim, cfg, agora, avisos, per=per)
 
 
 def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = False):

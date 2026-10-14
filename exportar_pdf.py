@@ -24,7 +24,7 @@ table { width: 100% !important; max-width: 100% !important; table-layout: auto !
 th, td { white-space: normal !important; overflow-wrap: anywhere !important; word-break: normal; min-width: 0 !important; max-width: none !important; }
 .kpi, .alerta, .bloco, .barra, .donut, section, div { min-width: 0; }
 img, svg, canvas { max-width: 100% !important; height: auto; }
-header .acoes, .mes-pick, .periodo-pick, .filtros, .filtro, #btn-atualizar, .btn, .aviso, #tip, details.ajuda { display: none !important; }
+header .acoes, .toolbar, .mes-pick, .periodo-pick, .filtros, .filtro, #btn-atualizar, .btn, .aviso, #tip, details.ajuda { display: none !important; }
 .periodo-ativo { font-size: 15px !important; margin-top: 8px !important; }
 .wrap { max-width: none !important; padding: 0 !important; width: 100% !important; }
 .tab-wrap { overflow: visible !important; }

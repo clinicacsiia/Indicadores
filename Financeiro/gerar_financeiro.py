@@ -71,15 +71,29 @@ def faixas_vencidas(d: pd.DataFrame, hoje: date) -> list[dict]:
     return out
 
 
-def faturas_convenio_por_mes() -> dict[str, dict]:
-    """Faturas de convenio ainda nao baixadas, por mes de vencimento (vem do painel de Faturamento, se ele ja foi baixado)."""
+def faturas_em_aberto() -> pd.DataFrame | None:
+    """Faturas de convenio ainda nao baixadas, com vencimento (vem do painel de Faturamento, se ele ja foi baixado)."""
     try:
         ab = k.carregar(PASTA.parent / "Faturamento")["Faturas em Aberto"]
-        ab = ab[ab["Vencimento"].notna()]
-        return {ym: {"valor": float(g["Valor Bruto"].fillna(0).sum()), "qtd": int(len(g))}
-                for ym, g in ab.groupby(ym_de(ab["Vencimento"]))}
+        return ab[ab["Vencimento"].notna()]
     except Exception:
+        return None
+
+
+def faturas_convenio_por_mes(ab: pd.DataFrame | None) -> dict[str, dict]:
+    """Faturas em aberto somadas por mes de vencimento."""
+    if ab is None:
         return {}
+    return {ym: {"valor": float(g["Valor Bruto"].fillna(0).sum()), "qtd": int(len(g))}
+            for ym, g in ab.groupby(ym_de(ab["Vencimento"]))}
+
+
+def faturas_convenio_no_periodo(ab: pd.DataFrame | None, per: pc.Periodo) -> dict:
+    """Faturas em aberto que vencem dentro dos dias do periodo."""
+    if ab is None or not len(ab):
+        return {"valor": 0.0, "qtd": 0}
+    g = ab[per.dentro(ab["Vencimento"])]
+    return {"valor": float(g["Valor Bruto"].fillna(0).sum()), "qtd": int(len(g))}
 
 
 def convenio_a_faturar(ym: str) -> dict | None:
@@ -115,7 +129,7 @@ def montar_mes(ym: str, desp: pd.DataFrame, rec: pd.DataFrame, part: pd.DataFram
     cv = conv.get(ym, {"valor": 0.0, "qtd": 0})
     a_pagar, lancadas = float(d["Valor"].sum()), float(r["Valor"].sum())
     a_receber = lancadas + cv["valor"]
-    fechado = date(int(ym[:4]), int(ym[5:]), 1) < date(hoje.year, hoje.month, 1)
+    fechado = per.fechado(hoje) if per else date(int(ym[:4]), int(ym[5:]), 1) < date(hoje.year, hoje.month, 1)
 
     pm = part[part["_ym_atend"] == ym]
     cartao = pm[pm["Tipo de Pagamento"].map(gd.norm).str.contains("CARTAO", na=False)]
@@ -165,12 +179,15 @@ def montar_mes(ym: str, desp: pd.DataFrame, rec: pd.DataFrame, part: pd.DataFram
     }
 
 
-def montar_periodo(per: pc.Periodo, desp, rec, part, hoje, conv, a_faturar) -> dict:
-    """Varios meses juntos, com a mesma conta de um mes (ver pc.reagrupar)."""
-    def faturas(yms):
-        return {"valor": sum(conv.get(m, {}).get("valor", 0.0) for m in yms), "qtd": sum(conv.get(m, {}).get("qtd", 0) for m in yms)}
-    conv2 = {per.fim: faturas(per.yms), k.mes_mais(per.fim, -1): faturas(per.anterior.yms)}
-    return montar_mes(per.fim, pc.reagrupar(desp, "_ym", per), pc.reagrupar(rec, "_ym", per), pc.reagrupar(part, "_ym_atend", per), hoje, conv2, a_faturar, per=per)
+def montar_periodo(per: pc.Periodo, desp, rec, part, hoje, conv, a_faturar, ab=None) -> dict:
+    """Varios meses (ou dias exatos) juntos, com a mesma conta de um mes (ver pc.reagrupar)."""
+    def faturas(p):
+        if p.exato:
+            return faturas_convenio_no_periodo(ab, p)
+        return {"valor": sum(conv.get(m, {}).get("valor", 0.0) for m in p.yms), "qtd": sum(conv.get(m, {}).get("qtd", 0) for m in p.yms)}
+    conv2 = {per.fim: faturas(per), k.mes_mais(per.fim, -1): faturas(per.anterior)}
+    return montar_mes(per.fim, pc.reagrupar(desp, "_ym", per, datacol="Vencimento"), pc.reagrupar(rec, "_ym", per, datacol="Vencimento"),
+                      pc.reagrupar(part, "_ym_atend", per, datacol="Data do Atendimento"), hoje, conv2, a_faturar, per=per)
 
 
 def convenio_produzido(ym: str) -> float | None:
@@ -202,13 +219,14 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         desp, rec = lanc[tipo == "DESPESAS"], lanc[tipo == "RECEITAS"]
         part = part.copy()
         part["_ym_atend"] = ym_de(part["Data do Atendimento"])
-        conv = faturas_convenio_por_mes()
+        ab_conv = faturas_em_aberto()
+        conv = faturas_convenio_por_mes(ab_conv)
         a_faturar = convenio_a_faturar(k.mes_mais(ym_hoje, -1))   # produzido do ultimo mes fechado que ainda nao virou fatura (nao esta no "a receber")
         for ym in k.meses_entre(defn["primeiro_mes"], ym_hoje):
             meses[ym] = montar_mes(ym, desp, rec, part, hoje, conv, a_faturar)
         per, info = pc.periodo_pedido(de, ate, meses)
         if per and not per.unico:
-            pc.acrescentar_periodo(meses, per, lambda p: montar_periodo(p, desp, rec, part, hoje, conv, a_faturar))
+            pc.acrescentar_periodo(meses, per, lambda p: montar_periodo(p, desp, rec, part, hoje, conv, a_faturar, ab_conv))
 
         # ---- atencao agora (nao depende do mes escolhido)
         ja_venceu = desp[desp["Vencimento"].notna() & (desp["Vencimento"].dt.date < hoje) & ~desp["_pago"]]

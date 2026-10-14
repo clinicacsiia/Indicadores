@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
 import { AtualizarForm } from "../atualizar-form";
+import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
 import { metasConfig, RELATORIO_METAS } from "@/lib/metas/config";
 import {
   agoraSaoPaulo,
-  calcularMes,
+  calcularPeriodo,
   fimDoMes,
   mesesDisponiveis,
+  mesesInteiros,
+  somarDias,
   type LinhaAtendimento,
   type ResultadoItem,
   type Situacao,
@@ -21,6 +23,10 @@ export const maxDuration = 300;
 export const metadata: Metadata = { title: "Metas" };
 
 const MES_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const DIA_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const diaValido = (iso: string | undefined): iso is string =>
+  !!iso && DIA_RE.test(iso) && new Date(`${iso}T12:00:00Z`).toISOString().slice(0, 10) === iso;
 const MESES = [
   "Janeiro",
   "Fevereiro",
@@ -48,7 +54,6 @@ const umaCasa = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 
 const pctTexto = (v: number) => `${umaCasa.format(v)}%`;
 const rotuloMes = (mes: string) => `${MESES[Number(mes.slice(5)) - 1]}/${mes.slice(0, 4)}`;
-const rotuloMesCurto = (mes: string) => `${MESES[Number(mes.slice(5)) - 1].slice(0, 3)}/${mes.slice(2, 4)}`;
 const dataCurta = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 type RespostaMetas = {
@@ -102,7 +107,7 @@ function LinhaMeta({ item, esperado, convenio }: { item: ResultadoItem; esperado
   );
 }
 
-export default async function MetasPage({ searchParams }: { searchParams: Promise<{ mes?: string }> }) {
+export default async function MetasPage({ searchParams }: { searchParams: Promise<{ mes?: string; de?: string; ate?: string }> }) {
   const profile = await getCurrentProfile();
   const podeVer = profile?.role === "admin" || profile?.permissions?.metas !== false;
 
@@ -132,13 +137,39 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const primeiroMes = metasConfig.primeiro_mes > mesAtual ? mesAtual : metasConfig.primeiro_mes;
   const meses = mesesDisponiveis(primeiroMes, mesAtual);
 
-  const { mes: mesPedido } = await searchParams;
-  const mes = mesPedido && MES_RE.test(mesPedido) && meses.includes(mesPedido) ? mesPedido : mesAtual;
+  const { mes: mesPedido, de: dePedido, ate: atePedido } = await searchParams;
+  // Período: um mês (?mes=AAAA-MM) ou dias livres (?de=AAAA-MM-DD&ate=AAAA-MM-DD). Datas que cobrem um mês inteiro viram esse mês.
+  const minimo = `${primeiroMes}-01`;
+  const maximo = fimDoMes(mesAtual);
+  let de = `${mesAtual}-01`;
+  let ate = maximo;
+  if (diaValido(dePedido) && diaValido(atePedido)) {
+    [de, ate] = dePedido <= atePedido ? [dePedido, atePedido] : [atePedido, dePedido];
+    if (de < minimo) de = minimo;
+    if (ate > maximo) ate = maximo;
+    if (ate < de) ate = de;
+  } else if (mesPedido && MES_RE.test(mesPedido) && meses.includes(mesPedido)) {
+    de = `${mesPedido}-01`;
+    ate = fimDoMes(mesPedido);
+  }
+  const inteiros = mesesInteiros(de, ate);
+  const mesUnico = inteiros && inteiros.de === inteiros.ate ? inteiros.de : null; // o período é exatamente um mês
+  const mes = de.slice(0, 7);
+  const rotulo = mesUnico
+    ? rotuloMes(mesUnico)
+    : inteiros
+      ? `${rotuloMes(inteiros.de)} a ${rotuloMes(inteiros.ate)}`
+      : de === ate
+        ? dataBR(de)
+        : `${dataBR(de)} a ${dataBR(ate)}`;
+  const nomePeriodo = mesUnico ? "mês" : "período";
 
   const supabase = await createClient();
   const [{ data: bruto, error }, { data: catalogo }] = await Promise.all([
     // A função aplica a permissão "Pode ver Metas" e já entrega os atendimentos do mês contados.
-    supabase.rpc("metas_atendimentos_mes", { p_mes: mes }),
+    mesUnico
+      ? supabase.rpc("metas_atendimentos_mes", { p_mes: mesUnico })
+      : supabase.rpc("metas_atendimentos_periodo", { p_de: de, p_ate: ate }),
     // Admin escolhe qualquer relatório para atualizar; os demais nem consultam o catálogo.
     isAdmin
       ? supabase
@@ -156,10 +187,11 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const resposta = (bruto ?? null) as RespostaMetas | null;
   const linhas = resposta?.mapeado ? (resposta.linhas ?? []) : [];
   const temDados = linhas.length > 0;
-  const resultado = temDados ? calcularMes(metasConfig, mes, linhas, agora) : null;
+  const resultado = temDados ? calcularPeriodo(metasConfig, de, ate, linhas, agora) : null;
 
-  const ultimoDia = mes === mesAtual ? agora.hoje : fimDoMes(mes);
-  const primeiroDia = `${mes}-01`;
+  // "Atualizar" (admin) busca no Klingo até 31 dias por vez: do começo do período, até hoje se ele ainda não terminou
+  const ultimoDia = ate > agora.hoje ? agora.hoje : ate;
+  const primeiroDia = de > ultimoDia ? ultimoDia : somarDias(ultimoDia, -30) > de ? somarDias(ultimoDia, -30) : de;
 
   let sync: { texto: string; estado: "ok" | "stale" | "none" } = { texto: "Ainda sem sincronização", estado: "none" };
   if (resposta?.ultimo_sync) {
@@ -170,8 +202,8 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
     const mesmoDia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(quando) === agora.hoje;
     sync = {
       texto: `Atualizado ${mesmoDia ? "hoje" : "em " + fmt({ day: "2-digit", month: "2-digit" })} às ${fmt({ timeStyle: "short" })}`,
-      // Mês já fechado não envelhece: só avisa quando o mês corrente está sem atualização recente.
-      estado: mes === mesAtual && horas > HORAS_ATE_DESATUALIZADO ? "stale" : "ok",
+      // Período já fechado não envelhece: só avisa quando ele ainda está em andamento e sem atualização recente.
+      estado: ate >= agora.hoje && horas > HORAS_ATE_DESATUALIZADO ? "stale" : "ok",
     };
   }
 
@@ -182,7 +214,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Metas</h1>
           <p className="page-lede">
-            Atendimentos realizados no mês contra a meta de cada serviço, com o ritmo esperado pelos dias úteis de
+            Atendimentos realizados no mês ou em qualquer período contra a meta de cada serviço, com o ritmo esperado pelos dias úteis de
             atendimento.
           </p>
         </div>
@@ -192,20 +224,16 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
         </span>
       </header>
 
-      <section className="toolbar" aria-label="Mês">
-        <div>
-          <span className="toolbar-label" id="rotulo-meses">
-            Mês
-          </span>
-          <div className="seg" role="group" aria-labelledby="rotulo-meses">
-            {meses.map((m) => (
-              <Link key={m} href={`/metas?mes=${m}`} className="seg-item" aria-current={m === mes ? "true" : undefined}>
-                {rotuloMesCurto(m)}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+      <FiltroPeriodo
+        basePath="/metas"
+        meses={meses}
+        mesAtivo={mesUnico}
+        de={de}
+        ate={ate}
+        min={minimo}
+        max={maximo}
+        hoje={agora.hoje}
+      />
 
       {isAdmin && catalogo && catalogo.length > 0 && (
         <AtualizarForm
@@ -229,18 +257,18 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
           <span className="empty-icon">
             <IconCalendario size={26} />
           </span>
-          <h2>Nenhum atendimento em {rotuloMes(mes)}</h2>
+          <h2>Nenhum atendimento em {rotulo}</h2>
           <p>
             {isAdmin
-              ? `Ainda não há atendimentos do relatório #${RELATORIO_METAS} para este mês. Use "Atualizar" acima para buscar no Klingo.`
-              : "Ainda não há atendimentos sincronizados para este mês. Peça a um administrador para atualizar."}
+              ? `Ainda não há atendimentos do relatório #${RELATORIO_METAS} para ${mesUnico ? "este mês" : "este período"}. Use "Atualizar" acima para buscar no Klingo.`
+              : `Ainda não há atendimentos sincronizados para ${mesUnico ? "este mês" : "este período"}. Peça a um administrador para atualizar.`}
           </p>
         </section>
       )}
 
       {resultado && (
         <>
-          <section aria-label={`Resumo de ${rotuloMes(mes)}`}>
+          <section aria-label={`Resumo de ${rotulo}`}>
             <div className="kpis">
               <article className="kpi" style={{ "--swatch": "var(--s-realizados)" } as React.CSSProperties}>
                 <h2 className="kpi-label">
@@ -260,7 +288,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                 </h2>
                 <p className="kpi-value">{pctTexto(resultado.esperadoPct)}</p>
                 <p className="kpi-meta">
-                  {resultado.fechado ? "Mês fechado" : "Pelos dias úteis já passados"}
+                  {resultado.fechado ? (mesUnico ? "Mês fechado" : "Período fechado") : "Pelos dias úteis já passados"}
                 </p>
               </article>
               <article className="kpi">
@@ -285,7 +313,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                   {resultado.geral.itensOk}
                   <span className="kpi-unit"> de {resultado.geral.itensTotal}</span>
                 </p>
-                <p className="kpi-meta">{inteiro.format(resultado.totalAtendimentos)} atendimentos no mês</p>
+                <p className="kpi-meta">{inteiro.format(resultado.totalAtendimentos)} atendimentos no {nomePeriodo}</p>
               </article>
             </div>
           </section>
@@ -339,7 +367,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
           <p className="panel-sub meta-legenda">
             O traço no fim de cada barra marca o esperado até agora ({pctTexto(resultado.esperadoPct)}). &ldquo;No
             ritmo&rdquo; = pelo menos o esperado; &ldquo;Atenção&rdquo; = entre 75% e 100% do esperado;
-            &ldquo;Atrasado&rdquo; = abaixo de 75%. A projeção mantém o ritmo médio por dia útil até o fim do mês.
+            &ldquo;Atrasado&rdquo; = abaixo de 75%. A projeção mantém o ritmo médio por dia útil até o fim do {nomePeriodo}. Num período livre, a meta de cada mês vale pela parte dos dias úteis dele que cai dentro do período.
             {resposta?.ultimo_dia && ` Dados sincronizados até ${dataCurta(resposta.ultimo_dia)}.`}
           </p>
 
@@ -355,7 +383,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
               <summary>
                 <span className="panel-title">Atendimentos fora de qualquer meta</span>
                 <span className="panel-sub">
-                  {inteiro.format(resultado.totalForaDasMetas)} de {inteiro.format(resultado.totalAtendimentos)} no mês
+                  {inteiro.format(resultado.totalForaDasMetas)} de {inteiro.format(resultado.totalAtendimentos)} no {nomePeriodo}
                 </span>
               </summary>
               <div className="table-wrap" tabIndex={0} role="region" aria-label="Atendimentos fora de qualquer meta">

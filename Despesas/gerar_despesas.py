@@ -387,14 +387,17 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
     # ---- o periodo escolhido no filtro De/Ate (varios meses juntos), com a mesma conta de um mes; fica fora de por_mes (que soma meses)
     por_periodo = {}
     if per and not per.unico and any(y in rep_meses for y in per.yms):
-        hh = h[h["_ym"].isin(per.yms)]
+        hh = h[per.dentro(h["Competência"])] if per.exato else h[h["_ym"].isin(per.yms)]
         yp = [y for y in per.yms if prod_ini is not None and y >= prod_ini]
-        pp = p[p["_ym"].isin(yp)] if (p is not None and yp) else None
+        if p is not None and yp:
+            pp = p[per.dentro(p["Data"]) & p["_ym"].isin(yp)] if per.exato else p[p["_ym"].isin(yp)]
+        else:
+            pp = None
         if pp is not None and not len(pp):
             pp = None
         if len(hh) or pp is not None:
             bruto, liq = float(hh["Bruto"].sum()), float(hh["Líquido"].sum())
-            desp = sum(meses[y]["total"] for y in per.yms if y in meses)
+            desp = float(d.loc[per.dentro(d["Competência"]), "Bruto"].sum()) if per.exato else sum(meses[y]["total"] for y in per.yms if y in meses)
             producao = float(pp["Valor"].sum()) if pp is not None else None
             rep = bloco_repasse(hh, pp) if len(hh) else None
             pagos = {m["nome"]: m["bruto"] for m in rep["medicos"]} if rep else None
@@ -486,15 +489,16 @@ def montar_mes(ym: str, d: pd.DataFrame, ctx: dict, prev: dict | None, per: pc.P
     """Um mes, ou (per) um periodo de varios meses: "ym" e o ultimo mes dele, as linhas de todos entram juntas e a referencia dos outros meses
     fechados (media mensal) vale pelo tamanho do periodo. `prev` e o mes (ou periodo) anterior ja calculado."""
     yms = per.yms if per else [ym]
-    x = d[d["_ym"].isin(yms)]
+    x = d[per.dentro(d["Competência"])] if (per and per.exato) else d[d["_ym"].isin(yms)]
     sit = "fechado" if ym < ctx["hoje"] else ("em_curso" if ym == ctx["hoje"] else "previsto")
     parcial = (per.ini if per else ym) < ctx["inicio"]              # antes do Klingo: historico que pode estar incompleto
     rotulo = per.rotulo if per else pc.rotulo_mes(ym)
     tab = ctx["tab"]
     yms_tab = [m for m in yms if m in tab.columns]
     outros = [m for m in ctx["fechados"] if m not in yms]
-    ref_cat = {str(n): float(v) * len(yms) for n, v in tab[outros].mean(axis=1).items()} if (outros and not parcial) else None
-    media_total = float(np.mean([tab[m].sum() for m in outros])) * len(yms) if (outros and not parcial) else None
+    tamanho = per.n_dias / 30.4375 if (per and per.exato) else len(yms)   # em "meses": a media dos meses fechados vale pelo tamanho do periodo
+    ref_cat = {str(n): float(v) * tamanho for n, v in tab[outros].mean(axis=1).items()} if (outros and not parcial) else None
+    media_total = float(np.mean([tab[m].sum() for m in outros])) * tamanho if (outros and not parcial) else None
     cats_todas = agrupar(x, "Despesa", ref=ref_cat)
     forn_x = x.assign(F=x["Fornecedor"].map(lambda v: texto(v, "(sem fornecedor)")))
     forn_todos = agrupar(forn_x, "F")
@@ -504,7 +508,10 @@ def montar_mes(ym: str, d: pd.DataFrame, ctx: dict, prev: dict | None, per: pc.P
     alertas = alertas_do_mes(rotulo, sit, parcial, x, mud, prev["rotulo"] if comparavel else None, ctx["previsao"].get("faltas") if sit == "em_curso" else None)
     gp.anotar("despesas", alertas, per.chave if per else ym)
     bruto, liq = float(x["Bruto"].sum()), float(x["Líquido"].sum())
-    col = tab[yms_tab[0]] if len(yms_tab) == 1 else tab[yms_tab].sum(axis=1)   # a(s) coluna(s) do periodo na tabela categoria x mes
+    if per and per.exato:
+        col = x.groupby("Despesa")["Bruto"].sum()   # recorte de dias: a conta sai das proprias linhas, nao da tabela categoria x mes
+    else:
+        col = tab[yms_tab[0]] if len(yms_tab) == 1 else tab[yms_tab].sum(axis=1)   # a(s) coluna(s) do periodo na tabela categoria x mes
     rec = float(sum(v for n, v in col.items() if ctx["recor"].get(n) and v > 0))
     avulsas = [{"nome": str(n), "valor": float(v)} for n, v in col.sort_values(ascending=False).items() if v > 0 and not ctx["recor"].get(n)]
     top5 = sum(i["pct"] for i in cats_todas[:5])
@@ -602,6 +609,9 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
 
             # ---- o periodo escolhido no filtro De/Ate (varios meses juntos): entra por ultimo, para nao somar nos historicos acima
             if per and not per.unico:
+                if per.exato:
+                    info["notas"] = ["As despesas são contadas pela data de competência de cada lançamento; as médias dos outros meses valem pelo tamanho do período."]
+
                 def anterior_de(q: pc.Periodo):
                     a = q.anterior
                     return montar_mes(a.fim, d, ctx, None, per=a) if any(y in tab.columns for y in a.yms) else None

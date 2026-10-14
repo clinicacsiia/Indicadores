@@ -166,6 +166,17 @@ class FluxoTest(unittest.TestCase):
         finally:
             pn.montar_pagina = original
 
+    def test_periodo_livre_por_datas(self):
+        chamar("atualizar", "/api/atualizar?id=despesas", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})
+        status, html = chamar("painel", "/api/painel?id=despesas&de=2026-09-10&ate=2026-10-05", token="tok-viewer")
+        self.assertEqual(status, 200)
+        self.assertIn(("despesas", "2026-09-10..2026-10-05"), BANCO.paginas)   # recorte de dias: calculado e guardado com as datas na chave
+        self.assertIn("toolbar", html)                                         # a barra de filtros padrao
+        chamar("painel", "/api/painel?id=despesas&de=2026-10-01&ate=2026-10-31", token="tok-viewer")
+        self.assertNotIn(("despesas", "2026-10-01..2026-10-31"), BANCO.paginas)   # datas de um mes inteiro: a pagina de sempre
+        status, _ = chamar("painel", "/api/painel?id=despesas&de=2026-02-30&ate=2026-03-10", token="tok-viewer")
+        self.assertEqual(status, 200)                                          # data que nao existe: ignora o pedido
+
     def test_estado_bate_com_versao_da_pagina(self):
         import re
         chamar("atualizar", "/api/atualizar?id=suprimentos", token="tok-admin", metodo="POST", cabecalhos={"X-Painel": "1"}, corpo={})

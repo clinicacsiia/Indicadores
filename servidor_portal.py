@@ -182,12 +182,10 @@ PADRAO_MES = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 def periodo_da_url(consulta: str) -> tuple[str, str] | None:
-    """('2026-09', '2026-10') se a URL pede um periodo de VARIOS meses (?de=&ate=); um mes so e a pagina de sempre (o proprio painel escolhe)."""
+    """('2026-09', '2026-10') se a URL pede um periodo de VARIOS meses (?de=&ate=), ou ('2026-09-10', '2026-10-25') se pede dias exatos;
+    um mes inteiro so e a pagina de sempre (o proprio painel escolhe)."""
     q = parse_qs(consulta)
-    de, ate = (q.get("de") or [""])[0], (q.get("ate") or [""])[0]
-    if not (PADRAO_MES.match(de) and PADRAO_MES.match(ate)) or de == ate:
-        return None
-    return (de, ate) if de < ate else (ate, de)
+    return pc.periodo_da_consulta((q.get("de") or [""])[0], (q.get("ate") or [""])[0])
 
 
 def pagina_do_periodo(modulo_id: str, de: str, ate: str) -> bytes:

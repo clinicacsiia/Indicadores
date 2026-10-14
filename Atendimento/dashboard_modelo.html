@@ -29,14 +29,13 @@ __CSS__
 </head>
 <body>
 <div class="wrap">
-  <header class="top">
-    <div>
-      <h1>Atendimento</h1>
-      <div class="sub" id="sub"></div>
+  <header class="page-head top">
+    <div class="page-head-text">
+      <span class="eyebrow">Clínica CSI</span>
+      <h1 class="page-title">Atendimento</h1>
+      <div class="sub page-lede" id="sub"></div>
     </div>
     <div class="acoes">
-      <label class="mes-pick" id="visao-pick" hidden>Responsável <select id="visao"></select></label>
-      <label class="mes-pick">Mês <select id="mes"></select></label>
       <button class="btn" id="btn-imprimir" type="button" title="Imprime (ou salva em PDF) o que está na tela, já com o responsável escolhido">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg>
         <span>Imprimir</span>
@@ -47,6 +46,10 @@ __CSS__
       </button>
     </div>
   </header>
+  <section class="toolbar" id="toolbar" aria-label="Filtros">
+      <label class="mes-pick" id="visao-pick" hidden>Responsável <select id="visao"></select></label>
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+  </section>
   <div class="aviso" id="aviso" hidden></div>
   <div class="faixa-visao" id="faixa-visao" hidden></div>
   <main id="conteudo"></main>

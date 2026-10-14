@@ -63,7 +63,9 @@ export type ResultadoGrupo = {
 export type ForaDasMetas = { unidade: string; especialidade: string; procedimento: string; qtd: number };
 
 export type ResultadoMes = {
-  mes: string;
+  mes: string; // mês do começo do período (o próprio mês, no filtro por mês)
+  de: string; // primeiro dia, AAAA-MM-DD
+  ate: string; // último dia, AAAA-MM-DD
   fechado: boolean;
   diasUteis: number;
   diasDecorridos: number;
@@ -233,16 +235,54 @@ export function fimDoMes(mes: string): string {
   return iso(a, m, diasDoMes(a, m));
 }
 
+/** Soma `n` dias a uma data AAAA-MM-DD. */
+export function somarDias(data: string, n: number): string {
+  const d = new Date(`${data}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Todos os dias de `de` a `ate`, inclusive, em ISO. */
+function diasEntre(de: string, ate: string): string[] {
+  const dias: string[] = [];
+  for (let d = de; d <= ate; d = somarDias(d, 1)) dias.push(d);
+  return dias;
+}
+
+/** O período cobre meses inteiros (do dia 1 ao último dia do mês)? Devolve os meses das pontas, ou null se corta algum mês. */
+export function mesesInteiros(de: string, ate: string): { de: string; ate: string } | null {
+  if (!de.endsWith("-01") || fimDoMes(ate.slice(0, 7)) !== ate) return null;
+  return { de: de.slice(0, 7), ate: ate.slice(0, 7) };
+}
+
 // ───────── conta principal ─────────
 
 export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendimento[], agora: Agora): ResultadoMes {
-  const [ano, numMes] = mes.split("-").map(Number);
+  return calcularPeriodo(cfg, `${mes}-01`, fimDoMes(mes), linhas, agora);
+}
+
+/**
+ * Mesma conta do mês, para quaisquer dias de `de` a `ate` (AAAA-MM-DD). Os dias úteis são os do período; a meta de cada mês que o
+ * período toca vale pela parte dos dias úteis do mês que cai dentro do período (mês inteiro = meta inteira), e as metas somam.
+ */
+export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linhas: LinhaAtendimento[], agora: Agora): ResultadoMes {
+  const mes = de.slice(0, 7);
   const semana = new Set(cfg.dias_semana_atendimento);
   const feriados = new Set(cfg.feriados);
-  const uteis = diasUteisDoMes(ano, numMes, semana, feriados);
+  const uteis = diasEntre(de, ate).filter((d) => {
+    const diaDaSemana = (new Date(`${d}T12:00:00Z`).getUTCDay() + 6) % 7; // 0 = segunda
+    return semana.has(diaDaSemana) && !feriados.has(d);
+  });
   const totalUteis = uteis.length;
+  const mesesDoPeriodo = mesesDisponiveis(de.slice(0, 7), ate.slice(0, 7));
+  const fracaoDoMes = new Map<string, number>();
+  for (const m of mesesDoPeriodo) {
+    const [a, n] = m.split("-").map(Number);
+    const doMes = diasUteisDoMes(a, n, semana, feriados).length;
+    fracaoDoMes.set(m, doMes ? uteis.filter((d) => d.startsWith(m)).length / doMes : 0);
+  }
 
-  const fechado = fimDoMes(mes) < agora.hoje;
+  const fechado = ate < agora.hoje;
   let decorridos: number;
   if (fechado) {
     decorridos = totalUteis;
@@ -252,7 +292,6 @@ export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendime
   }
   const restantes = totalUteis - decorridos;
   const esperado = totalUteis ? (decorridos / totalUteis) * 100 : 0;
-  const ajustes = cfg.metas_por_mes?.[mes] ?? {};
 
   const preparadas = linhas.map(preparar);
   const contagem = new Array<number>(preparadas.length).fill(0);
@@ -281,7 +320,12 @@ export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendime
         if (l.sus) sus += l.original.qtd;
         if (l.semConvenio) semConvenio += l.original.qtd;
       });
-      const meta = Number(ajustes[`${g.id}/${it.id}`] ?? it.meta);
+      const meta = Math.round(
+        mesesDoPeriodo.reduce(
+          (soma, m) => soma + Number(cfg.metas_por_mes?.[m]?.[`${g.id}/${it.id}`] ?? it.meta) * (fracaoDoMes.get(m) ?? 0),
+          0
+        )
+      );
       const pct = meta ? (realizado / meta) * 100 : 0;
       const situacao = situacaoDe(pct, esperado);
       const faltam = Math.max(meta - realizado, 0);
@@ -342,6 +386,8 @@ export function calcularMes(cfg: MetasConfig, mes: string, linhas: LinhaAtendime
   const geralPct = somaMeta ? (somaCap / somaMeta) * 100 : 0;
   return {
     mes,
+    de,
+    ate,
     fechado,
     diasUteis: totalUteis,
     diasDecorridos: decorridos,

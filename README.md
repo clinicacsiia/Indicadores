@@ -105,6 +105,29 @@ botão "Atualizar agora" (só admin)  →  /api/atualizar?id=<id>  →  API do K
   do portal e as "visões" em PDF do Atendimento. A aba **Metas** continua sendo a do site (abaixo); a base das Metas em Python
   só existe para o Atendimento.
 
+### Visual e filtros padronizados
+
+Todas as abas (Início, Metas, Configurações e os 7 painéis em Python) seguem o mesmo padrão do site:
+
+- **Visual:** `painel_base.css` usa as mesmas cores, fontes (Figtree e Bricolage Grotesque), cabeçalho ("Clínica CSI" + título +
+  descrição), cartões e tabelas de `app/globals.css`. Dentro do site o painel aparece **sem moldura e com a altura do conteúdo**
+  (`app/(app)/painel/[id]/PainelFrame.tsx`), então a tela rola inteira como as outras. Ao mudar uma cor ou fonte do site, repita em
+  `painel_base.css` (a seção "Padrão das telas do site" tem as mesmas classes do `globals.css`).
+- **Filtro de período (todas as abas com dados):** atalhos de **mês**, atalhos dos **últimos 7/30/90 dias** e **período livre** (campos
+  *De* e *Até* com data + *Aplicar*). Nos painéis Python a barra é montada por `iniciarPeriodo()` (`painel_base.js`); em Metas é o
+  componente `app/components/FiltroPeriodo.tsx`, com as mesmas classes.
+- **Período por dias exatos (painéis Python):** `?de=2026-09-10&ate=2026-10-25` (também aceita meses: `?de=2026-09&ate=2026-10`).
+  Datas que cobrem meses inteiros viram o filtro por mês (e usam a página pronta). `painel_comum.Periodo` carrega o recorte;
+  `reagrupar(..., datacol="Data")` corta as linhas pela data de cada uma e o cálculo mensal de sempre roda sobre elas. O período
+  anterior (base das comparações) é o de **mesmo número de dias** logo antes. Dias úteis e feriados valem para os dias do período.
+  O que o Klingo só entrega **por mês** (Controle por Convênio do Faturamento e do Indicadores, faturas por competência) entra com os
+  meses inteiros que o período toca, e a página avisa isso no alto. Páginas de dias exatos são calculadas na hora e guardadas em
+  `painel_pagina` com as datas na chave (limpas junto com as de vários meses).
+- **Metas com período livre:** `lib/metas/calculo.ts` → `calcularPeriodo()` (o mês é o caso particular). A meta de cada mês que o
+  período toca vale pela parte dos dias úteis do mês que cai dentro do período. Período que não é um mês usa a função
+  `metas_atendimentos_periodo(de, ate)` (migration `20261014120000_metas_periodo_livre.sql`); **aplique a migration** antes de usar o
+  período livre em Metas (o filtro por mês continua usando `metas_atendimentos_mes`).
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` (SQL Editor do Supabase).

@@ -1651,10 +1651,11 @@ select {
 /* ───────── Painéis em Python (iframe de /api/painel) ───────── */
 
 .painel-frame {
+  display: block;
   width: 100%;
   height: calc(100dvh - 100px);
   min-height: 640px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface, #fff);
+  border: 0;
+  background: transparent;
+  color-scheme: normal;
 }

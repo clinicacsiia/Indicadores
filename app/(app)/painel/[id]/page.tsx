@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { PAINEIS, podeVerPainel } from "@/lib/paineis";
 import { IconAlerta } from "@/app/components/icons";
+import { PainelFrame } from "./PainelFrame";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ de?: string; ate?: string }> };
 
-const MES_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+// Período do filtro: mês inteiro (AAAA-MM) ou dia exato (AAAA-MM-DD); o painel Python confere de novo.
+const PERIODO_RE = /^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$/;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
@@ -34,7 +36,7 @@ export default async function PainelPage({ params, searchParams }: Props) {
   }
 
   const q = new URLSearchParams({ id });
-  if (de && ate && MES_RE.test(de) && MES_RE.test(ate)) {
+  if (de && ate && PERIODO_RE.test(de) && PERIODO_RE.test(ate)) {
     q.set("de", de);
     q.set("ate", ate);
   }
@@ -47,12 +49,7 @@ export default async function PainelPage({ params, searchParams }: Props) {
           Ative o JavaScript para ver o painel.
         </div>
       </noscript>
-      <iframe
-        className="painel-frame"
-        title={painel.nome}
-        src={`/api/painel?${q.toString()}`}
-        referrerPolicy="same-origin"
-      />
+      <PainelFrame titulo={painel.nome} src={`/api/painel?${q.toString()}`} />
     </>
   );
 }
