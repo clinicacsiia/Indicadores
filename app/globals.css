@@ -386,6 +386,22 @@ select {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* a lista pode ser maior que a tela: só ela rola, marca e usuário ficam fixos */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-right: -8px;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--side-line) transparent;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--side-line);
+  border-radius: 3px;
 }
 .nav-title {
   padding: 0 12px 8px;
@@ -1642,9 +1658,13 @@ select {
   }
   .sidebar-nav {
     grid-area: nav;
+    flex: none;
     flex-direction: row;
     gap: 4px;
+    margin-right: 0;
+    padding-right: 0;
     overflow-x: auto;
+    overflow-y: hidden;
   }
   .nav-title {
     display: none;
