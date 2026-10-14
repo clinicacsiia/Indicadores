@@ -58,7 +58,7 @@ __CSS__
         <li><b>Saldo do estoque</b> é a soma das quantidades consolidadas (entrada menos saída) de todas as movimentações. Inventário e compra entram como entrada; consumo, perda e a saída da transferência diminuem. Transferência entre estoques não muda o saldo total. “Principal” são os locais com PRINCIPAL no nome; os demais são estoques de setor.</li>
         <li><b>Cobertura</b> é o estoque principal dividido pelo ritmo de pedidos por dia nos últimos <span data-lim="janela"></span> dias (quantidade solicitada, não consumida). Abaixo de <span data-lim="cobertura"></span> dias aparece como “Principal baixo”. É uma estimativa: não vale para item pedido raramente.</li>
         <li><b>Situação do item:</b> <b>Zerado</b> = tem pedido e o saldo total é zero ou menor; <b>Pedidos &gt; estoque</b> = o que está pendente é maior que todo o saldo (principal e setores); <b>Sem estoque lançado</b> = o item é pedido mas nunca teve entrada, inventário ou saída; <b>Principal baixo</b> = cobertura menor que o mínimo.</li>
-        <li><b>Valor em estoque</b> é o que o Klingo registra (entradas menos saídas, com o valor unitário cadastrado). Só poucos itens têm custo cadastrado, então ele não é o valor real do estoque e o consumo não pode ser valorizado.</li>
+        <li data-fin><b>Valor em estoque</b> é o que o Klingo registra (entradas menos saídas, com o valor unitário cadastrado). Só poucos itens têm custo cadastrado, então ele não é o valor real do estoque e o consumo não pode ser valorizado.</li>
         <li><b>Procedimentos lançados</b> (gráfico de referência) vêm do relatório de Faturamento; servem só para comparar a atividade do dia com as baixas de consumo.</li>
         <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e o ritmo do mês), <b>Análise</b> (setores, pedidos pendentes, estoque e consumo em gráficos) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
         <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz todos os meses e grava na planilha <b>Suprimentos.xlsx</b>: pendências atendidas, ajustes e novos lançamentos aparecem aqui.</li>
@@ -91,7 +91,7 @@ $('sub').textContent = `Fonte: relatórios de Movimentações de Estoque (movime
 
 // ====================== RESUMO ======================
 function kpisHtml(m, prev) {
-  const s = m.sol, p = D.pendentes, e = D.estoque, v = D.valor, mv = m.mov, t = s.linhas;
+  const s = m.sol, p = D.pendentes, e = D.estoque, v = D.valor || {}, mv = m.mov, t = s.linhas;   // D.valor some sem "Dados financeiros"
   const porc = n => t ? n / t * 100 : 0;
   const ultima = D.consumo.ultima ? `última baixa em ${dataBR(D.consumo.ultima)}` : 'nenhuma baixa registrada';
   const ev = (D.evolucao || []).find(x => x.rotulo === (prev && prev.rotulo));   // % atendido do mes anterior (razao: vale mesmo com o mes aberto)
@@ -104,7 +104,7 @@ function kpisHtml(m, prev) {
     ${kpi('Itens pendentes hoje', num(p.linhas), { comp: p.mais_15 ? `<span class="delta desce">${num(p.mais_15)} há mais de ${D.limites.pend_atencao} dias</span>` : `<span class="delta sobe">Nenhum há mais de ${D.limites.pend_atencao} dias</span>`, sub: `${num(p.solicitacoes)} solicitações · todos os meses` })}
     ${kpi(`Baixas de consumo em ${esc(m.rotulo)}`, num(mv.consumo_linhas), { sub: `${num(mv.consumo_itens)} itens diferentes · ${ultima}` })}
     ${kpi('Itens que pedem atenção', num(e.n_atencao), { comp: `de ${num(e.n_itens)} itens (${pct(e.n_itens ? e.n_atencao / e.n_itens * 100 : 0, 0)})`, sub: `${num(e.contagem.sem_lancamento)} sem estoque lançado · ${num(e.contagem.zerado + e.contagem.falta)} com pedido maior que o estoque` })}
-    ${kpi('Valor em estoque no Klingo', brlc(v.total), { titulo: brl(v.total), sub: `custo cadastrado em ${num(v.itens_com_custo)} de ${num(v.itens)} itens` })}
+    ${kpi('Valor em estoque no Klingo', brlc(v.total), { fin: 1, titulo: brl(v.total), sub: `custo cadastrado em ${num(v.itens_com_custo)} de ${num(v.itens)} itens` })}
   </div>`;
 }
 
@@ -208,8 +208,8 @@ function detalhes(m) {
   }
   const v = m.mov;
   if (v.linhas) {
-    it.push(acordeao(`Movimentações em ${esc(m.rotulo)}: por tipo`, `<p class="nota">“Valor registrado” é o que o Klingo guarda; a maioria das linhas está sem custo.</p>` + tabela([{ t: 'Movimento' }, { t: 'Linhas', n: 1 }, { t: 'Valor registrado', n: 1 }], v.tipos.map(x => [esc(x.nome), num(x.linhas), x.valor ? brl(x.valor) : VAZIO])), { dica: `${v.tipos.length} tipos` }));
-    const compras = v.compras.length ? tabela([{ t: 'Data' }, { t: 'Tipo' }, { t: 'Item', txt: 1 }, { t: 'Fornecedor', txt: 1 }, { t: 'Quantidade', n: 1 }, { t: 'Valor', n: 1 }, { t: 'Local' }],
+    it.push(acordeao(`Movimentações em ${esc(m.rotulo)}: por tipo`, fin(`<p class="nota">“Valor registrado” é o que o Klingo guarda; a maioria das linhas está sem custo.</p>`) + tabela([{ t: 'Movimento' }, { t: 'Linhas', n: 1 }, { t: 'Valor registrado', n: 1, fin: 1 }], v.tipos.map(x => [esc(x.nome), num(x.linhas), x.valor ? brl(x.valor) : VAZIO])), { dica: `${v.tipos.length} tipos` }));
+    const compras = v.compras.length ? tabela([{ t: 'Data' }, { t: 'Tipo' }, { t: 'Item', txt: 1 }, { t: 'Fornecedor', txt: 1 }, { t: 'Quantidade', n: 1 }, { t: 'Valor', n: 1, fin: 1 }, { t: 'Local' }],
       v.compras.map(x => [dataBR(x.data), esc(x.tipo), esc(bonito(x.item)), x.fornecedor ? esc(x.fornecedor) : VAZIO, qtd(x.qtd, x.un), x.valor ? brl(x.valor) : VAZIO, esc(bonito(x.local))])) : '<p class="vazio">Nenhuma compra ou doação neste mês.</p>';
     const inv = v.inventarios.length ? tabela([{ t: 'Dia' }, { t: 'Local' }, { t: 'Itens contados', n: 1 }, { t: 'Zerados antes', n: 1 }],
       v.inventarios.map(x => [dataBR(x.dia), esc(bonito(x.local)), num(x.contados), num(x.zerados)])) : '<p class="vazio">Nenhum inventário neste mês.</p>';

@@ -252,10 +252,19 @@ def sincronizar_avisos(painel: str, escopos: list[str], versao: int, alertas: li
     return res or {}
 
 
-def listar_avisos(painel: str) -> list[dict]:
-    """Avisos do painel que ja tiveram desfecho ou historico (justificados, resolvidos ou que voltaram): e o que a pagina do painel mostra junto dos alertas."""
+def listar_avisos(painel: str, com_sensiveis: bool = True) -> list[dict]:
+    """Avisos do painel que ja tiveram desfecho ou historico (justificados, resolvidos ou que voltaram): e o que a pagina do painel mostra junto dos alertas.
+    Sem `com_sensiveis` (usuario sem "Dados financeiros") os avisos que falam de dinheiro ficam de fora; se nao der para saber quais sao, nenhum aviso sai."""
     campos = "id,chave,titulo,status,recorrencias,reaberturas,justificativa,justificado_por,justificado_em,resolvido_em"
-    _, _, res = _pedir("GET", "/rest/v1/aviso", {"painel": f"eq.{painel}", "select": campos, "order": "id.asc"})
+    consulta = {"painel": f"eq.{painel}", "select": campos, "order": "id.asc"}
+    if not com_sensiveis:
+        consulta["sensivel"] = "eq.false"
+    try:
+        _, _, res = _pedir("GET", "/rest/v1/aviso", consulta)
+    except ErroArmazenamento:
+        if com_sensiveis:
+            raise
+        return []
     return [r for r in (res or []) if r["status"] != "aberto" or r["recorrencias"] or r["reaberturas"]]
 
 

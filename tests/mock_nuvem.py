@@ -45,7 +45,8 @@ def _filtros(params):
 
 def _casa(linha, filtros):
     for col, (op, val) in filtros.items():
-        atual = str(linha.get(col))
+        bruto = linha.get(col)
+        atual = str(bruto).lower() if isinstance(bruto, bool) else str(bruto)   # o PostgREST escreve boolean como true/false
         if op == "eq" and atual != val:
             return False
         if op == "neq" and atual == val:
@@ -242,7 +243,10 @@ def criar_klingo(colunas_extras: dict[int, list[str]] | None = None, linhas_por_
                         if t in numeros or re.search(r"(Valor|Qtd|Quant|Saldo|Taxa|Custo|Tempo|Minuto|Idade|Total|Preço)", t):
                             linha[f"c{i}"] = str(100 + n + (i * 7))
                         elif t in datas or re.search(r"\b(Data|Emiss|Vencimento|Compet|Validade)", t):
-                            linha[f"c{i}"] = (base + timedelta(days=n % 28)).strftime("%Y-%m-%d 09:58:25")   # as datas ficam dentro do mes baixado
+                            # as datas ficam dentro do mes baixado, no formato que o relatorios.json declara (sem formato: ISO)
+                            fmt = rel.get("datas", {}).get(t, "")
+                            fmt_py = (fmt.replace("dd", "%d").replace("mm/yyyy", "%m/%Y").replace("hh:mm:ss", "%H:%M:%S").replace("hh:mm", "%H:%M")) if fmt else "%Y-%m-%d 09:58:25"
+                            linha[f"c{i}"] = (base + timedelta(days=n % 28)).strftime(fmt_py)
                         elif "Faixa" in t:
                             linha[f"c{i}"] = ("0-9", "10-19", "20-29")[n % 3]
                         else:

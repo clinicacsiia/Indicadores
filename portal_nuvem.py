@@ -62,6 +62,16 @@ def modulos() -> dict[str, dict]:
     return {m["id"]: m for m in cfg["modulos"] if m["tipo"] == "relatorios"}
 
 
+def modo_financeiro(painel: str) -> str | None:
+    """O que o painel tem de dinheiro (modulos.json, campo "financeiro"): "total" (so dinheiro: nem abre sem "Dados financeiros"), "parcial" (misto: abre sem os
+    valores) ou None ("nenhum"). Painel SEM o campo conta como "total": esquecer de preencher bloqueia, nao libera."""
+    m = modulos().get(painel)
+    if m is None:
+        return None
+    modo = m.get("financeiro", "total")
+    return None if modo == "nenhum" else modo
+
+
 def codigo_do(painel: str):
     """Importa o gerar_*.py do painel (uma vez por instancia da funcao)."""
     if painel not in _CODIGOS:
@@ -122,7 +132,7 @@ def _sub_do_token(token: str) -> str | None:
 
 
 def autenticar(cabecalhos) -> dict:
-    """{'id', 'email', 'admin', 'permissoes'} do usuario logado; levanta Negado(401) sem login valido."""
+    """{'id', 'email', 'admin', 'permissoes', 'financeiro'} do usuario logado; levanta Negado(401) sem login valido."""
     token = token_do_pedido(cabecalhos)
     if not token:
         raise Negado(401, "Sessão não encontrada. Entre de novo no site.")
@@ -146,7 +156,11 @@ def autenticar(cabecalhos) -> dict:
     if not u:
         raise Negado(401, "Sua sessão expirou. Recarregue a página para entrar de novo.")
     p = p or {}
-    info = {"id": u["id"], "email": u["email"], "admin": p.get("role") == "admin", "permissoes": p.get("permissions") or {}}
+    permissoes = p.get("permissions") or {}
+    admin = p.get("role") == "admin"
+    # "Dados financeiros" (Configuracoes): receita, despesa e valores em R$. A chave nao pode ser "financeiro" (e o id de um painel)
+    info = {"id": u["id"], "email": u["email"], "admin": admin, "permissoes": permissoes,
+            "financeiro": admin or permissoes.get("dados_financeiros") is True}
     if len(_LOGINS) > 200:
         _LOGINS.clear()
     _LOGINS[token] = (agora, info)
@@ -154,7 +168,8 @@ def autenticar(cabecalhos) -> dict:
 
 
 def conferir_acesso(cabecalhos, painel: str, so_admin: bool = False) -> dict:
-    """Login valido + painel existente + permissao. Admin sempre; viewer so com permissions.<painel> = true (painel novo nasce bloqueado)."""
+    """Login valido + painel existente + permissao. Admin sempre; viewer so com permissions.<painel> = true (painel novo nasce bloqueado).
+    Painel so de dinheiro (modulos.json: "financeiro": "total") exige tambem "Dados financeiros"; o misto abre, sem os valores (ver sigilo.py)."""
     if painel not in modulos():
         raise Negado(404, "Painel não encontrado.")
     u = autenticar(cabecalhos)
@@ -162,7 +177,18 @@ def conferir_acesso(cabecalhos, painel: str, so_admin: bool = False) -> dict:
         raise Negado(403, "Somente administradores podem fazer isso.")
     if not u["admin"] and u["permissoes"].get(painel) is not True:
         raise Negado(403, "Você não tem permissão para ver este painel. Peça a um administrador em Configurações.")
+    if modo_financeiro(painel) == "total" and not u["financeiro"]:
+        raise Negado(403, "Este painel mostra dados financeiros. Peça a um administrador para liberar “Dados financeiros” em Configurações.")
     return u
+
+
+def pode_ver_painel(u: dict, painel: str) -> bool:
+    """A mesma regra de conferir_acesso, sem levantar erro (e a mesma de podeVerPainel em lib/paineis.ts: tests/test_paineis_ts.py confere as duas)."""
+    if u["admin"]:
+        return True
+    if u["permissoes"].get(painel) is not True:
+        return False
+    return not (modo_financeiro(painel) == "total" and not u["financeiro"])
 
 
 # ---------------------------------------------------------------- pagina pronta
@@ -250,11 +276,17 @@ def pagina_para_abrir(painel: str, periodo: tuple[str, str] | None) -> tuple[str
     return html, vencido, previsto
 
 
-def com_marcas(html: str, painel: str, admin: bool, vencido: bool = False, previsto_s: int = 0) -> str:
+def com_marcas(html: str, painel: str, admin: bool, vencido: bool = False, previsto_s: int = 0, sem_financeiro: bool = False) -> str:
     """Poe no HTML o que o painel_base.js precisa saber (painel, nuvem, se o usuario e admin). Feito a cada pedido: a pagina guardada e a mesma para todos.
+    `sem_financeiro` = o usuario nao tem "Dados financeiros": num painel misto os valores em R$ saem da pagina (sigilo.py).
     `vencido`/`previsto_s` sao para a tela do site (PainelFrame), que le o iframe e pede a renovacao."""
     # "embutido": a pagina aparece dentro de uma tela do site, que ja da o respiro e o fundo (ver .embutido em painel_base.css)
-    marca = (f"<script>window.PAINEL_NUVEM=true;window.PAINEL_ID={json.dumps(painel)};window.PAINEL_ADMIN={'true' if admin else 'false'};"
+    if sem_financeiro and modo_financeiro(painel) == "parcial":
+        import sigilo
+        html = sigilo.limpar_html(html, painel)   # os valores saem do JSON da pagina; o modelo so precisa saber que nao ha o que mostrar
+    else:
+        sem_financeiro = False
+    marca = (f"<script>window.PAINEL_NUVEM=true;window.PAINEL_SEM_FIN={'true' if sem_financeiro else 'false'};window.PAINEL_ID={json.dumps(painel)};window.PAINEL_ADMIN={'true' if admin else 'false'};"
              f"window.PAINEL_VENCIDO={'true' if vencido else 'false'};window.PAINEL_PREVISTO_S={int(previsto_s)};"
              "document.documentElement.classList.add('embutido');</script>")
     return html.replace("<head>", "<head>" + marca, 1) if "<head>" in html else marca + html
@@ -429,7 +461,7 @@ def rota_pagina(h) -> None:
             traceback.print_exc()
             detalhe = f"{type(e).__name__}: {e}" if u["admin"] else "Avise um administrador."
             return responder(h, 500, _pagina_de_aviso("Não consegui montar este painel", detalhe), "text/html; charset=utf-8")
-        responder(h, 200, com_marcas(html, painel, u["admin"], vencido, previsto), "text/html; charset=utf-8")
+        responder(h, 200, com_marcas(html, painel, u["admin"], vencido, previsto, sem_financeiro=not u["financeiro"]), "text/html; charset=utf-8")
     tratar(h, fazer)
 
 
@@ -483,10 +515,10 @@ def rota_pendencias(h) -> None:
     A pagina do painel mostra isso junto de cada alerta. Fechar um aviso e feito na aba Avisos (exige justificativa), nao aqui."""
     def fazer():
         painel = _consulta(h).get("id", "")
-        conferir_acesso(h.headers, painel)
+        u = conferir_acesso(h.headers, painel)
         if h.command != "GET":
             raise Negado(405, "Para fechar um alerta use a aba Avisos: lá é preciso justificar.")
-        responder(h, 200, {"ok": True, "avisos": arm.listar_avisos(painel)})
+        responder(h, 200, {"ok": True, "avisos": arm.listar_avisos(painel, com_sensiveis=u["financeiro"])})
     tratar(h, fazer)
 
 

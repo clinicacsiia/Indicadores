@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/lib/supabase/profile";
-import { PAINEIS } from "@/lib/paineis";
+import { PAINEIS, PERMISSAO_FINANCEIRA } from "@/lib/paineis";
 import { BLOQUEIO_PENDENTE, DOMINIO_INTERNO } from "@/lib/acesso";
 
 // RLS (policy "profiles_update_admin") é quem realmente garante que só admin
@@ -46,6 +46,7 @@ export async function salvarUsuario(
   const role = formData.get("role");
   const acesso: Record<string, boolean> = {
     metas: formData.get("metas") === "on",
+    [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
     // Painéis em Python: cada um é uma chave em profiles.permissions (o id do painel).
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
   };
@@ -234,6 +235,7 @@ export async function aprovarSolicitacao(
 
   const permissions: Record<string, boolean> = {
     metas: formData.get("metas") === "on",
+    [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
   };
 

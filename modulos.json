@@ -15,6 +15,7 @@
       "descricao": "Receita produzida, convênios e faturas em aberto",
       "pasta": "Faturamento",
       "tipo": "relatorios",
+      "financeiro": "total",
       "codigo": "gerar_faturamento"
     },
     {
@@ -23,6 +24,7 @@
       "descricao": "Contas a pagar e a receber, fluxo de caixa e taxas",
       "pasta": "Financeiro",
       "tipo": "relatorios",
+      "financeiro": "total",
       "codigo": "gerar_financeiro"
     },
     {
@@ -31,6 +33,7 @@
       "descricao": "Despesas por categoria, fornecedor e mês de competência",
       "pasta": "Despesas",
       "tipo": "relatorios",
+      "financeiro": "total",
       "codigo": "gerar_despesas"
     },
     {
@@ -39,6 +42,7 @@
       "descricao": "Produção, financeiro e glosas: os 16 indicadores e a origem de cada um",
       "pasta": "Indicadores",
       "tipo": "relatorios",
+      "financeiro": "total",
       "codigo": "gerar_indicadores"
     },
     {
@@ -47,6 +51,7 @@
       "descricao": "Cesta de exames: combos, venda cruzada, perfil e ticket",
       "pasta": "Cesta",
       "tipo": "relatorios",
+      "financeiro": "parcial",
       "codigo": "gerar_cesta"
     },
     {
@@ -55,6 +60,7 @@
       "descricao": "Estoque, solicitações dos setores, consumo, pendências e compras",
       "pasta": "Suprimentos",
       "tipo": "relatorios",
+      "financeiro": "parcial",
       "codigo": "gerar_suprimentos"
     },
     {
@@ -63,6 +69,7 @@
       "descricao": "Onde os registros erram, espera, duração, produtividade por profissional e revisão das metas",
       "pasta": "Atendimento",
       "tipo": "relatorios",
+      "financeiro": "parcial",
       "codigo": "gerar_atendimento",
       "visoes_pdf": ["juliana", "carla", "luzia"]
     }

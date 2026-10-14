@@ -79,6 +79,19 @@ export function SolicitacaoForm({ id, usuario, nome, desde, paineis }: Props) {
           </div>
         </div>
 
+        <div className="user-paineis" role="group" aria-labelledby={`pedido-dados-${id}`}>
+          <span className="field-label user-paineis-titulo" id={`pedido-dados-${id}`}>
+            Dados sensíveis
+          </span>
+          <div className="user-switches">
+            <label className="switch">
+              <input type="checkbox" name="dados_financeiros" />
+              <span className="switch-track" aria-hidden="true" />
+              <span className="switch-text">Dados financeiros (receitas, despesas e valores em R$)</span>
+            </label>
+          </div>
+        </div>
+
         <div className="user-actions">
           <span className="save-status" data-kind={state.error ? "error" : state.ok ? "ok" : undefined} role="status">
             {state.error ?? (state.ok ? state.mensagem : "")}

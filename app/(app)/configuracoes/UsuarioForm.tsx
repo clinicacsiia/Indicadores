@@ -11,6 +11,7 @@ type Props = {
   email: string;
   role: "admin" | "viewer";
   veMetas: boolean;
+  veFinanceiro: boolean;
   paineis: { id: string; nome: string; liberado: boolean }[];
   ehVoce: boolean;
 };
@@ -27,7 +28,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veMetas, paineis, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, paineis, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -92,6 +93,23 @@ export function UsuarioForm({ id, email, role, veMetas, paineis, ehVoce }: Props
               </label>
             ))}
           </div>
+        </div>
+
+        <div className="user-paineis" role="group" aria-labelledby={`dados-${id}`}>
+          <span className="field-label user-paineis-titulo" id={`dados-${id}`}>
+            Dados sensíveis
+            {papel === "admin" && <span className="switch-hint"> — administradores sempre veem tudo</span>}
+          </span>
+          <div className="user-switches">
+            <label className="switch">
+              <input type="checkbox" name="dados_financeiros" defaultChecked={veFinanceiro} />
+              <span className="switch-track" aria-hidden="true" />
+              <span className="switch-text">Dados financeiros (receitas, despesas e valores em R$)</span>
+            </label>
+          </div>
+          <span className="switch-hint">
+            Desmarcado: Faturamento, Financeiro, Despesas e Indicadores ficam bloqueados, os valores em R$ somem dos outros painéis e os avisos de dinheiro não aparecem.
+          </span>
         </div>
 
         <div className="user-actions">

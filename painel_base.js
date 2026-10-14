@@ -1,5 +1,10 @@
 // ---- utilitarios comuns aos paineis (Faturamento e Financeiro)
 const $ = id => document.getElementById(id);
+// "Dados financeiros" (Configuracoes): quem nao tem a permissao recebe a pagina SEM os valores em R$ (o servidor tira do JSON os campos de dinheiro:
+// sigilo.py) e o modelo nao desenha o que e de dinheiro. fin(html) so devolve o html para quem pode ver dinheiro; kpi, tabela e acordeao aceitam
+// {fin: 1} / coluna com fin: 1 para sumir sozinhos. Fora da nuvem (computador da clinica) ninguem marca isto e tudo aparece.
+const SEM_FIN = !!window.PAINEL_SEM_FIN;
+const fin = html => SEM_FIN ? '' : html;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (n, d = 0) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const brl = n => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -273,8 +278,9 @@ document.addEventListener('click', e => {
 new MutationObserver(() => { document.querySelectorAll('.barras-pag:not([data-ok])').forEach(w => { w.dataset.ok = '1'; atualizarPag(w, 0); }); }).observe(document.documentElement, { childList: true, subtree: true });
 
 // ---- cartao de numero-chave: rotulo, numero grande e a comparacao logo abaixo (vs mes anterior, vs meta...)
-// o: {comp, sub, destaque, titulo, classe}
+// o: {comp, sub, destaque, titulo, classe, fin (e dinheiro: some sem "Dados financeiros")}
 function kpi(rot, valor, o = {}) {
+  if (o.fin && SEM_FIN) return '';
   return `<div class="kpi${o.destaque ? ' destaque' : ''}"><div class="kpi-rot">${rot}</div>` +
     `<div class="kpi-num ${o.classe || ''}"${o.titulo ? ` title="${esc(o.titulo)}"` : ''}>${valor}</div>` +
     (o.comp ? `<div class="kpi-comp">${o.comp}</div>` : '') + (o.sub ? `<div class="kpi-sub">${o.sub}</div>` : '') + '</div>';
@@ -298,6 +304,7 @@ function comp(v, sufixo, o = {}) {
 const tier = (n, titulo, html) => `<div class="tier"><div class="tier-h"><b>${n}</b><span>${titulo}</span></div>${html}</div>`;
 // sanfona dos detalhes: tudo que e tabela ou lista longa fica aqui, fechado
 function acordeao(titulo, corpo, o = {}) {
+  if (o.fin && SEM_FIN) return '';   // fin: 1 = a sanfona inteira e de dinheiro
   return `<details class="acord"${o.aberto ? ' open' : ''}><summary>${titulo}${o.dica ? `<small>${o.dica}</small>` : ''}</summary><div class="acord-corpo">${corpo}</div></details>`;
 }
 
@@ -396,12 +403,14 @@ function miniLinha(titulo, dias, campo, o = {}) {
     series: [{ cor: o.cor || 'var(--accent)', principal: true, rotuloFim: true, marcaPico: !cortar, pontos: dias.map((d, i) => ({ x: dia(d), y: vals[i] })) }] });
 }
 
-// tabela: cols = [{t, n?, txt?}]; linhas = arrays de strings ja formatadas; rodape opcional
+// tabela: cols = [{t, n?, txt?, fin?}]; linhas = arrays de strings ja formatadas; rodape opcional
 function tabela(cols, linhas, rodape) {
-  const cab = cols.map(c => `<th class="${c.n ? 'n' : ''}">${esc(c.t)}</th>`).join('');
+  const manter = cols.map(c => !(c.fin && SEM_FIN));   // coluna de dinheiro (fin: 1) some, com a celula de cada linha, sem "Dados financeiros"
+  const cab = cols.filter((c, i) => manter[i]).map(c => `<th class="${c.n ? 'n' : ''}">${esc(c.t)}</th>`).join('');
   const cel = (c, v) => `<td class="${c.n ? 'n' : ''}${c.txt ? ' txt' : ''}">${v}</td>`;
-  const corpo = linhas.map(l => '<tr>' + l.map((v, i) => cel(cols[i], v)).join('') + '</tr>').join('');
-  const pe = rodape ? '<tfoot><tr>' + rodape.map((v, i) => cel(cols[i], v)).join('') + '</tr></tfoot>' : '';
+  const linha = l => l.map((v, i) => manter[i] ? cel(cols[i], v) : '').join('');
+  const corpo = linhas.map(l => '<tr>' + linha(l) + '</tr>').join('');
+  const pe = rodape ? '<tfoot><tr>' + linha(rodape) + '</tr></tfoot>' : '';
   return `<div class="tab-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${corpo}</tbody>${pe}</table></div>`;
 }
 
@@ -687,6 +696,12 @@ function isolarItem(els) {
   passar(document.body);
 }
 
+// elementos marcados com data-fin (e de dinheiro) saem da pagina de quem nao tem "Dados financeiros"; vale para o que o modelo escreve e para o que ja vem no HTML
+function semDinheiro() {
+  if (SEM_FIN) document.querySelectorAll('[data-fin]').forEach(e => e.remove());
+}
+document.addEventListener('DOMContentLoaded', semDinheiro);
+
 (function itensParaOInicio() {
   const alvo = $('conteudo');
   if (!alvo) return;
@@ -698,6 +713,7 @@ function isolarItem(els) {
     if (ocupado) return;
     ocupado = true;
     try {
+      semDinheiro();
       const itens = itensDaPagina();
       if (modoItem) {
         const achado = itens.find(i => i.aba === pedidoAba && i.chave === pedidoItem);

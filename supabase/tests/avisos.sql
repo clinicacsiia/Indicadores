@@ -1,4 +1,4 @@
--- Testa a migration 20261014210000_avisos.sql num Postgres vazio (sem Supabase): os papéis e o auth.uid() são simulados aqui.
+-- Testa as migrations 20261014210000_avisos.sql e 20261016120000_dados_financeiros.sql num Postgres vazio (sem Supabase): os papéis e o auth.uid() são simulados aqui.
 --
 --   createdb avisos_teste && psql -v ON_ERROR_STOP=1 -d avisos_teste -f supabase/tests/avisos.sql    (na raiz do repositório)
 --
@@ -12,7 +12,7 @@ do $$ begin   -- papéis são do servidor inteiro, não do banco: cria só se ai
 end $$;
 create schema auth;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-create table public.profiles (id uuid primary key, email text, role text not null default 'viewer', permissions jsonb not null default '{}'::jsonb);
+create table public.profiles (id uuid primary key, email text, role text not null default 'viewer', permissions jsonb not null default '{}'::jsonb, status text not null default 'ativo');
 grant usage on schema public, auth to anon, authenticated, service_role;
 grant select on public.profiles to authenticated;
 
@@ -21,7 +21,22 @@ grant select on public.profiles to authenticated;
 insert into public.profiles values
   ('00000000-0000-0000-0000-00000000000a', 'csiadmin@csi.local', 'admin', '{}'),
   ('00000000-0000-0000-0000-00000000000b', 'ana@csi.local',      'viewer', '{"cenario_perm": true, "cenario_nega": false}'),
-  ('00000000-0000-0000-0000-00000000000c', 'bia@csi.local',      'viewer', '{}');
+  ('00000000-0000-0000-0000-00000000000c', 'bia@csi.local',      'viewer', '{}'),
+  -- para a migration de "Dados financeiros" (a regra de quem já via painéis de dinheiro começa com a permissão):
+  ('00000000-0000-0000-0000-00000000000d', 'dani@csi.local',     'viewer', '{"despesas": true}'),
+  ('00000000-0000-0000-0000-00000000000e', 'edu@csi.local',      'viewer', '{"atendimento": true}'),
+  ('00000000-0000-0000-0000-00000000000f', 'fabi@csi.local',     'viewer', '{"faturamento": true, "dados_financeiros": false}');   -- escolha já feita: não se desfaz
+
+-- avisos que já existiam antes da migration de dados financeiros (para o preenchimento de `sensivel`)
+insert into public.aviso (painel, chave, tipo, escopo, titulo, texto, nivel) values
+  ('despesas',    '|des_zero',        'des_zero',        '', 'Despesas sem valor',                  'texto', 'atencao'),
+  ('atendimento', '|ate_valor_zero',  'ate_valor_zero',  '', 'Atendimentos com valor R$ 0,00',      'texto', 'atencao'),
+  ('atendimento', '|ate_espera',      'ate_espera',      '', 'Espera acima do aceitável',           'texto', 'atencao'),
+  ('atendimento', '|ate_x',           'ate_x',           '', 'Receita por profissional caiu',       'texto', 'atencao'),
+  ('suprimentos', '|sup_sem_setor',   'sup_sem_setor',   '', 'Pedidos sem centro de custo',         'texto', 'atencao'),
+  ('cesta',       '|cesta_menor_fat', 'cesta_menor_fat', '', 'A receita da Cesta é menor',          'texto', 'atencao');
+
+\i supabase/migrations/20261016120000_dados_financeiros.sql
 
 create function pg_temp.alerta(p_tipo text, p_escopo text default '', p_nivel text default 'atencao', p_itens int default null, p_persistente boolean default false) returns jsonb
 language sql as $$
@@ -159,6 +174,79 @@ begin
   perform pg_temp.espera(n = 0, 'viewer sem permissão não vê nada');
   perform pg_temp.como('');
   perform pg_temp.espera(pg_temp.erra(format('select public.fechar_aviso(%s, %L)', id_perm, 'Sem estar logado no sistema'), 'Entre no site'), 'sem login não fecha');
+  reset role;
+end $$;
+
+-- ---- 6. dados financeiros: permissão, preenchimento do que já existia e quem vê/fecha o aviso de dinheiro
+do $$
+declare n int; id_s bigint; id_n bigint;
+begin
+  -- 6a. quem já via painel de dinheiro começa com a permissão; os outros não; a escolha já feita fica
+  perform pg_temp.espera((select permissions ->> 'dados_financeiros' from public.profiles where email = 'dani@csi.local') = 'true', 'quem já via Despesas começa com Dados financeiros');
+  perform pg_temp.espera((select not (permissions ? 'dados_financeiros') from public.profiles where email = 'edu@csi.local'), 'quem só via painel misto começa sem');
+  perform pg_temp.espera((select permissions ->> 'dados_financeiros' from public.profiles where email = 'fabi@csi.local') = 'false', 'a escolha já feita não é desfeita');
+  perform pg_temp.espera((select not (permissions ? 'dados_financeiros') from public.profiles where role = 'admin'), 'admin não precisa da chave (sempre vê)');
+
+  -- 6b. avisos que já existiam: de painel só de dinheiro e os que falam de dinheiro viram sensíveis; os de cadastro/operação não
+  perform pg_temp.espera((select sensivel from public.aviso where painel = 'despesas' and tipo = 'des_zero'), 'aviso de painel só de dinheiro é sensível');
+  perform pg_temp.espera((select sensivel from public.aviso where tipo = 'cesta_menor_fat'), 'aviso de receita da Cesta é sensível');
+  perform pg_temp.espera((select sensivel from public.aviso where tipo = 'ate_x'), 'aviso que cita receita é sensível (pelo texto)');
+  perform pg_temp.espera(not (select sensivel from public.aviso where tipo = 'ate_valor_zero'), 'valor zerado é problema de cadastro, não mostra dinheiro');
+  perform pg_temp.espera(not (select sensivel from public.aviso where tipo = 'ate_espera'), 'espera não é dinheiro');
+  perform pg_temp.espera(not (select sensivel from public.aviso where tipo = 'sup_sem_setor'), '"centro de custo" é setor, não dinheiro');
+
+  -- 6c. a sincronização grava `sensivel` (e corrige se o servidor mudar de ideia)
+  perform pg_temp.sync('cenario_fin', 600, jsonb_build_array(
+    pg_temp.alerta('dinheiro') || '{"sensivel": true}'::jsonb, pg_temp.alerta('normal')));
+  perform pg_temp.espera((pg_temp.aviso('cenario_fin', '|dinheiro')).sensivel and not (pg_temp.aviso('cenario_fin', '|normal')).sensivel, 'sync grava sensivel');
+  perform pg_temp.sync('cenario_fin', 601, jsonb_build_array(pg_temp.alerta('dinheiro'), pg_temp.alerta('normal')));
+  perform pg_temp.espera(not (pg_temp.aviso('cenario_fin', '|dinheiro')).sensivel, 'sync também atualiza sensivel');
+  perform pg_temp.sync('cenario_fin', 602, jsonb_build_array(pg_temp.alerta('dinheiro') || '{"sensivel": true}'::jsonb, pg_temp.alerta('normal')));
+
+  -- 6d. quem vê: o painel liberado E (aviso não sensível OU Dados financeiros)
+  update public.profiles set permissions = '{"cenario_fin": true}' where email = 'ana@csi.local';                                  -- ana: painel, sem dinheiro
+  update public.profiles set permissions = '{"cenario_fin": true, "dados_financeiros": true}' where email = 'bia@csi.local';       -- bia: painel e dinheiro
+  select id into id_s from public.aviso where painel = 'cenario_fin' and tipo = 'dinheiro';
+  select id into id_n from public.aviso where painel = 'cenario_fin' and tipo = 'normal';
+
+  set local role authenticated;
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000b');   -- ana
+  select count(*) into n from public.aviso where painel = 'cenario_fin';
+  perform pg_temp.espera(n = 1, 'sem Dados financeiros: só o aviso que não é de dinheiro');
+  perform pg_temp.espera(not exists (select 1 from public.aviso where id = id_s), 'o aviso de dinheiro não aparece');
+  select count(*) into n from public.aviso_evento where painel = 'cenario_fin';
+  perform pg_temp.espera(n = 1, 'o histórico do aviso de dinheiro também não aparece');
+  perform pg_temp.espera(pg_temp.erra(format('select public.fechar_aviso(%s, %L)', id_s, 'Tentando fechar aviso de dinheiro'), 'não encontrado'), 'não fecha aviso de dinheiro');
+  perform public.fechar_aviso(id_n, 'Conferi no Klingo e já foi corrigido.');
+  perform pg_temp.espera(pg_temp.erra(format('select public.reabrir_aviso(%s)', id_s), 'não encontrado'), 'não reabre aviso de dinheiro');
+
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000c');   -- bia
+  select count(*) into n from public.aviso where painel = 'cenario_fin';
+  perform pg_temp.espera(n = 2, 'com Dados financeiros: vê os dois');
+  select count(*) into n from public.aviso_evento where painel = 'cenario_fin';
+  perform pg_temp.espera(n >= 3, 'com Dados financeiros: vê o histórico dos dois');
+  perform public.fechar_aviso(id_s, 'Conferi os valores com o faturamento.');
+
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000a');   -- admin: tudo
+  select count(*) into n from public.aviso where painel = 'cenario_fin';
+  perform pg_temp.espera(n = 2, 'admin vê os dois');
+  reset role;
+
+  -- 6f. a tabela legada `indicadores` (lida direto pela API) também exige Dados financeiros
+  update public.profiles set permissions = '{"relatorios": true}' where email = 'ana@csi.local';
+  update public.profiles set permissions = '{"relatorios": true, "dados_financeiros": true}' where email = 'bia@csi.local';
+  update public.profiles set permissions = '{"relatorios": false, "dados_financeiros": true}' where email = 'dani@csi.local';
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000a'); perform pg_temp.espera(public.can_view_relatorios(), 'admin lê indicadores');
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000b'); perform pg_temp.espera(not public.can_view_relatorios(), 'relatorios liberado mas sem Dados financeiros: não lê indicadores');
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000c'); perform pg_temp.espera(public.can_view_relatorios(), 'relatorios + Dados financeiros: lê indicadores');
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000d'); perform pg_temp.espera(not public.can_view_relatorios(), 'relatorios bloqueado continua bloqueado');
+
+  -- 6e. painel não liberado continua escondendo tudo, mesmo com Dados financeiros
+  update public.profiles set permissions = '{"dados_financeiros": true}' where email = 'bia@csi.local';
+  set local role authenticated;
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000c');
+  select count(*) into n from public.aviso where painel = 'cenario_fin';
+  perform pg_temp.espera(n = 0, 'Dados financeiros não libera painel: a regra de painel vem primeiro');
   reset role;
 end $$;
 
