@@ -60,7 +60,7 @@ export default async function Home() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Início</h1>
           <p className="page-lede">
-            Status da sincronização dos relatórios ativos do Klingo.
+            Status da sincronização dos relatórios ativos do Klingo (últimos dias de cada um).
           </p>
         </div>
       </header>

@@ -309,10 +309,40 @@ descobre IDs testando a API do Klingo**, e só consulta relatórios com
    decida (e registre em `resolucao`); se for erro do relatório, o dado
    continua guardado para correção — nada é apagado.
 
-**"Atualizar tudo" (tela Início) só busca relatórios com `ativo = true`.** Os demais
-ficam no catálogo, sem sincronizar, para o site ficar rápido e estável. Se uma tela
-precisar de outro relatório (ex.: o `13339` da aba Metas), ative-o:
-`update public.dim_relatorio set ativo = true where klingo_id = '13339';`
+### Coleta inteligente (janela de 90 dias, sozinha)
+
+Todos os relatórios do catálogo (menos os `supersedido_por`) ficam `ativo = true`. Para o site
+não ficar lento, **o navegador não percorre mais nada**: o banco sabe o que falta e a Edge Function
+`sync-relatorios-dw` (modo `{"modo":"auto"}`) busca só isso.
+
+- `proximos_trabalhos()` lista os pares (relatório, dia) que faltam dentro de `dim_relatorio.janela_dias`
+  (máx. 90), dos dias mais recentes para os mais antigos. Dia só vale como completo se o sync terminou
+  depois da meia-noite dele; o dia de hoje é refeito no máximo a cada 60 min. Relatório `pontual`
+  (ou que não aceita filtro de período) é buscado uma vez.
+- Um job do pg_cron (`coleta-relatorios-5min`) chama a função a cada 5 minutos, em lotes de até 40
+  consultas e no máximo 100 s. Sem pendência, ela responde na hora sem tocar no Klingo. O botão
+  **Atualizar tudo** só antecipa o mesmo trabalho (lotes de 30, com barra de progresso).
+- Disjuntor: 3 falhas seguidas pausam o relatório por 6 h (`falhas_seguidas`, `pausado_ate`); um par que
+  falhou só é tentado de novo depois de 30 min. Os alertas continuam em `v_etl_pendencias`.
+- **Descoberta:** relatório que nunca foi sincronizado começa com `janela_dias = 1` — só o dia de hoje,
+  o bastante para o sistema registrar as colunas (`dim_relatorio_coluna`) e mostrar se ele funciona.
+  Depois de conferir as colunas, defina o essencial e libere os 90 dias:
+
+```sql
+-- só estas colunas serão gravadas (NULL = todas)
+update public.dim_relatorio
+set colunas_essenciais = array['col0','col1','col4'], janela_dias = 90
+where klingo_id = '13339';
+```
+
+  Ao mudar `colunas_essenciais` de um relatório que já tem dados, apague antes as linhas dele em
+  `fact_relatorio_linha` (e os `sync_relatorio_runs` dele, para o histórico ser refeito); senão as linhas
+  antigas, com todas as colunas, ficam ao lado das novas e o mesmo dia é contado duas vezes.
+- Cuidado com dados de paciente: relatórios como #275, #52, #319 e #13434 trazem nome, telefone e
+  celular. Defina `colunas_essenciais` sem esses campos, a menos que a tela realmente precise deles.
+- Vários relatórios (Faturamento, Financeiro, Cesta etc.) também são baixados pelos painéis em Python
+  para `painel_dados`. Não é preciso mantê-los nos dois lugares: se um painel já cobre o relatório,
+  deixe `ativo = false` aqui (`update public.dim_relatorio set ativo = false where klingo_id = '...'`).
 
 Ative poucos relatórios por vez: a função consulta todos os ativos em
 sequência numa única execução, e muitos de uma vez podem estourar o tempo
