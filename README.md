@@ -203,6 +203,11 @@ não aparecem na lista: confira pelo banco, não pela lista.
 atualização). **Pendente, opcional:** remover as duas versões antigas, que o site não usa mais (o `drop function` foi cancelado):
 `drop function if exists public.fechar_aviso(bigint, text); drop function if exists public.reabrir_aviso(bigint);`
 
+**15/10/2026, `20261019100000_corrige_justificativa_no_aviso_errado.sql`:** aplicada em 2 partes pelo `apply_migration` (o tipo de evento `correcao` e a correção dos dados). A nota da
+atualização PR#36, postada por engano em "Quase nada de convênio aparece como recebido" (Setembro/2026), saiu de lá (o aviso voltou a ficar **aberto**, sem justificativa)
+e foi para o histórico de "Faturas esperando envio há mais de 7 dias", que mantém a justificativa e a data prevista (20/10/2026) de quem fechou antes. Os dois
+históricos ganharam o evento "Correção de registro"; a linha original não foi apagada.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
