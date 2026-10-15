@@ -145,8 +145,10 @@ chk(A, "a enviar: faixas somam o valor", sum(f["valor"] for f in a["faixas"]), f
 chk(A, "a enviar: faixas somam a quantidade", sum(f["qtd"] for f in a["faixas"]), len(ae), 0)
 chk(A, "a enviar: por convenio soma o valor", sum(x["valor"] for x in a["por_operadora"]), float(ae["v"].sum()))
 chk(A, "a enviar: espera maxima", a["maior_espera"], int(ae_dias.max()) if len(ae) else 0, 0)
-chk(A, "a enviar: > 7 dias (quantidade)", a["acima_atencao"]["qtd"], int((ae_dias > 7).sum()), 0)
-chk(A, "a enviar: > 7 dias (valor)", a["acima_atencao"]["valor"], float(ae.loc[ae_dias > 7, "v"].sum()))
+# cada convenio com o seu prazo (outra logica, de proposito): o SUS tem prazo proprio de 45 dias (PRAZO_ENVIO_PROPRIO no gerar_faturamento.py), os demais 7
+lim = ae["op"].map(lambda op: 45 if (norm(op) == "SUS" or norm(op).startswith("SUS ")) else 7)
+chk(A, "a enviar: acima do prazo (quantidade)", a["acima_atencao"]["qtd"], int((ae_dias > lim).sum()), 0)
+chk(A, "a enviar: acima do prazo (valor)", a["acima_atencao"]["valor"], float(ae.loc[ae_dias > lim, "v"].sum()))
 sem_hist = set(ae["op"]) - set(fe.loc[fe["st"].isin(["Enviada", "Movimentada"]), "op"])
 chk(A, "a enviar: convenios que nunca enviaram", len(a["nunca_enviou"]["nomes"]), len(sem_hist), 0)
 chk(A, "a enviar: valor dos que nunca enviaram", a["nunca_enviou"]["valor"], float(ae[ae["op"].isin(sem_hist)]["v"].sum()))

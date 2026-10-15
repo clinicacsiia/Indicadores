@@ -1,4 +1,4 @@
--- Testa as migrations 20261014210000_avisos.sql e 20261016120000_dados_financeiros.sql num Postgres vazio (sem Supabase): os papéis e o auth.uid() são simulados aqui.
+-- Testa as migrations 20261014210000_avisos.sql, 20261016120000_dados_financeiros.sql e 20261017110000_aviso_informacao_e_previsao.sql num Postgres vazio (sem Supabase): os papéis e o auth.uid() são simulados aqui.
 --
 --   createdb avisos_teste && psql -v ON_ERROR_STOP=1 -d avisos_teste -f supabase/tests/avisos.sql    (na raiz do repositório)
 --
@@ -37,6 +37,7 @@ insert into public.aviso (painel, chave, tipo, escopo, titulo, texto, nivel) val
   ('cesta',       '|cesta_menor_fat', 'cesta_menor_fat', '', 'A receita da Cesta é menor',          'texto', 'atencao');
 
 \i supabase/migrations/20261016120000_dados_financeiros.sql
+\i supabase/migrations/20261017110000_aviso_informacao_e_previsao.sql
 
 create function pg_temp.alerta(p_tipo text, p_escopo text default '', p_nivel text default 'atencao', p_itens int default null, p_persistente boolean default false) returns jsonb
 language sql as $$
@@ -99,10 +100,22 @@ begin
   perform pg_temp.sync('c2', 202, '[]'::jsonb, array['', '2026-10']);
   a := pg_temp.aviso('c2', '2026-10|t1');
   perform pg_temp.espera(a.status = 'resolvido' and pg_temp.eventos('c2', '2026-10|t1') = 'detectado,justificado,nao_corrigido,justificado,confirmado', 'sumiu depois da justificativa = confirmado: ' || pg_temp.eventos('c2', '2026-10|t1'));
-  -- volta de novo: recorrência
+  -- volta de novo: já tinha justificativa que valia -> fica como informação (status justificado), sem contar recorrência
   perform pg_temp.sync('c2', 203, jsonb_build_array(pg_temp.alerta('t1', '2026-10', 'atencao', 3)), array['', '2026-10']);
   a := pg_temp.aviso('c2', '2026-10|t1');
-  perform pg_temp.espera(a.status = 'aberto' and a.recorrencias = 1 and a.reaberturas = 1, 'voltou depois de confirmado');
+  perform pg_temp.espera(a.status = 'justificado' and a.recorrencias = 0 and a.reaberturas = 1 and a.retornos_informados = 1 and a.justificativa = 'Agora sim corrigido, conferi no Klingo.',
+                         'voltou com justificativa que valia = informação, sem recorrência');
+  perform pg_temp.espera(pg_temp.eventos('c2', '2026-10|t1') like '%confirmado,informado', 'evento "informado": ' || pg_temp.eventos('c2', '2026-10|t1'));
+  perform pg_temp.sync('c2', 204, jsonb_build_array(pg_temp.alerta('t1', '2026-10', 'atencao', 3)), array['', '2026-10']);   -- dados novos e continua igual
+  perform pg_temp.espera((pg_temp.aviso('c2', '2026-10|t1')).status = 'justificado' and (pg_temp.aviso('c2', '2026-10|t1')).em_informacao, 'informação mantida: não reabre só porque os dados foram atualizados');
+  perform pg_temp.sync('c2', 205, jsonb_build_array(pg_temp.alerta('t1', '2026-10', 'atencao', 4)), array['', '2026-10']);   -- piorou (3 -> 4, mais de 25%)
+  a := pg_temp.aviso('c2', '2026-10|t1');
+  perform pg_temp.espera(a.status = 'aberto' and a.reaberturas = 2 and not a.justificativa_vale and not a.em_informacao, 'informação que piora reabre e a justificativa deixa de valer');
+  -- depois de resolvido de novo, sem justificativa que valha: é recorrência de verdade
+  perform pg_temp.sync('c2', 206, '[]'::jsonb, array['', '2026-10']);
+  perform pg_temp.sync('c2', 207, jsonb_build_array(pg_temp.alerta('t1', '2026-10', 'atencao', 3)), array['', '2026-10']);
+  a := pg_temp.aviso('c2', '2026-10|t1');
+  perform pg_temp.espera(a.status = 'aberto' and a.recorrencias = 1, 'sem justificativa que valha: voltou = recorrência');
 end $$;
 
 -- ---- 3. persistente: aceito com justificativa, só reabre se piorar (25% mais registros, ou nível mais grave)
@@ -248,6 +261,76 @@ begin
   select count(*) into n from public.aviso where painel = 'cenario_fin';
   perform pg_temp.espera(n = 0, 'Dados financeiros não libera painel: a regra de painel vem primeiro');
   reset role;
+end $$;
+
+-- ---- 7. data prevista, "Ainda não resolvi" / "Não explica" contam recorrência, e o que a justificativa cobre
+do $$
+declare a public.aviso; amanha date := (now() at time zone 'America/Sao_Paulo')::date + 1;
+begin
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000a');
+  -- 7a. com data prevista: fica como informação com dados novos, até a data
+  perform pg_temp.sync('c7', 700, jsonb_build_array(pg_temp.alerta('envio', '', 'atencao', 25)));
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(pg_temp.erra(format('select public.fechar_aviso(%s, %L, %L::date)', a.id, 'Envio marcado para o mês passado', '2020-01-01'), 'data prevista'), 'data no passado é recusada');
+  perform pg_temp.espera(pg_temp.erra(format('select public.fechar_aviso(%s, %L, (current_date + 400))', a.id, 'Envio marcado para muito depois'), 'data prevista'), 'data a mais de um ano é recusada');
+  perform public.fechar_aviso(a.id, 'O envio da Petrobras é dia 20/10 e o resto é SUS.', amanha);
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'justificado' and a.previsto_para = amanha and a.justificativa_vale, 'grava a data prevista');
+  perform pg_temp.espera(pg_temp.eventos('c7', '|envio') = 'detectado,justificado' and (select detalhe from public.aviso_evento where aviso_id = a.id and tipo = 'justificado') like '%Previsão: %', 'a previsão fica no histórico');
+  perform pg_temp.sync('c7', 701, jsonb_build_array(pg_temp.alerta('envio', '', 'atencao', 25)));   -- dados novos, continua, dentro da data
+  perform pg_temp.espera((pg_temp.aviso('c7', '|envio')).status = 'justificado', 'dentro da data prevista segue como informação');
+  perform pg_temp.sync('c7', 702, jsonb_build_array(pg_temp.alerta('envio', '', 'atencao', 32)));   -- 25 + 7 (25%)
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'aberto' and a.reaberturas = 1 and a.previsto_para is null and not a.justificativa_vale and pg_temp.eventos('c7', '|envio') like '%piorou', 'piorou dentro da data: reabre');
+  -- 7b. a data passou e o problema continua: reabre como prazo vencido (recorrência)
+  perform public.fechar_aviso(a.id, 'Agora o envio sai ontem mesmo, confirmado.', amanha);
+  update public.aviso set previsto_para = (now() at time zone 'America/Sao_Paulo')::date - 1 where id = a.id;   -- o tempo passou
+  perform pg_temp.sync('c7', 703, jsonb_build_array(pg_temp.alerta('envio', '', 'atencao', 32)));
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'aberto' and a.reaberturas = 2 and a.previsto_para is null and pg_temp.eventos('c7', '|envio') like '%prazo_vencido', 'a data passou: prazo vencido reabre e conta');
+  -- 7c. a data não vale se o problema sumiu: resolvido e confirmado, sem data
+  perform public.fechar_aviso(a.id, 'Enviado tudo hoje pela manhã, conferi.', amanha);
+  perform pg_temp.sync('c7', 704, '[]'::jsonb);
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'resolvido' and a.previsto_para is null and a.justificativa_vale, 'sumiu: resolvido, sem data pendurada');
+  -- 7d. "Ainda não resolvi" e "Não explica o problema": contam recorrência e a justificativa deixa de valer
+  perform pg_temp.sync('c7', 705, jsonb_build_array(pg_temp.alerta('envio', '', 'atencao', 4)));
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'justificado' and a.retornos_informados = 1 and a.recorrencias = 0 and a.reaberturas = 2, 'voltou com justificativa que valia: informação');
+  perform pg_temp.espera(pg_temp.erra(format('select public.reabrir_aviso(%s, %L)', a.id, 'qualquer'), 'Motivo inválido'), 'motivo desconhecido é recusado');
+  perform public.reabrir_aviso(a.id, 'nao_explicou');
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'aberto' and a.reaberturas = 3 and not a.justificativa_vale and a.ultima_recorrencia is not null, 'não explica: reabre e conta como recorrência');
+  perform pg_temp.espera((select detalhe from public.aviso_evento where aviso_id = a.id order by id desc limit 1) like '%não explica%', 'o histórico diz o motivo');
+  perform public.fechar_aviso(a.id, 'Explicando melhor: são faturas de lote mensal do convênio.');
+  perform public.reabrir_aviso(a.id);   -- motivo padrão: ainda não resolvi
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'aberto' and a.reaberturas = 4, 'ainda não resolvi também conta');
+  -- reaberto à mão e depois resolvido: a justificativa não valia, então voltar é recorrência normal
+  perform pg_temp.sync('c7', 706, '[]'::jsonb);
+  perform pg_temp.sync('c7', 707, jsonb_build_array(pg_temp.alerta('envio', '', 'atencao', 4)));
+  a := pg_temp.aviso('c7', '|envio');
+  perform pg_temp.espera(a.status = 'aberto' and a.recorrencias = 1, 'justificativa que não valia: voltar é recorrência');
+  -- 7e. a nota de atualização do painel entra no histórico (migration: aviso já justificado com "20/10/2026" ganha a data)
+  perform pg_temp.espera(true, 'fim do cenário 7');
+end $$;
+
+-- 7f. o ajuste único da migration: aviso de Faturamento justificado com a data de envio ganha a data prevista e a nota de atualização
+do $$
+declare a public.aviso;
+begin
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000a');
+  perform pg_temp.sync('faturamento', 800, jsonb_build_array(pg_temp.alerta('fat_espera_envio', '', 'atencao', 25)));
+  perform public.fechar_aviso((pg_temp.aviso('faturamento', '|fat_espera_envio')).id, 'Todas as faturas evidenciadas são do SUS CURSO exceto Petrobras que o envio é dia 20/10/2026');
+  reset role;
+end $$;
+\i supabase/migrations/20261017110000_aviso_informacao_e_previsao.sql
+do $$
+declare a public.aviso;
+begin
+  a := pg_temp.aviso('faturamento', '|fat_espera_envio');
+  perform pg_temp.espera(a.status = 'justificado' and a.previsto_para = date '2026-10-20', 'a data da justificativa virou data prevista');
+  perform pg_temp.espera(pg_temp.eventos('faturamento', '|fat_espera_envio') = 'detectado,justificado,atualizacao', 'nota de atualização no histórico');
 end $$;
 
 select 'AVISOS OK' as resultado;

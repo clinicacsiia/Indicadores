@@ -51,8 +51,10 @@ function guiaHtml(a) {
     tab = `<h4>Quais são <span class="al-conta">${mostra}</span></h4><div class="tab-wrap"><table><thead><tr>${cab}</tr></thead><tbody>${corpo}</tbody></table></div>` +
       `<button type="button" class="btn-mini" data-al="copiar">Copiar a lista</button>`;
   }
+  const dica = g.dica ? `<p class="al-dica"><b>Dica:</b> ${esc(g.dica)}</p>` : '';
+  const atualizacao = g.atualizacao ? `<p class="al-dica"><b>Painel atualizado em ${dataBR(g.atualizacao.em)}:</b> ${esc(g.atualizacao.texto)}</p>` : '';
   return `<div class="al-guia" hidden><h4>Onde olhar</h4><div class="al-links">${links}</div>` +
-    `<h4>Passo a passo</h4><ol>${passos}</ol>${tab}` +
+    `<h4>Passo a passo</h4><ol>${passos}</ol>${dica}${atualizacao}${tab}` +
     `<p class="al-resolve"><b>Quando o painel considera resolvido:</b> ${esc(g.resolve)} Depois de corrigir no Klingo, use <b>Atualizar agora</b> para conferir.</p></div>`;
 }
 
@@ -104,7 +106,11 @@ function desfazerResolvidos(ul) {
 }
 
 // Painel na nuvem: o que a aba Avisos sabe de cada alerta. m = {chave, titulo, status: aberto|justificado|resolvido, recorrencias, reaberturas,
-// justificativa, justificado_por, justificado_em, resolvido_em}. Quem decide se voltou, continua ou foi corrigido e o banco (ver avisos.py); aqui so se mostra.
+// justificativa, justificado_por, justificado_em, resolvido_em, previsto_para, retornos_informados, em_informacao}. Quem decide se voltou, continua ou foi
+// corrigido e o banco (ver avisos.py); aqui so se mostra. Fechado com justificativa = informacao.
+const textoInformacao = m => m.previsto_para ? `Previsão informada: ${dataBR(m.previsto_para)}. Até lá fica como informação; se o problema continuar depois da data, reabre.`
+  : m.em_informacao ? 'Voltou a aparecer e foi mantido como informação por já ter justificativa; reabre se piorar.'
+  : 'O painel confere na próxima atualização dos dados e reabre se o problema continuar.';
 const historicoAviso = m => [m.recorrencias ? `voltou a acontecer ${m.recorrencias} ${m.recorrencias === 1 ? 'vez' : 'vezes'}` : '',
   m.reaberturas ? `reaberto ${m.reaberturas} ${m.reaberturas === 1 ? 'vez' : 'vezes'} por continuar nos dados depois de fechado` : ''].filter(Boolean).join(' · ');
 const nomeUsuario = email => String(email || 'alguém').replace(/@csi\.local$/, '');   // "ana@csi.local" aparece como "ana", igual ao menu do site
@@ -124,7 +130,7 @@ function aplicarAvisos(ul) {
     if (!m) return;
     if (m.status === 'justificado') {
       li.classList.add('resolvida');
-      nota.innerHTML = `✔ Fechado por ${esc(nomeUsuario(m.justificado_por))} em ${dataHora(m.justificado_em)}.${citacao(m)} O painel confere na próxima atualização dos dados e reabre se o problema continuar.`;
+      nota.innerHTML = `ℹ Informação de ${esc(nomeUsuario(m.justificado_por))} em ${dataHora(m.justificado_em)}.${citacao(m)} ${esc(textoInformacao(m))}`;
       nota.hidden = false; if (link) link.hidden = true;
       guardadas.push(li);
     } else if (m.status === 'aberto') {

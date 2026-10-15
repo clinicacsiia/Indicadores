@@ -34,6 +34,10 @@ A_ENVIAR, ENVIADA, MOVIMENTADA, CANCELADA = "A Enviar", "Enviada", "Movimentada"
 ENVIADAS = (ENVIADA, MOVIMENTADA)
 ESPERA_ATENCAO = 7             # dias esperando envio: o normal e sair no mesmo dia (3/4 das enviadas saem no dia da emissao)
 ESPERA_CRITICA = 30
+# convenios com prazo de envio PROPRIO (dias esperando "A enviar" ate virar atencao e ate virar critico). O SUS nao sai no mesmo dia como os demais:
+# a unica fatura SUS enviada ate hoje saiu 35 dias depois de emitida. Por isso ele nao entra na contagem de 7/30 dias dos outros convenios e tem a sua
+# analise mes a mes. Reveja os numeros quando houver mais faturas SUS enviadas. Casa com o nome exato ("SUS") ou que comece com ele ("SUS CURSO").
+PRAZO_ENVIO_PROPRIO = {"SUS": (45, 75)}
 LIMITE_FALTA_FATURAR = 0.10    # produzido ainda sem fatura acima de 10% num mes fechado
 LIMITE_CANCELAMENTO = 0.20     # mais de 20% das faturas emitidas canceladas
 MIN_FATURAS_CANCEL = 5         # so compara a taxa de cancelamento de convenios com ao menos 5 faturas
@@ -131,6 +135,45 @@ def preparar_faturas(fat: pd.DataFrame) -> pd.DataFrame:
     return f
 
 
+def prazo_proprio(op) -> tuple[int, int] | None:
+    """(dias ate atencao, dias ate critico) do convenio que tem prazo de envio proprio, ou None (vale o prazo geral)."""
+    nome = norm(op)
+    for chave, prazo in PRAZO_ENVIO_PROPRIO.items():
+        if nome == chave or nome.startswith(chave + " "):
+            return prazo
+    return None
+
+
+def montar_sus(f: pd.DataFrame, enviadas: pd.DataFrame, hoje_ts: pd.Timestamp) -> dict:
+    """Analise mes a mes dos convenios com prazo proprio (SUS): quantas faturas foram emitidas, canceladas, enviadas e quanto levaram para sair.
+    So entram os meses em que o convenio aparece. 'demais' e a referencia: quanto os outros convenios levam do envio da emissao."""
+    de_sus = f["_op"].map(lambda op: prazo_proprio(op) is not None)
+    s = f[de_sus]
+    if not len(s):
+        return {"tem": False}
+    atencao, critica = next(iter(PRAZO_ENVIO_PROPRIO.values()))
+    dias_envio = lambda g: (g["Fatura - Data de Envio"] - g["Fatura - Data de Emissão"]).dt.days.dropna()
+    outras = enviadas[~enviadas["_op"].map(lambda op: prazo_proprio(op) is not None)]
+    dias_outras = dias_envio(outras)
+    meses = []
+    for ym, g in s.groupby(s["Fatura - Data de Emissão"].dt.strftime("%Y-%m")):
+        ativas = g[g["_st"] != CANCELADA]
+        env, esp = g[g["_st"].isin(ENVIADAS)], g[g["_st"] == A_ENVIAR]
+        d = dias_envio(env)
+        espera = (hoje_ts - esp["Fatura - Data de Emissão"].dt.normalize()).dt.days
+        meses.append({"mes": ym, "rotulo": pc.rotulo_mes(ym), "emitidas": int(len(ativas)), "canceladas": int(len(g) - len(ativas)),
+                      "a_enviar": int(len(esp)), "enviadas": int(len(env)),
+                      "valor_a_enviar": float(esp["_valor"].fillna(0).sum()), "valor_enviado": float(env["_valor"].fillna(0).sum()),
+                      "dias_envio_mediana": float(d.median()) if len(d) else None, "dias_envio_max": int(d.max()) if len(d) else None,
+                      "espera_max": int(espera.max()) if len(espera) else None})
+    meses.sort(key=lambda m: m["mes"])
+    total = int(len(s))
+    canceladas = int((s["_st"] == CANCELADA).sum())
+    return {"tem": True, "nomes": sorted(s["_op"].unique().tolist()), "limite_atencao": atencao, "limite_critica": critica, "meses": meses,
+            "total": total, "canceladas": canceladas, "pct_canceladas": canceladas / total * 100,
+            "demais": {"mediana": float(dias_outras.median()) if len(dias_outras) else None, "qtd": int(len(dias_outras))}}
+
+
 def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
     """Posicao de hoje das faturas emitidas: o que espera envio, prazos de pagamento, cancelamentos e falhas de cadastro."""
     if not len(f):
@@ -163,7 +206,9 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
     ae = f[f["_st"] == A_ENVIAR].copy()
     ae["_dias"] = (hoje_ts - ae["Fatura - Data de Emissão"].dt.normalize()).dt.days
     sem_valor_ae = int((ae["_valor"].fillna(0) <= 0).sum())
-    ae = ae[ae["_valor"].fillna(0) > 0]
+    ae = ae[ae["_valor"].fillna(0) > 0].copy()
+    limites = ae["_op"].map(lambda op: prazo_proprio(op) or (ESPERA_ATENCAO, ESPERA_CRITICA))   # cada convenio com o seu prazo
+    ae["_lim_aten"], ae["_lim_crit"] = limites.map(lambda t: t[0]), limites.map(lambda t: t[1])
     faixas, anterior = [], -1
     for limite, rotulo, cor in FAIXAS_ESPERA:
         g = ae[(ae["_dias"] > anterior) & (ae["_dias"] <= limite)]
@@ -175,11 +220,13 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
     por_op.sort(key=lambda x: -x["valor"])
     nunca = [x for x in por_op if not x["enviadas_antes"]]
 
-    def acima(dias):
-        g = ae[ae["_dias"] > dias]
-        return {"qtd": int(len(g)), "valor": float(g["_valor"].sum())}
+    def acima(coluna):
+        g = ae[ae["_dias"] > ae[coluna]]
+        return {"qtd": int(len(g)), "valor": float(g["_valor"].sum()), "maior_espera": int(g["_dias"].max()) if len(g) else 0}
 
-    espera = ae[ae["_dias"] > ESPERA_ATENCAO].sort_values(["_dias", "_valor"], ascending=[False, False])
+    espera = ae[ae["_dias"] > ae["_lim_aten"]].sort_values(["_dias", "_valor"], ascending=[False, False])
+    # convenio com prazo proprio esperando mais que os 7 dias gerais, mas ainda dentro do seu prazo: nao e atraso, so aparece como nota
+    no_prazo = ae[(ae["_lim_aten"] != ESPERA_ATENCAO) & (ae["_dias"] > ESPERA_ATENCAO) & (ae["_dias"] <= ae["_lim_aten"])]
     itens_espera = gp.tabela(["Fatura (Id)", "Convênio", "Emitida em", "Dias esperando", "Valor", "Responsável"],
                              [[int(r["Fatura - Id"]), r["_op"], gp.dbr(r["Fatura - Data de Emissão"]), int(r["_dias"]), gp.reais(r["_valor"]), r["Fatura - Usuário Responsável"]]
                               for _, r in espera.iterrows()], total=len(espera), numericas=(0, 3, 4))
@@ -190,7 +237,8 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
         "valor": float(ae["_valor"].sum()), "qtd": int(len(ae)), "sem_valor": sem_valor_ae,
         "maior_espera": int(ae["_dias"].max()) if len(ae) else 0,
         "limite_atencao": ESPERA_ATENCAO, "limite_critica": ESPERA_CRITICA,
-        "acima_atencao": acima(ESPERA_ATENCAO), "acima_critica": acima(ESPERA_CRITICA),
+        "acima_atencao": acima("_lim_aten"), "acima_critica": acima("_lim_crit"),
+        "dentro_do_prazo_proprio": {"qtd": int(len(no_prazo)), "valor": float(no_prazo["_valor"].sum()), "nomes": sorted(no_prazo["_op"].unique().tolist())},
         "faixas": faixas, "por_operadora": por_op,
         "nunca_enviou": {"qtd": sum(x["qtd"] for x in nunca), "valor": sum(x["valor"] for x in nunca), "nomes": [x["nome"] for x in nunca], "itens": itens_nunca},
         "itens_espera": itens_espera,
@@ -231,7 +279,7 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
         "tem": True, "total": int(len(f)), "ativas": int(len(ativas)),
         "status": {s: {"qtd": int((f["_st"] == s).sum()), "valor": float(f.loc[f["_st"] == s, "_valor"].fillna(0).sum())}
                    for s in (A_ENVIAR, ENVIADA, MOVIMENTADA, CANCELADA)},
-        "a_enviar": a_enviar, "prazos": prazos, "cancelamento": cancelamento,
+        "a_enviar": a_enviar, "prazos": prazos, "cancelamento": cancelamento, "sus": montar_sus(f, enviadas, hoje_ts),
         "sem_protocolo": {"qtd": int(len(sem_protocolo)), "valor": float(sem_protocolo["_valor"].fillna(0).sum()),
                           "itens": gp.tabela(["Fatura (Id)", "Convênio", "Status", "Enviada em", "Valor"],
                                              [[int(r["Fatura - Id"]), r["_op"], r["_st"], gp.dbr(r["Fatura - Data de Envio"]), gp.reais(r["_valor"])]
@@ -319,16 +367,19 @@ def alertas_faturas(fg: dict, funil: dict, ref_rotulo: str) -> list[dict]:
     if fg.get("tem"):
         ae = fg["a_enviar"]
         crit, aten = ae["acima_critica"], ae["acima_atencao"]
+        proprio = ae["dentro_do_prazo_proprio"]
+        nota_proprio = (f" {', '.join(html.escape(x) for x in proprio['nomes'])} fica de fora enquanto estiver dentro do seu prazo próprio "
+                        f"({proprio['qtd']} fatura(s), {pc_brl(proprio['valor'])}).") if proprio["qtd"] else ""
         if crit["qtd"]:
             out.append({"nivel": "critico", "titulo": f"Faturas paradas há mais de {ESPERA_CRITICA} dias sem envio",
                         "itens": ae["itens_espera"],
                         "texto": f"<b>{crit['qtd']}</b> fatura(s) somando <b>{pc_brl(crit['valor'])}</b> foram emitidas há mais de {ESPERA_CRITICA} dias e ainda estão “A enviar”. "
-                                 f"Enquanto não forem enviadas, o convênio não começa a contar o prazo de pagamento."})
+                                 f"Enquanto não forem enviadas, o convênio não começa a contar o prazo de pagamento.{nota_proprio}"})
         elif aten["qtd"]:
             out.append({"nivel": "atencao", "titulo": f"Faturas esperando envio há mais de {ESPERA_ATENCAO} dias",
                         "itens": ae["itens_espera"],
                         "texto": f"<b>{aten['qtd']}</b> fatura(s) somando <b>{pc_brl(aten['valor'])}</b> estão “A enviar” há mais de {ESPERA_ATENCAO} dias "
-                                 f"(a mais antiga há <b>{ae['maior_espera']}</b> dias). O normal é sair no mesmo dia da emissão."})
+                                 f"(a mais antiga há <b>{aten['maior_espera']}</b> dias). O normal é sair no mesmo dia da emissão.{nota_proprio}"})
         n = ae["nunca_enviou"]
         if n["qtd"]:
             nomes = ", ".join(html.escape(x) for x in n["nomes"])

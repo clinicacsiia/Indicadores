@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { MAX_JUSTIFICATIVA, MIN_JUSTIFICATIVA } from "@/lib/avisos";
+import { MAX_JUSTIFICATIVA, MIN_JUSTIFICATIVA, hojeEmBrasilia, type MotivoReabrir } from "@/lib/avisos";
 
 export type AvisoAcaoState = { ok?: boolean; error?: string };
 
@@ -21,12 +21,18 @@ function idDoForm(formData: FormData) {
 }
 
 // Fecha um aviso aberto. A justificativa é obrigatória (aqui, no formulário e dentro do banco, que é quem
-// realmente garante). O banco também confere se a pessoa pode ver o painel do aviso.
+// realmente garante). A data prevista (envio, correção...) é opcional: até ela o aviso fica como informação.
+// O banco também confere se a pessoa pode ver o painel do aviso.
 export async function fecharAviso(_prev: AvisoAcaoState, formData: FormData): Promise<AvisoAcaoState> {
   const id = idDoForm(formData);
   const justificativa = String(formData.get("justificativa") ?? "").trim();
+  const previsto = String(formData.get("previsto") ?? "").trim();
 
   if (!id) return { error: "Aviso inválido." };
+  if (previsto && !/^\d{4}-\d{2}-\d{2}$/.test(previsto)) return { error: "Data prevista inválida." };
+  if (previsto && (previsto < hojeEmBrasilia() || previsto > hojeEmBrasilia(365))) {
+    return { error: "A data prevista precisa ser de hoje até um ano à frente." };
+  }
   if (justificativa.length < MIN_JUSTIFICATIVA) {
     return { error: `Explique em pelo menos ${MIN_JUSTIFICATIVA} caracteres o que foi feito ou por que o aviso pode ser fechado.` };
   }
@@ -35,20 +41,21 @@ export async function fecharAviso(_prev: AvisoAcaoState, formData: FormData): Pr
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("fechar_aviso", { p_aviso: id, p_justificativa: justificativa });
+  const { error } = await supabase.rpc("fechar_aviso", { p_aviso: id, p_justificativa: justificativa, p_previsto: previsto || null });
   if (error) return { error: mensagemDe(error, "Não foi possível fechar o aviso. Tente de novo.") };
 
   revalidatePath("/", "layout"); // a lista e o contador do menu
   return { ok: true };
 }
 
-// "Ainda não resolvi": desfaz o fechamento.
+// "Ainda não resolvi" / "Não explica o problema": desfazem o fechamento e contam como recorrência.
 export async function reabrirAviso(_prev: AvisoAcaoState, formData: FormData): Promise<AvisoAcaoState> {
   const id = idDoForm(formData);
+  const motivo: MotivoReabrir = formData.get("motivo") === "nao_explicou" ? "nao_explicou" : "nao_resolvi";
   if (!id) return { error: "Aviso inválido." };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("reabrir_aviso", { p_aviso: id });
+  const { error } = await supabase.rpc("reabrir_aviso", { p_aviso: id, p_motivo: motivo });
   if (error) return { error: mensagemDe(error, "Não foi possível reabrir o aviso. Tente de novo.") };
 
   revalidatePath("/", "layout");

@@ -60,6 +60,7 @@ const reSiglas = new RegExp('\\b(' + SIGLAS.map(x => x[0] + x.slice(1).toLowerCa
 const bonito = s => String(s).toLowerCase().replace(/(^|[\s/(-])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase()).replace(reSiglas, m => m.toUpperCase());
 const brlz = v => v ? brl(v) : VAZIO;
 const CHAVES = chavesMeses(D);
+const ESPERA_PADRAO = D.faturas && D.faturas.tem ? D.faturas.a_enviar.limite_atencao : 7;   // dias esperando envio ate avisar (os convenios com prazo proprio, como o SUS, tem o seu)
 
 $('sub').textContent = `Fonte: relatórios de Faturamento, Produção por Convênio, Faturas em Aberto e Faturas Emitidas do Klingo · dados de ${D.dados_em}`;
 
@@ -168,6 +169,38 @@ function prazosGraf() {
     <p class="nota">Calculado com as ${num(p.qtd)} faturas já enviadas. O vencimento é a data combinada na fatura, não o dia em que o convênio de fato pagou.</p>
     ${etapas}<h3 style="margin-top:24px">Prazo de pagamento por convênio</h3><p class="nota">Dias entre o envio e o vencimento, do mais lento ao mais rápido.</p>${barrasOp}</section>`;
 }
+function susGraf() {
+  const fg = D.faturas, s = fg.tem ? fg.sus : null;
+  if (!s || !s.tem) return '';
+  const nome = s.nomes.map(bonito).join(' / ');
+  const dias = v => v == null ? '—' : (v < 1 ? 'No mesmo dia' : num(v, 0) + (Math.round(v) === 1 ? ' dia' : ' dias'));
+  const fat = n => `${num(n)} ${n === 1 ? 'fatura' : 'faturas'}`;
+  const blocos = s.meses.map(m => {
+    const total = m.enviadas + m.a_enviar + m.canceladas;
+    const segs = [
+      { rotulo: 'Enviadas', valor: m.enviadas, cor: 'var(--s1)', tip: `${m.rotulo}\nEnviadas: ${fat(m.enviadas)} (${brl(m.valor_enviado)})` },
+      { rotulo: 'A enviar', valor: m.a_enviar, cor: 'var(--warn)', tip: `${m.rotulo}\nA enviar: ${fat(m.a_enviar)} (${brl(m.valor_a_enviar)})` },
+      { rotulo: 'Canceladas', valor: m.canceladas, cor: 'var(--neutro-3)', tip: `${m.rotulo}\nCanceladas: ${fat(m.canceladas)}` }];
+    const detalhe = [m.enviadas ? `${fat(m.enviadas)} ${m.enviadas === 1 ? 'enviada' : 'enviadas'} (${brl(m.valor_enviado)}), ${m.dias_envio_mediana == null ? '' : (m.enviadas === 1 ? 'que saiu ' : 'saíram ') + (m.dias_envio_mediana < 1 ? 'no mesmo dia' : 'em ' + dias(m.dias_envio_mediana) + ' (mediana)')}` : '',
+      m.a_enviar ? `${fat(m.a_enviar)} a enviar (${brl(m.valor_a_enviar)}), ${m.espera_max < 1 ? 'emitidas hoje' : 'esperando há até ' + dias(m.espera_max)}` : ''].filter(Boolean).join(' · ');
+    return `<h3 style="margin-top:20px">${esc(m.rotulo)} <small style="font-weight:400;color:var(--muted)">${fat(total)} emitidas no mês, contando as canceladas</small></h3>${empilhada(segs, v => num(v))}${detalhe ? `<p class="nota">${detalhe}.</p>` : ''}`;
+  }).join('');
+  const comDias = s.meses.filter(m => m.dias_envio_mediana != null);
+  const prazo = barras([
+    ...comDias.map(m => ({ rotulo: `${nome} · ${m.rotulo}`, valor: m.dias_envio_mediana, texto: dias(m.dias_envio_mediana), extra: `${m.enviadas} fat.`, marca: s.limite_atencao, cor: 'var(--accent)',
+      tip: `${nome} · ${m.rotulo}\nDa emissão ao envio: ${dias(m.dias_envio_mediana)} (mediana; até ${dias(m.dias_envio_max)})\nO painel só avisa depois de ${s.limite_atencao} dias` })),
+    ...(s.demais.mediana != null ? [{ rotulo: 'Demais convênios', valor: s.demais.mediana, texto: dias(s.demais.mediana), extra: `${s.demais.qtd} fat.`, marca: ESPERA_PADRAO,
+      tip: `Demais convênios\nDa emissão ao envio: ${dias(s.demais.mediana)} (mediana)\nO painel avisa depois de ${ESPERA_PADRAO} dias` }] : [])], '', '36%');
+  const cols = [{ t: 'Mês' }, { t: 'Emitidas', n: 1 }, { t: 'Canceladas', n: 1 }, { t: 'A enviar', n: 1 }, { t: 'Enviadas', n: 1 }, { t: 'A enviar (R$)', n: 1 }, { t: 'Enviado (R$)', n: 1 }, { t: 'Emissão → envio', n: 1 }, { t: 'Espera máx. a enviar', n: 1 }];
+  const linhas = s.meses.map(m => [esc(m.rotulo), num(m.emitidas), m.canceladas ? num(m.canceladas) : VAZIO, m.a_enviar ? num(m.a_enviar) : VAZIO, m.enviadas ? num(m.enviadas) : VAZIO,
+    brlz(m.valor_a_enviar), brlz(m.valor_enviado), m.dias_envio_mediana == null ? VAZIO : dias(m.dias_envio_mediana), m.espera_max == null ? VAZIO : (m.espera_max < 1 ? 'Hoje' : dias(m.espera_max))]);
+  return `<section><h2>${esc(nome)}: mês a mês</h2>
+    <p class="nota">Os meses em que o ${esc(nome)} aparece nas faturas emitidas. Ele não sai no mesmo dia como os demais convênios, por isso tem <b>prazo próprio</b>: o painel só avisa depois de <b>${s.limite_atencao} dias</b> esperando envio (crítico depois de ${s.limite_critica}), e não dos ${ESPERA_PADRAO} dias dos outros.
+    ${s.canceladas ? ` <b>${num(s.canceladas)}</b> de ${num(s.total)} faturas ${esc(nome)} foram canceladas (<b>${pct(s.pct_canceladas, 0)}</b>), o que indica que ele é refeito várias vezes antes de sair; confirme com o faturamento se é o esperado.` : ''}</p>
+    ${blocos}
+    ${comDias.length ? `<h3 style="margin-top:24px">Da emissão ao envio</h3><p class="nota">Dias entre emitir e enviar (mediana das faturas já enviadas). A marca em cada barra é o prazo a partir do qual o painel avisa.</p>${prazo}` : ''}
+    <h3 style="margin-top:24px">Mês a mês, em números</h3>${tabela(cols, linhas)}</section>`;
+}
 function cancelGraf() {
   const fg = D.faturas;
   if (!fg.tem) return '';
@@ -268,7 +301,7 @@ function render(ym) {
     tier('Resumo', m.periodo ? 'Os números do período e a receita de cada mês' : 'Os números do mês e o ritmo da receita',
       kpisHtml(m, anteriorDe(D, CHAVES, ym)) + ritmoHtml(m) + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente.</p>${alertasTopo(m.alertas, ym)}</section>`) +
     tier('Análise', 'Do produzido ao recebido, quem paga e quanto tempo demora',
-      (funilGraf(m) ? `<section>${funilGraf(m)}</section>` : '') + composicaoGraf(m) + posicaoGraf() + prazosGraf() + cancelGraf()) +
+      (funilGraf(m) ? `<section>${funilGraf(m)}</section>` : '') + composicaoGraf(m) + posicaoGraf() + prazosGraf() + susGraf() + cancelGraf()) +
     tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
 }
 

@@ -2,7 +2,9 @@ import {
   ROTULO_EVENTO,
   ROTULO_NIVEL,
   dataCurta,
+  dataDia,
   dataHora,
+  emInformacao,
   nomeDoUsuario,
   rotuloEscopo,
   urlKlingoValida,
@@ -35,7 +37,7 @@ function Guia({ aviso }: { aviso: Aviso }) {
   const { guia, itens } = aviso;
   const relatorios = (guia.relatorios ?? []).filter((r) => urlKlingoValida(r.url));
   const passos = guia.passos ?? [];
-  if (!relatorios.length && !passos.length && !itens?.linhas?.length) return null;
+  if (!relatorios.length && !passos.length && !itens?.linhas?.length && !guia.dica && !guia.atualizacao) return null;
   const numericas = new Set(itens?.numericas ?? []);
   return (
     <details className="aviso-bloco">
@@ -59,6 +61,16 @@ function Guia({ aviso }: { aviso: Aviso }) {
               ))}
             </ol>
           </>
+        )}
+        {guia.dica && (
+          <p className="aviso-dica">
+            <b>Dica:</b> {guia.dica}
+          </p>
+        )}
+        {guia.atualizacao && (
+          <p className="aviso-dica" data-tom="ok">
+            <b>Painel atualizado em {dataDia(guia.atualizacao.em)}:</b> {guia.atualizacao.texto}
+          </p>
         )}
         {itens && itens.linhas.length > 0 && (
           <>
@@ -108,12 +120,13 @@ function Guia({ aviso }: { aviso: Aviso }) {
 
 export function AvisoCard({ aviso, eventos }: { aviso: Aviso; eventos: EventoAviso[] }) {
   const reincidente = voltou(aviso);
+  const informacao = emInformacao(aviso);
   return (
     <article id={`aviso-${aviso.id}`} className="panel aviso" data-nivel={aviso.nivel} data-status={aviso.status}>
       <header className="aviso-topo">
         <div className="aviso-marcas">
-          <span className="aviso-nivel" data-nivel={aviso.nivel}>
-            {ROTULO_NIVEL[aviso.nivel]}
+          <span className="aviso-nivel" data-nivel={informacao ? "info" : aviso.nivel} title={informacao ? "Fechado com justificativa: fica como informação" : undefined}>
+            {informacao ? ROTULO_NIVEL.info : ROTULO_NIVEL[aviso.nivel]}
           </span>
           <span className="aviso-escopo">{rotuloEscopo(aviso.escopo)}</span>
           {aviso.recorrencias > 0 && (
@@ -122,8 +135,17 @@ export function AvisoCard({ aviso, eventos }: { aviso: Aviso; eventos: EventoAvi
             </span>
           )}
           {aviso.reaberturas > 0 && (
-            <span className="aviso-selo" data-tom="alerta" title="Foi fechado com justificativa, mas continuou ou piorou nos dados">
+            <span
+              className="aviso-selo"
+              data-tom="alerta"
+              title="Contado quando foi fechado com justificativa e alguém disse “Ainda não resolvi” ou “Não explica”, a data prevista passou, ou o problema continuou ou piorou"
+            >
               Reaberto {aviso.reaberturas}×
+            </span>
+          )}
+          {aviso.retornos_informados > 0 && (
+            <span className="aviso-selo" title="Voltou a aparecer depois de resolvido e foi mantido como informação por já ter justificativa (não conta como recorrência)">
+              Voltou {aviso.retornos_informados}× como informação
             </span>
           )}
           {aviso.persistente && (
@@ -144,14 +166,23 @@ export function AvisoCard({ aviso, eventos }: { aviso: Aviso; eventos: EventoAvi
         <div className="aviso-nota" data-tom="ok">
           <p>
             <b>
-              Fechado por {nomeDoUsuario(aviso.justificado_por)} em {dataHora(aviso.justificado_em)}.
+              Informação de {nomeDoUsuario(aviso.justificado_por)} em {dataHora(aviso.justificado_em)}.
             </b>{" "}
             <span className="aviso-justificativa">“{aviso.justificativa}”</span>
           </p>
+          {aviso.previsto_para && (
+            <p>
+              <b>Previsão informada: {dataDia(aviso.previsto_para)}.</b>
+            </p>
+          )}
           <p className="aviso-nota-fim">
-            {aviso.persistente
-              ? "Continua fechado enquanto o painel mostrar o mesmo problema; reabre se ele piorar."
-              : "O painel confere na próxima atualização dos dados: se o problema sumiu, fica resolvido; se continuar, o aviso reabre."}
+            {aviso.previsto_para
+              ? "Até essa data o aviso fica como informação, mesmo com os dados atualizados; se o problema continuar depois dela, reabre e conta como recorrência. Reabre antes se piorar."
+              : aviso.em_informacao
+                ? "Voltou a aparecer e foi mantido como informação por já ter justificativa. Reabre se piorar, ou se você disser que ainda não resolveu ou que a justificativa não explica."
+                : aviso.persistente
+                  ? "Continua como informação enquanto o painel mostrar o mesmo problema; reabre se ele piorar."
+                  : "O painel confere na próxima atualização dos dados: se o problema sumiu, fica resolvido; se continuar, o aviso reabre."}
           </p>
           <ReabrirAviso id={aviso.id} />
         </div>
@@ -174,7 +205,7 @@ export function AvisoCard({ aviso, eventos }: { aviso: Aviso; eventos: EventoAvi
       {reincidente && aviso.justificativa && (
         <div className="aviso-nota" data-tom="alerta">
           <p>
-            <b>Já foi fechado antes</b> por {nomeDoUsuario(aviso.justificado_por)} em {dataHora(aviso.justificado_em)}:{" "}
+            <b>Já foi explicado antes</b>, por {nomeDoUsuario(aviso.justificado_por)} em {dataHora(aviso.justificado_em)}:{" "}
             <span className="aviso-justificativa">“{aviso.justificativa}”</span>
           </p>
         </div>
