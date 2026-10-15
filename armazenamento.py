@@ -255,7 +255,7 @@ def sincronizar_avisos(painel: str, escopos: list[str], versao: int, alertas: li
 def listar_avisos(painel: str, com_sensiveis: bool = True) -> list[dict]:
     """Avisos do painel que ja tiveram desfecho ou historico (justificados, resolvidos ou que voltaram): e o que a pagina do painel mostra junto dos alertas.
     Sem `com_sensiveis` (usuario sem "Dados financeiros") os avisos que falam de dinheiro ficam de fora; se nao der para saber quais sao, nenhum aviso sai."""
-    campos = "id,chave,titulo,status,recorrencias,reaberturas,justificativa,justificado_por,justificado_em,resolvido_em"
+    campos = "id,chave,titulo,status,recorrencias,reaberturas,justificativa,justificado_por,justificado_em,resolvido_em,previsto_para,retornos_informados,em_informacao"
     consulta = {"painel": f"eq.{painel}", "select": campos, "order": "id.asc"}
     if not com_sensiveis:
         consulta["sensivel"] = "eq.false"

@@ -2239,7 +2239,29 @@ select {
   overflow-wrap: anywhere;
 }
 .aviso-reabrir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin-top: 8px;
+}
+.aviso-dica {
+  padding: 8px 12px;
+  border-left: 3px solid var(--brand);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--brand-soft);
+  color: var(--ink);
+}
+.aviso-dica[data-tom="ok"] {
+  border-left-color: var(--ok);
+  background: var(--ok-soft);
+}
+.aviso-opcional {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.aviso-data {
+  max-width: 220px;
 }
 .aviso-bloco,
 .aviso-fechar {
@@ -2343,11 +2365,14 @@ select {
 }
 .aviso-historico li[data-tipo="reapareceu"],
 .aviso-historico li[data-tipo="nao_corrigido"],
+.aviso-historico li[data-tipo="prazo_vencido"],
 .aviso-historico li[data-tipo="piorou"] {
   border-left-color: var(--danger);
 }
 .aviso-historico li[data-tipo="sumiu"],
 .aviso-historico li[data-tipo="confirmado"],
+.aviso-historico li[data-tipo="informado"],
+.aviso-historico li[data-tipo="atualizacao"],
 .aviso-historico li[data-tipo="justificado"] {
   border-left-color: var(--ok);
 }

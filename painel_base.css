@@ -150,6 +150,7 @@
   .al-links { display: flex; flex-wrap: wrap; gap: 8px; }
   .al-conta { font-weight: 400; color: var(--ink2); margin-left: 6px; }
   .al-resolve { margin: 12px 0 0; } .al-resolve b { color: var(--ink); }
+  .al-dica { margin: 12px 0 0; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--neutro-3); border-radius: 0 6px 6px 0; } .al-dica b { color: var(--ink); }
   .al-guia .tab-wrap { max-height: 320px; overflow: auto; margin-bottom: 8px; }
   .al-nota { margin-top: 8px; font-size: 13px; color: var(--ink2); }
   .al-nota b { color: var(--ink); }

@@ -68,6 +68,17 @@ class ColetarTest(unittest.TestCase):
         self.assertEqual({a["tipo"]: a["persistente"] for a in alertas}, {"fat_glosa": True, "fat_vencidas": False})
         self.assertTrue(gp.PERSISTENTES <= {r[2] for r in gp.REGRAS})   # nenhum id inventado
 
+    def test_guia_de_espera_de_envio_traz_dica_e_atualizacao(self):
+        a = {"nivel": "atencao", "titulo": "Faturas esperando envio há mais de 7 dias", "texto": "x"}
+        gp.anotar("faturamento", [a])
+        self.assertEqual(a["id"], "fat_espera_envio")
+        self.assertIn("data prevista", a["guia"]["dica"])
+        self.assertEqual(a["guia"]["atualizacao"]["em"], "2026-10-15")
+        outro = {"nivel": "atencao", "titulo": "Faturas ativas sem valor", "texto": "x"}
+        gp.anotar("faturamento", [outro])
+        self.assertNotIn("dica", outro["guia"])
+        self.assertNotIn("atualizacao", outro["guia"])
+
     def test_sem_meses_nao_sincroniza(self):
         chamadas = []
         antes = avisos.arm.sincronizar_avisos

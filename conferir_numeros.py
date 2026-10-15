@@ -145,8 +145,21 @@ chk(A, "a enviar: faixas somam o valor", sum(f["valor"] for f in a["faixas"]), f
 chk(A, "a enviar: faixas somam a quantidade", sum(f["qtd"] for f in a["faixas"]), len(ae), 0)
 chk(A, "a enviar: por convenio soma o valor", sum(x["valor"] for x in a["por_operadora"]), float(ae["v"].sum()))
 chk(A, "a enviar: espera maxima", a["maior_espera"], int(ae_dias.max()) if len(ae) else 0, 0)
-chk(A, "a enviar: > 7 dias (quantidade)", a["acima_atencao"]["qtd"], int((ae_dias > 7).sum()), 0)
-chk(A, "a enviar: > 7 dias (valor)", a["acima_atencao"]["valor"], float(ae.loc[ae_dias > 7, "v"].sum()))
+# cada convenio com o seu prazo, aprendido do historico (prazos_aprendidos no gerar_faturamento.py): confere as contas com os limites que o painel mostra
+limite = {x["nome"]: x["atencao"] for x in a["prazos_aprendidos"]}
+lim = ae["op"].map(lambda op: limite.get(op, 7))
+chk(A, "a enviar: acima do prazo (quantidade)", a["acima_atencao"]["qtd"], int((ae_dias > lim).sum()), 0)
+chk(A, "a enviar: acima do prazo (valor)", a["acima_atencao"]["valor"], float(ae.loc[ae_dias > lim, "v"].sum()))
+# prazo habitual: com menos de 3 faturas enviadas e o maior que ja aconteceu; com mais, fica entre o menor e o maior
+env_ok = fe[fe["st"].isin(["Enviada", "Movimentada"])].dropna(subset=["Fatura - Data de Envio", "Fatura - Data de Emissão"])
+dias_env = (env_ok["Fatura - Data de Envio"].dt.normalize() - env_ok["Fatura - Data de Emissão"].dt.normalize()).dt.days.clip(lower=0)
+for x in a["prazos_aprendidos"]:
+    d = dias_env[env_ok["op"] == x["nome"]]
+    chk(A, f"prazo de envio {x['nome']}: faturas enviadas", x["amostras"], len(d), 0)
+    if len(d) < 3:
+        chk(A, f"prazo de envio {x['nome']}: pouco historico = maior prazo", x["tipico"], float(d.max()))
+    else:
+        chk(A, f"prazo de envio {x['nome']}: habitual entre o menor e o maior", 1 if d.min() - 0.05 <= x["tipico"] <= d.max() + 0.05 else 0, 1, 0)
 sem_hist = set(ae["op"]) - set(fe.loc[fe["st"].isin(["Enviada", "Movimentada"]), "op"])
 chk(A, "a enviar: convenios que nunca enviaram", len(a["nunca_enviou"]["nomes"]), len(sem_hist), 0)
 chk(A, "a enviar: valor dos que nunca enviaram", a["nunca_enviou"]["valor"], float(ae[ae["op"].isin(sem_hist)]["v"].sum()))

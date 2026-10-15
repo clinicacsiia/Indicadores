@@ -190,7 +190,8 @@ Todas as abas (Início, Metas, Configurações e os 7 painéis em Python) seguem
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
-   `supabase/migrations/20261014210000_avisos.sql` (SQL Editor do Supabase).
+   `supabase/migrations/20261014210000_avisos.sql` (SQL Editor do Supabase). Depois, em ordem, as que mudam os avisos:
+   `20261016120000_dados_financeiros.sql` e `20261017110000_aviso_informacao_e_previsao.sql` (**aplique antes de publicar o site**: a aba Avisos lê as colunas novas).
 2. **Variáveis da Vercel** (Settings → Environment Variables):
    - `KLINGO_APP_TOKEN` — marcar *Sensitive*; Production (e Preview se for testar). É o mesmo token do secret da Edge Function.
    - `SUPABASE_SERVICE_ROLE_KEY` — **já existe** (criada pela integração Supabase), mas só em *Production*: marque também
@@ -243,13 +244,35 @@ que saiu da janela fica como estava. Painel sem dados não resolve nada. Falhar 
 | alerta novo | aviso **aberto** (histórico: "apareceu nos dados") |
 | continua aparecendo | segue aberto |
 | deixou de aparecer | **resolvido** (o painel segue conferindo) |
-| estava resolvido e **voltou** | aberto de novo, selo **"Voltou a acontecer N×"** |
-| fechado com justificativa, os dados foram atualizados e **continua** | aberto de novo, selo **"Reaberto N×"** (a justificativa não resolveu) |
+| estava resolvido e **voltou**, sem justificativa que valesse | aberto de novo, selo **"Voltou a acontecer N×"** |
+| estava resolvido e **voltou**, e já tinha justificativa que valia | **informação**: segue com a justificativa dada, selo **"Voltou N× como informação"**; **não** conta como recorrência e só reabre se piorar |
+| fechado com justificativa, os dados foram atualizados e **continua** (sem data prevista) | aberto de novo, selo **"Reaberto N×"** (a justificativa não resolveu) |
+| fechado com justificativa **e data prevista**, os dados foram atualizados e continua | segue como **informação** até a data; só reabre antes se piorar |
+| passou a **data prevista** e o problema continua | aberto de novo ("a data prevista passou"), conta como **recorrência** |
 | fechado com justificativa e **some** | resolvido e confirmado |
 
-**Fechar exige justificativa** (mínimo de 15 e máximo de 1000 caracteres; conferido no formulário, na action e no banco). O aviso
-fica "fechado com justificativa" até a próxima atualização dos dados: se o problema sumiu, vira resolvido; se continuar, reabre.
-"Ainda não resolvi" desfaz o fechamento. Quem justificou, quando e o texto ficam no aviso e em todo o **histórico**.
+**Fechar exige justificativa** (mínimo de 15 e máximo de 1000 caracteres; conferido no formulário, na action e no banco), e a justificativa
+fica à mostra como **informação** (o filtro "Informações (justificados)"). Ao justificar dá para informar uma **data prevista** (opcional, de hoje a
+um ano): ex.: "o envio da Petrobras é dia 20/10". Quem vê a informação e discorda usa **"Ainda não resolvi"** ou **"Não explica o problema"**: os dois
+reabrem o aviso e **contam como recorrência** ("Reaberto N×"), e a justificativa deixa de valer (se o aviso for resolvido e voltar, volta como
+recorrência de verdade). Quem justificou, quando, a previsão e o texto ficam no aviso e em todo o **histórico**. Regras no banco:
+`aviso_sincronizar`, `fechar_aviso`, `reabrir_aviso` (migration `20261017110000_aviso_informacao_e_previsao.sql`; teste: `supabase/tests/avisos.sql`).
+
+**Dica e nota de atualização no guia.** `guia_pendencias.DICAS` e `ATUALIZACOES` acrescentam ao guia de um alerta uma dica e "Painel atualizado em
+dd/mm/aaaa: ..." (aparecem no painel e na aba Avisos). Use `ATUALIZACOES` quando uma regra do painel mudar por causa de um aviso já tratado.
+
+**Prazo de envio de cada convênio (aprendido) e o SUS no Faturamento.** Cada convênio leva um tempo diferente da emissão ao envio (a maioria
+sai no mesmo dia; a única fatura SUS enviada até 14/10/2026 saiu 35 dias depois). O painel **aprende o prazo habitual de cada um** com as faturas já
+enviadas (`prazo_tipico` em `Faturamento/gerar_faturamento.py`) e só avisa em "Faturas esperando envio" quando uma fatura espera mais que **prazo
+habitual × 1,3 + 7 dias** (nunca menos de 7; crítico 23 dias depois). Para não se enganar:
+- sem fatura enviada: vale o prazo geral (7 dias);
+- **pouco histórico** (menos de 3 enviadas, `MIN_AMOSTRAS`): vale o **maior** que já aconteceu (um convênio com uma única fatura, de 90 dias, tem 90 dias);
+- com histórico: a **média**, **sem os casos isolados**: quem passou de 2× a mediana + 3 dias só entra na média se isso se **repetir** (2 vezes,
+  `RECORRENCIA`). Assim um caso fora da normalidade não puxa o prazo do convênio, mas se virar rotina o prazo acompanha.
+A tabela "Prazo de envio de cada convênio" (Detalhes) mostra o prazo habitual, quantas faturas entraram e quando o painel avisa. O aviso não conta a
+fatura que está dentro do prazo habitual do convênio e diz isso no texto. O SUS ganhou também a seção **"SUS: mês a mês"** (Análise): os meses em que
+ele aparece, com faturas enviadas, a enviar e canceladas e os dias da emissão ao envio contra os demais convênios (`ACOMPANHAR_MES_A_MES`).
+Teste: `tests/test_faturamento_sus.py`.
 
 **Avisos que podem ser aceitos** (`guia_pendencias.PERSISTENTES`: cortesia com valor zero, glosa conhecida, queda sazonal, meta
 decidida...): não são erro de cadastro e continuam aparecendo mesmo depois de resolvidos. Fechados com justificativa, **ficam

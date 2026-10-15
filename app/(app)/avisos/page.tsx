@@ -22,7 +22,7 @@ type Props = { searchParams: Promise<{ painel?: string; situacao?: string; aviso
 const SITUACOES = [
   { id: "abertos", rotulo: "Abertos" },
   { id: "voltaram", rotulo: "Voltaram a acontecer" },
-  { id: "fechados", rotulo: "Fechados com justificativa" },
+  { id: "fechados", rotulo: "Informações (justificados)" },
   { id: "resolvidos", rotulo: "Resolvidos" },
   { id: "todos", rotulo: "Todos" },
 ] as const;
@@ -121,8 +121,9 @@ export default async function AvisosPage({ searchParams }: Props) {
             {ehAdmin
               ? "As pendências de todos os painéis. "
               : "As pendências dos painéis que você pode ver. "}
-            Para fechar um aviso é preciso justificar. O painel confere a cada atualização dos dados: se o problema sumir, o aviso fica resolvido; se
-            continuar ou voltar, ele reabre e mostra quantas vezes isso aconteceu.
+            Para fechar um aviso é preciso justificar, e a justificativa fica como informação (com a data prevista, se houver). O painel confere a cada
+            atualização dos dados: se o problema sumir, o aviso fica resolvido; se voltar com uma justificativa que valia, continua como informação; a
+            recorrência é contada quando alguém diz “Ainda não resolvi” ou “Não explica o problema”, a data prevista passa ou o problema piora.
           </p>
         </div>
       </header>
@@ -145,7 +146,7 @@ export default async function AvisosPage({ searchParams }: Props) {
         </div>
         <div className="panel avisos-numero">
           <span className="avisos-numero-valor">{contagem.fechados}</span>
-          <span className="avisos-numero-rotulo">Fechados com justificativa</span>
+          <span className="avisos-numero-rotulo">Informações (justificados)</span>
         </div>
         <div className="panel avisos-numero">
           <span className="avisos-numero-valor">{contagem.resolvidos}</span>
