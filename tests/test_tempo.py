@@ -33,8 +33,9 @@ class DuracaoETatTest(unittest.TestCase):
     def test_tat_espera_e_repasse(self):
         e = etapas(
             (1, "Cadastro", "2026-09-07 08:00:00", "2026-09-07 08:02:00", "A"),
-            (1, "Chamado", "2026-09-07 08:03:00", "2026-09-07 08:33:00", "A"),     # repasse de 1 min, espera de 30
-            (1, "Finalizado", "2026-09-07 08:50:00", "2026-09-07 08:55:00", "A"),  # repasse de 17 min
+            (1, "Chamado", "2026-09-07 08:03:00", "2026-09-07 08:33:00", "A"),     # repasse de 1 min, fila de 30
+            (1, "Em Atendimento", "2026-09-07 08:34:00", "2026-09-07 08:49:00", "A"),
+            (1, "Finalizado", "2026-09-07 08:50:00", "2026-09-07 08:55:00", "A"),  # repasse de 1 min
             (2, "Cadastro", "2026-09-07 09:00:00", "2026-09-07 09:01:00", "A"),
             (2, "Finalizado", "2026-09-07 09:00:30", "2026-09-07 09:10:00", "A"),  # começa antes de a anterior acabar: repasse 0, não negativo
             (3, "Cadastro", "2026-09-07 10:00:00", None, "B"),                     # sem fim e sem etapa final
@@ -42,11 +43,12 @@ class DuracaoETatTest(unittest.TestCase):
         _, v = mt.ciclo_por_atendimento(e.sample(frac=1, random_state=1))          # a ordem de entrada não pode importar
         v = v.set_index("atendimento_id")
         self.assertEqual(v.loc[1, "tat_min"], 55)
-        self.assertEqual(v.loc[1, "espera_min"], 30)
-        self.assertEqual(v.loc[1, "repasse_min"], 18)
+        self.assertEqual(v.loc[1, "fila_min"], 30)
+        self.assertEqual(v.loc[1, "espera_min"], 34)                 # chegada 08:00 até o início de Em Atendimento, 08:34
+        self.assertEqual(v.loc[1, "repasse_min"], 3)
         self.assertEqual(v.loc[2, "tat_min"], 10)
         self.assertEqual(v.loc[2, "repasse_min"], 0)
-        self.assertTrue(pd.isna(v.loc[2, "espera_min"]))        # não passou pela fila: vazio, não zero
+        self.assertTrue(pd.isna(v.loc[2, "fila_min"]) and pd.isna(v.loc[2, "espera_min"]))   # não passou pela fila nem pelo atendimento: vazio, não zero
         self.assertTrue(pd.isna(v.loc[3, "tat_min"]) and v.loc[3, "aberto"])
 
 

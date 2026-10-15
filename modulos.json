@@ -72,6 +72,15 @@
       "financeiro": "parcial",
       "codigo": "gerar_atendimento",
       "visoes_pdf": ["juliana", "carla", "luzia"]
+    },
+    {
+      "id": "tempo",
+      "nome": "Tempo",
+      "descricao": "Espera, tempo total na clínica, horário de pico e ociosidade, hora a hora",
+      "pasta": "Tempo",
+      "tipo": "relatorios",
+      "financeiro": "nenhum",
+      "codigo": "gerar_tempo"
     }
   ]
 }

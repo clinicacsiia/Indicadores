@@ -37,6 +37,7 @@ DEPENDENCIAS = {
     "cesta": ["faturamento"],
     "suprimentos": ["faturamento", "atendimento"],
     "atendimento": ["metas"],
+    "tempo": ["atendimento"],   # le as abas Atendimentos e Fluxo na Recepcao do Atendimento (nao tem relatorio proprio)
 }
 PAINEL_METAS, ABA_METAS = "metas", "Dados"
 

@@ -38,30 +38,42 @@ def minutos(td: pd.Series) -> pd.Series:
 
 
 # ---------------------------------------------------------------- 1. TAT e esperas (shift por atendimento)
-def ciclo_por_atendimento(etapas: pd.DataFrame, etapa_final: str = "Finalizado", etapa_espera: str = "Chamado",
-                          col_id: str = "atendimento_id") -> tuple[pd.DataFrame, pd.DataFrame]:
+def ciclo_por_atendimento(etapas: pd.DataFrame, etapa_final: str = "Finalizado", etapa_fila: str = "Chamado",
+                          etapa_atendimento: str = "Em Atendimento", col_id: str = "atendimento_id", tolerancia_min: float = 5) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(etapas enriquecidas, uma linha por atendimento).
 
-    TAT = fim da etapa final - início da primeira etapa (chegada). Para cada etapa também sai:
-      - `dur`          = fim - início da própria etapa;
-      - `repasse`      = início - fim da etapa ANTERIOR do mesmo atendimento (tempo entre etapas que nenhuma etapa registra).
-    O "fim anterior" usa cummax e não o fim da linha de cima: se duas etapas se sobrepõem, a anterior que importa é a que terminou por último.
-    """
+    chegada   = Check-In (coluna `checkin`, se existir) ou, sem ele, o início da primeira etapa.
+    tat       = fim da etapa final - chegada                      (tempo total na clínica)
+    espera    = início da etapa de atendimento - chegada          (o que o paciente sente como "espera")
+    fila      = duração da etapa `etapa_fila` (esperando ser chamado)
+    Para cada etapa também sai `dur` (fim - início) e `repasse` (início - fim da etapa ANTERIOR do mesmo atendimento: o tempo entre etapas
+    que nenhuma etapa registra). O "fim anterior" usa cummax e não o fim da linha de cima: se duas etapas se sobrepõem, a anterior que
+    importa é a que terminou por último. Espera negativa dentro de `tolerancia_min` (o registro vem poucos minutos depois) vira 0; fora dela, vazio."""
     e = etapas.sort_values([col_id, "inicio", "fim"], kind="stable").copy()
     e["dur"] = e["fim"] - e["inicio"]
     fim_acumulado = e.groupby(col_id, sort=False)["fim"].cummax()
     e["fim_anterior"] = fim_acumulado.groupby(e[col_id], sort=False).shift()          # shift DENTRO de cada atendimento
     e["repasse"] = (e["inicio"] - e["fim_anterior"]).clip(lower=pd.Timedelta(0))      # sobreposição vira 0, não negativo
     e["_fim_final"] = e["fim"].where(e["etapa"] == etapa_final)
+    e["_ini_atend"] = e["inicio"].where(e["etapa"] == etapa_atendimento)
     e["_aberto"] = e["fim"].isna()
 
     g = e.groupby(col_id, sort=False)
-    v = g.agg(chegada=("inicio", "min"), saida=("_fim_final", "max"), n_etapas=("etapa", "size"), setor=("setor", "first"),
-              repasse=("repasse", "sum"), aberto=("_aberto", "any"))
-    v["espera"] = e[e["etapa"] == etapa_espera].groupby(col_id, sort=False)["dur"].sum()   # NaT se o atendimento não passou pela fila
-    v["tat"] = v["saida"] - v["chegada"]                      # NaT enquanto não existe etapa final: não é zero
-    v["tat_min"], v["espera_min"], v["repasse_min"] = minutos(v["tat"]), minutos(v["espera"]), minutos(v["repasse"])
-    return e.drop(columns=["_fim_final", "_aberto"]), v.reset_index()
+    agregados = dict(primeiro=("inicio", "min"), saida=("_fim_final", "max"), ini_atend=("_ini_atend", "min"), n_etapas=("etapa", "size"),
+                     setor=("setor", "first"), repasse=("repasse", "sum"), aberto=("_aberto", "any"))
+    if "checkin" in e:
+        agregados["checkin"] = ("checkin", "min")
+    v = g.agg(**agregados)
+    v["chegada"] = v["checkin"].fillna(v["primeiro"]) if "checkin" in v else v["primeiro"]
+    v["fila"] = e[e["etapa"] == etapa_fila].groupby(col_id, sort=False)["dur"].sum()    # NaT se o atendimento não passou pela fila
+    v["tat"] = v["saida"] - v["chegada"]                                                # NaT enquanto não existe etapa final: não é zero
+    v["espera"] = v["ini_atend"] - v["chegada"]
+    tol = pd.Timedelta(minutes=tolerancia_min)
+    for c in ("tat", "espera"):
+        v[c] = v[c].where(v[c] >= -tol).clip(lower=pd.Timedelta(0))
+    for c in ("tat", "espera", "fila", "repasse"):
+        v[f"{c}_min"] = minutos(v[c])
+    return e.drop(columns=["_fim_final", "_ini_atend", "_aberto"]), v.drop(columns=["primeiro"]).reset_index()
 
 
 # ---------------------------------------------------------------- 3. outliers (esquecimento de encerramento)
@@ -298,15 +310,74 @@ def exportar(tabelas: dict[str, pd.DataFrame], pasta: Path, meta: dict | None = 
     return saidas
 
 
-# ---------------------------------------------------------------- pipeline completo
+# ---------------------------------------------------------------- perfil por hora do dia (a "hora" como eixo)
+METRICAS = {"tat_min": "tat_outlier", "espera_min": "espera_outlier", "fila_min": "fila_outlier"}
+TETOS_PADRAO = {"tat_min": 720.0, "espera_min": 480.0, "fila_min": 480.0}      # minutos; ver sinalizar_outliers (teto duro)
+
+
+def perfil_por_hora(v: pd.DataFrame, metricas: dict[str, str] = METRICAS, por: tuple[str, ...] = ("hora",), col_tempo: str = "chegada") -> pd.DataFrame:
+    """Uma linha por hora do dia (ou por dia da semana × hora, com por=("dia_semana", "hora")), direto dos atendimentos.
+
+    Mediana e p90 NUNCA vêm de médias de janelas menores: são recalculados dos atendimentos de cada grupo. Outliers ficam de fora das
+    estatísticas e entram na contagem `n_outliers` (de qualquer métrica). `n` é o total de chegadas (inclui os outliers)."""
+    d = v.assign(hora=v[col_tempo].dt.hour.astype("int8"), dia_semana=v[col_tempo].dt.weekday.astype("int8"))
+    d["_outlier"] = d[list(metricas.values())].any(axis=1)
+    for col, flag in metricas.items():
+        d[col + "_v"] = d[col].where(~d[flag])
+    g = d.groupby(list(por), observed=True)
+    out = g.size().rename("n").to_frame()
+    out["n_outliers"] = g["_outlier"].sum().astype("int64")
+    for col in metricas:
+        out[f"{col}_n"] = g[col + "_v"].count()
+        out[f"{col}_mediana"] = g[col + "_v"].median()
+        out[f"{col}_p90"] = g[col + "_v"].quantile(0.90)
+        out[f"{col}_soma"] = g[col + "_v"].sum()
+    return out.reset_index()
+
+
+def carga_por_hora(intervalos: pd.DataFrame, n_dias: int) -> pd.Series:
+    """Pacientes simultâneos (média) em cada hora do dia: minutos-paciente de cada hora, repartidos com `ratear_por_janela`,
+    divididos por 60 e pelo número de dias medidos. 0,8 às 9h = em média 0,8 paciente nesse estado às 9h."""
+    if not len(intervalos) or n_dias <= 0:
+        return pd.Series(dtype="float64")
+    r = ratear_por_janela(intervalos, "h")
+    return r.groupby(r["janela"].dt.hour)["minutos"].sum() / (60 * n_dias)
+
+
+# ---------------------------------------------------------------- pipeline: da base bruta às tabelas
+def preparar_base(etapas: pd.DataFrame, usos: pd.DataFrame, metodo: str = "iqr", piso_min: float = 5.0, teto_etapa_min: float = 1440,
+                  tetos_por_etapa: dict[str, float] | None = None, tetos_visita: dict[str, float] | None = None
+                  ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """(etapas, atendimentos, usos) com as colunas de outlier. As cercas saem do HISTÓRICO INTEIRO (por etapa e setor; por setor
+    para TAT, espera e fila; por recurso para os usos), para o limite não mudar de um mês para o outro e as comparações valerem.
+
+    Uso de equipamento "esquecido aberto": o fim é limitado à cerca do próprio recurso (`fim` ajustado, `fim_original` guardado),
+    senão a máquina ficaria ocupada por dias."""
+    e, v = ciclo_por_atendimento(etapas)
+    e["dur_min"] = minutos(e["dur"])
+    teto_e = e["etapa"].map(tetos_por_etapa or {}).fillna(teto_etapa_min).astype("float64")
+    r = sinalizar_outliers(e, "dur_min", ["etapa", "setor"], metodo, teto=teto_e, piso_limite=piso_min)
+    e["dur_outlier"], e["dur_limite"] = r["outlier"], r["limite"]
+    tetos = {**TETOS_PADRAO, **(tetos_visita or {})}
+    for col, flag in METRICAS.items():
+        r = sinalizar_outliers(v, col, ["setor"], metodo, teto=tetos[col], piso_limite=piso_min)
+        v[flag], v[col + "_limite"] = r["outlier"], r["limite"]
+    u = usos.dropna(subset=["inicio", "fim"]).copy()
+    u["dur_min"] = minutos(u["fim"] - u["inicio"])
+    r = sinalizar_outliers(u, "dur_min", ["recurso"], metodo, teto=teto_etapa_min, piso_limite=piso_min)
+    u["uso_outlier"], u["fim_original"] = r["outlier"], u["fim"]
+    u["fim"] = u["fim"].where(~r["outlier"], u["inicio"] + pd.to_timedelta(r["limite"], unit="m"))
+    return e, v, u
+
+
 def construir_tabelas(etapas: pd.DataFrame, usos: pd.DataFrame, periodo: tuple[str, str], expediente: tuple[int, int] = (7, 18),
                       dias_uteis: tuple[int, ...] = (0, 1, 2, 3, 4, 5), feriados: tuple[str, ...] = (), metodo: str = "iqr",
                       teto_min: float = 1440, piso_min: float = 5.0, tetos_por_etapa: dict[str, float] | None = None,
                       n_min_pico: int = 10) -> dict[str, pd.DataFrame]:
-    """etapas + usos de equipamento → tabelas finais (planas, grão explícito). Quem consome escolhe o que usar:
+    """etapas + usos de equipamento → tabelas finais (planas, grão explícito) para BI / front-end. Quem consome escolhe o que usar:
 
       atendimentos   grão: atendimento           (detalhe/drill-down; NÃO mande ao navegador sem necessidade: volume e granularidade)
-      janelas_hora   grão: hora × setor × métrica (tat_min / espera_min)
+      janelas_hora   grão: hora × setor × métrica (tat_min / espera_min / fila_min)
       janelas_dia    grão: dia  × setor × métrica (calculado dos atendimentos, não das horas)
       gargalo_dia    grão: dia  × setor           (hora de maior espera do dia)
       ocupacao_hora  grão: hora × recurso         (min ocupado / ocioso / disponível)
@@ -314,32 +385,16 @@ def construir_tabelas(etapas: pd.DataFrame, usos: pd.DataFrame, periodo: tuple[s
       limites        grão: etapa × setor          (cerca de outlier usada: o que a tela mostra em "como tratamos os casos esquecidos")
     """
     ini, fim = pd.Timestamp(periodo[0]), pd.Timestamp(periodo[1]) + pd.Timedelta(days=1)
-    e, v = ciclo_por_atendimento(etapas)
-
-    # outliers: por etapa (para o perfil das etapas) e por atendimento (para TAT e espera), sempre dentro do setor
-    e["dur_min"] = minutos(e["dur"])
-    teto_etapa = e["etapa"].map(tetos_por_etapa or {}).fillna(teto_min).astype("float64")
-    e[["dur_outlier", "dur_limite"]] = sinalizar_outliers(e, "dur_min", ["etapa", "setor"], metodo, teto=teto_etapa, piso_limite=piso_min).to_numpy()
-    for col, flag in (("tat_min", "tat_outlier"), ("espera_min", "espera_outlier")):
-        r = sinalizar_outliers(v, col, ["setor"], metodo, teto=teto_min, piso_limite=piso_min)
-        v[flag], v[col + "_limite"] = r["outlier"], r["limite"]
-
-    # equipamentos: um uso "esquecido aberto" não pode manter a máquina ocupada por dias; o fim é limitado à cerca do próprio recurso
-    u = usos.dropna(subset=["inicio", "fim"]).copy()
-    u["dur_min"] = minutos(u["fim"] - u["inicio"])
-    r = sinalizar_outliers(u, "dur_min", ["recurso"], metodo, teto=teto_min, piso_limite=piso_min)
-    u["fim"] = u["fim"].where(~r["outlier"], u["inicio"] + pd.to_timedelta(r["limite"], unit="m"))
-
-    metricas = {"tat_min": "tat_outlier", "espera_min": "espera_outlier"}
+    e, v, u = preparar_base(etapas, usos, metodo, piso_min, teto_min, tetos_por_etapa)
     ate = v["chegada"].max()
     horas = ocupacao_por_janela(intervalos_de_uso(u, (ini, fim)), expediente, dias_uteis, feriados)
-    jan_h = resumo_por_janela(v, metricas, "h")
+    jan_h = resumo_por_janela(v, METRICAS, "h")
     limites = (e.groupby(["etapa", "setor"], observed=True).agg(n=("dur_min", "count"), n_outliers=("dur_outlier", "sum"), limite_min=("dur_limite", "first"),
                                                                 mediana_min=("dur_min", "median")).reset_index())
-    detalhe = preparar_saida(v.drop(columns=["tat", "espera", "repasse", "saida"]), "chegada").rename(columns={"janela_inicio": "chegada"})
+    detalhe = preparar_saida(v.drop(columns=["tat", "espera", "fila", "repasse", "saida", "ini_atend"]), "chegada").rename(columns={"janela_inicio": "chegada"})
     return {"atendimentos": detalhe,
             "janelas_hora": preparar_saida(jan_h, janela_ate=ate),
-            "janelas_dia": preparar_saida(resumo_por_janela(v, metricas, "D"), freq="D", janela_ate=ate),
+            "janelas_dia": preparar_saida(resumo_por_janela(v, METRICAS, "D"), freq="D", janela_ate=ate),
             "gargalo_dia": preparar_saida(pico_de_gargalo(jan_h, "espera_min", n_min=n_min_pico).rename(columns={"hora_pico": "janela"}).drop(columns=["dia"])).rename(columns={"janela_inicio": "hora_pico"}),
             "ocupacao_hora": preparar_saida(horas),
             "ocupacao_dia": preparar_saida(ocupacao_diaria(horas), freq="D"),
@@ -362,6 +417,7 @@ def adaptar_fluxo_klingo(f: pd.DataFrame, equipamentos: list[str], prefixos: lis
     setor = f["Setor (CSI/RM/RX/TC)"].astype(str).str.strip()
     etapas = pd.DataFrame({"atendimento_id": pd.factorize(chave)[0], "etapa": f["Etapa"].astype(str).str.strip(),
                            "inicio": pd.to_datetime(f["Início da Etapa"], errors="coerce"), "fim": pd.to_datetime(f["Fim da Etapa"], errors="coerce"),
+                           "checkin": pd.to_datetime(f["Check-In"], errors="coerce") if "Check-In" in f else pd.NaT,
                            "setor": setor.map(mapa_setor or {}).fillna(setor), "recurso": prof.str.strip()})
     em_uso = etapas[(etapas["etapa"] == "Em Atendimento") & eh_equipamento(etapas["recurso"], equipamentos, prefixos)]
     return etapas, em_uso[["recurso", "inicio", "fim", "setor"]]

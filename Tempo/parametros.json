@@ -1,0 +1,12 @@
+{
+  "_ajuda": "Limites do painel Tempo. Os de espera (espera_meta_min, espera_critica_min...) vem do painel Atendimento (Atendimento/parametros.json): para mudar so aqui, escreva o mesmo nome neste arquivo. Tempos em minutos. Todos foram escolhidos por mim e ainda nao foram confirmados com a operacao.",
+  "metodo_outlier": "iqr",
+  "_metodo_ajuda": "'iqr' (cerca de Tukey, Q3 + 1,5 x IQR, em escala logaritmica) ou 'mad' (z-score robusto). A cerca vale por etapa e setor e e calculada do historico inteiro.",
+  "piso_outlier_min": 5,
+  "_piso_ajuda": "A cerca nunca fica abaixo disto: etapas de poucos segundos teriam cerca perto de zero e pacientes normais seriam descartados.",
+  "minimo_pico": 10,
+  "_pico_ajuda": "Uma hora so disputa o titulo de 'pior hora' (e de gargalo do dia) com pelo menos este numero de chegadas medidas.",
+  "minimo_celula_mapa": 5,
+  "tolerancia_ocupacao_min": 0,
+  "_ocupacao_ajuda": "Intervalo entre dois exames menor que isto nao conta como ocioso (troca de paciente). 0 = todo intervalo conta."
+}
