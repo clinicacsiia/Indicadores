@@ -34,10 +34,14 @@ A_ENVIAR, ENVIADA, MOVIMENTADA, CANCELADA = "A Enviar", "Enviada", "Movimentada"
 ENVIADAS = (ENVIADA, MOVIMENTADA)
 ESPERA_ATENCAO = 7             # dias esperando envio: o normal e sair no mesmo dia (3/4 das enviadas saem no dia da emissao)
 ESPERA_CRITICA = 30
-# convenios com prazo de envio PROPRIO (dias esperando "A enviar" ate virar atencao e ate virar critico). O SUS nao sai no mesmo dia como os demais:
-# a unica fatura SUS enviada ate hoje saiu 35 dias depois de emitida. Por isso ele nao entra na contagem de 7/30 dias dos outros convenios e tem a sua
-# analise mes a mes. Reveja os numeros quando houver mais faturas SUS enviadas. Casa com o nome exato ("SUS") ou que comece com ele ("SUS CURSO").
-PRAZO_ENVIO_PROPRIO = {"SUS": (45, 75)}
+# PRAZO DE ENVIO DE CADA CONVENIO, aprendido do historico: cada convenio leva um tempo diferente da emissao ao envio (a maioria sai no mesmo dia; o SUS
+# levou 35 dias na unica fatura enviada ate hoje). O painel calcula o tempo TIPICO de cada um com as faturas ja enviadas (ver `prazo_tipico`) e so avisa
+# depois do tipico + MARGEM_PRAZO (30% + 7 dias), nunca antes de ESPERA_ATENCAO. Convenio sem fatura enviada usa os 7 dias gerais. Com o tempo o historico
+# cresce e o prazo de cada convenio fica mais fiel; os casos isolados nao puxam a media (ver `prazo_tipico`).
+MIN_AMOSTRAS = 3               # a partir de quantas faturas enviadas o tipico e a media sem os casos isolados (com menos, vale o que ja aconteceu)
+RECORRENCIA = 2                # quantos casos muito acima do tipico viram rotina (e entram na media); um so e caso isolado e fica de fora
+MARGEM_PRAZO = (0.30, 7)       # prazo de aviso = tipico * 1,30 + 7 dias
+ACOMPANHAR_MES_A_MES = ("SUS",)  # convenios com a analise mes a mes no painel (nome exato ou "SUS ..."); o prazo deles tambem e o aprendido
 LIMITE_FALTA_FATURAR = 0.10    # produzido ainda sem fatura acima de 10% num mes fechado
 LIMITE_CANCELAMENTO = 0.20     # mais de 20% das faturas emitidas canceladas
 MIN_FATURAS_CANCEL = 5         # so compara a taxa de cancelamento de convenios com ao menos 5 faturas
@@ -135,26 +139,58 @@ def preparar_faturas(fat: pd.DataFrame) -> pd.DataFrame:
     return f
 
 
-def prazo_proprio(op) -> tuple[int, int] | None:
-    """(dias ate atencao, dias ate critico) do convenio que tem prazo de envio proprio, ou None (vale o prazo geral)."""
+def acompanhado_mes_a_mes(op) -> bool:
+    """O convenio tem a analise mes a mes (SUS)? Casa com o nome exato ou que comece com ele ("SUS CURSO")."""
     nome = norm(op)
-    for chave, prazo in PRAZO_ENVIO_PROPRIO.items():
-        if nome == chave or nome.startswith(chave + " "):
-            return prazo
-    return None
+    return any(nome == c or nome.startswith(c + " ") for c in ACOMPANHAR_MES_A_MES)
 
 
-def montar_sus(f: pd.DataFrame, enviadas: pd.DataFrame, hoje_ts: pd.Timestamp) -> dict:
-    """Analise mes a mes dos convenios com prazo proprio (SUS): quantas faturas foram emitidas, canceladas, enviadas e quanto levaram para sair.
-    So entram os meses em que o convenio aparece. 'demais' e a referencia: quanto os outros convenios levam do envio da emissao."""
-    de_sus = f["_op"].map(lambda op: prazo_proprio(op) is not None)
-    s = f[de_sus]
+def prazo_tipico(dias) -> tuple[float | None, int]:
+    """(dias tipicos da emissao ao envio, quantas faturas enviadas entraram) de um convenio, a partir do que ele ja levou.
+    - sem historico: None (vale o prazo geral);
+    - pouco historico (menos de MIN_AMOSTRAS): o MAIOR que ja aconteceu e o normal (um convenio com uma unica fatura, de 90 dias, tem 90 dias);
+    - com historico: a MEDIA dos dias, sem os casos isolados: quem passou de 2x a mediana + 3 dias so entra se isso se repetir (RECORRENCIA
+      vezes). Assim um caso fora da normalidade nao puxa o prazo dos outros, mas se ele virar rotina o prazo acompanha."""
+    v = sorted(max(int(d), 0) for d in dias if pd.notna(d))
+    if not v:
+        return None, 0
+    if len(v) < MIN_AMOSTRAS:
+        return float(v[-1]), len(v)
+    mediana = v[len(v) // 2] if len(v) % 2 else (v[len(v) // 2 - 1] + v[len(v) // 2]) / 2
+    corte = mediana * 2 + 3
+    fora = [d for d in v if d > corte]
+    usados = v if len(fora) >= RECORRENCIA else [d for d in v if d <= corte]
+    return round(sum(usados) / len(usados), 1), len(v)
+
+
+def limites_de_aviso(tipico: float | None) -> tuple[int, int]:
+    """(dias esperando envio ate virar atencao, ate virar critico) para um convenio com esse prazo tipico."""
+    if tipico is None:
+        return ESPERA_ATENCAO, ESPERA_CRITICA
+    atencao = max(ESPERA_ATENCAO, round(tipico * (1 + MARGEM_PRAZO[0]) + MARGEM_PRAZO[1]))
+    return atencao, atencao + (ESPERA_CRITICA - ESPERA_ATENCAO)
+
+
+def prazos_aprendidos(enviadas: pd.DataFrame) -> dict[str, dict]:
+    """{convenio: {tipico, amostras, maximo, atencao, critica}} das faturas ja enviadas (so as que tem data de emissao e de envio)."""
+    e = enviadas.dropna(subset=["Fatura - Data de Envio", "Fatura - Data de Emissão"])
+    dias = (e["Fatura - Data de Envio"].dt.normalize() - e["Fatura - Data de Emissão"].dt.normalize()).dt.days
+    out = {}
+    for op, g in dias.groupby(e["_op"]):
+        tipico, n = prazo_tipico(g)
+        atencao, critica = limites_de_aviso(tipico)
+        out[op] = {"tipico": tipico, "amostras": n, "maximo": int(max(g.max(), 0)), "atencao": atencao, "critica": critica}
+    return out
+
+
+def montar_sus(f: pd.DataFrame, enviadas: pd.DataFrame, hoje_ts: pd.Timestamp, prazos: dict[str, dict]) -> dict:
+    """Analise mes a mes dos convenios acompanhados (SUS): quantas faturas foram emitidas, canceladas, enviadas e quanto levaram para sair.
+    So entram os meses em que o convenio aparece. 'demais' e a referencia: quanto os outros convenios levam da emissao ao envio."""
+    s = f[f["_op"].map(acompanhado_mes_a_mes)]
     if not len(s):
         return {"tem": False}
-    atencao, critica = next(iter(PRAZO_ENVIO_PROPRIO.values()))
     dias_envio = lambda g: (g["Fatura - Data de Envio"] - g["Fatura - Data de Emissão"]).dt.days.dropna()
-    outras = enviadas[~enviadas["_op"].map(lambda op: prazo_proprio(op) is not None)]
-    dias_outras = dias_envio(outras)
+    dias_outras = dias_envio(enviadas[~enviadas["_op"].map(acompanhado_mes_a_mes)])
     meses = []
     for ym, g in s.groupby(s["Fatura - Data de Emissão"].dt.strftime("%Y-%m")):
         ativas = g[g["_st"] != CANCELADA]
@@ -167,9 +203,12 @@ def montar_sus(f: pd.DataFrame, enviadas: pd.DataFrame, hoje_ts: pd.Timestamp) -
                       "dias_envio_mediana": float(d.median()) if len(d) else None, "dias_envio_max": int(d.max()) if len(d) else None,
                       "espera_max": int(espera.max()) if len(espera) else None})
     meses.sort(key=lambda m: m["mes"])
+    nomes = sorted(s["_op"].unique().tolist())
     total = int(len(s))
     canceladas = int((s["_st"] == CANCELADA).sum())
-    return {"tem": True, "nomes": sorted(s["_op"].unique().tolist()), "limite_atencao": atencao, "limite_critica": critica, "meses": meses,
+    prazo_dos = [{"nome": n, **prazos[n]} for n in nomes if n in prazos]
+    return {"tem": True, "nomes": nomes, "prazos": prazo_dos, "meses": meses,
+            "limite_atencao": max((x["atencao"] for x in prazo_dos), default=ESPERA_ATENCAO),
             "total": total, "canceladas": canceladas, "pct_canceladas": canceladas / total * 100,
             "demais": {"mediana": float(dias_outras.median()) if len(dias_outras) else None, "qtd": int(len(dias_outras))}}
 
@@ -207,8 +246,9 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
     ae["_dias"] = (hoje_ts - ae["Fatura - Data de Emissão"].dt.normalize()).dt.days
     sem_valor_ae = int((ae["_valor"].fillna(0) <= 0).sum())
     ae = ae[ae["_valor"].fillna(0) > 0].copy()
-    limites = ae["_op"].map(lambda op: prazo_proprio(op) or (ESPERA_ATENCAO, ESPERA_CRITICA))   # cada convenio com o seu prazo
-    ae["_lim_aten"], ae["_lim_crit"] = limites.map(lambda t: t[0]), limites.map(lambda t: t[1])
+    prazo_envio = prazos_aprendidos(enviadas)   # cada convenio com o seu prazo, aprendido das faturas ja enviadas
+    ae["_lim_aten"] = ae["_op"].map(lambda op: prazo_envio.get(op, {}).get("atencao", ESPERA_ATENCAO))
+    ae["_lim_crit"] = ae["_op"].map(lambda op: prazo_envio.get(op, {}).get("critica", ESPERA_CRITICA))
     faixas, anterior = [], -1
     for limite, rotulo, cor in FAIXAS_ESPERA:
         g = ae[(ae["_dias"] > anterior) & (ae["_dias"] <= limite)]
@@ -225,8 +265,8 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
         return {"qtd": int(len(g)), "valor": float(g["_valor"].sum()), "maior_espera": int(g["_dias"].max()) if len(g) else 0}
 
     espera = ae[ae["_dias"] > ae["_lim_aten"]].sort_values(["_dias", "_valor"], ascending=[False, False])
-    # convenio com prazo proprio esperando mais que os 7 dias gerais, mas ainda dentro do seu prazo: nao e atraso, so aparece como nota
-    no_prazo = ae[(ae["_lim_aten"] != ESPERA_ATENCAO) & (ae["_dias"] > ESPERA_ATENCAO) & (ae["_dias"] <= ae["_lim_aten"])]
+    # convenio esperando mais que os 7 dias gerais, mas ainda dentro do prazo habitual dele: nao e atraso, so aparece como nota
+    no_prazo = ae[(ae["_dias"] > ESPERA_ATENCAO) & (ae["_dias"] <= ae["_lim_aten"])]
     itens_espera = gp.tabela(["Fatura (Id)", "Convênio", "Emitida em", "Dias esperando", "Valor", "Responsável"],
                              [[int(r["Fatura - Id"]), r["_op"], gp.dbr(r["Fatura - Data de Emissão"]), int(r["_dias"]), gp.reais(r["_valor"]), r["Fatura - Usuário Responsável"]]
                               for _, r in espera.iterrows()], total=len(espera), numericas=(0, 3, 4))
@@ -239,6 +279,7 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
         "limite_atencao": ESPERA_ATENCAO, "limite_critica": ESPERA_CRITICA,
         "acima_atencao": acima("_lim_aten"), "acima_critica": acima("_lim_crit"),
         "dentro_do_prazo_proprio": {"qtd": int(len(no_prazo)), "valor": float(no_prazo["_valor"].sum()), "nomes": sorted(no_prazo["_op"].unique().tolist())},
+        "prazos_aprendidos": sorted(({"nome": op, **x} for op, x in prazo_envio.items()), key=lambda x: (-(x["tipico"] or 0), x["nome"])),
         "faixas": faixas, "por_operadora": por_op,
         "nunca_enviou": {"qtd": sum(x["qtd"] for x in nunca), "valor": sum(x["valor"] for x in nunca), "nomes": [x["nome"] for x in nunca], "itens": itens_nunca},
         "itens_espera": itens_espera,
@@ -279,7 +320,7 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
         "tem": True, "total": int(len(f)), "ativas": int(len(ativas)),
         "status": {s: {"qtd": int((f["_st"] == s).sum()), "valor": float(f.loc[f["_st"] == s, "_valor"].fillna(0).sum())}
                    for s in (A_ENVIAR, ENVIADA, MOVIMENTADA, CANCELADA)},
-        "a_enviar": a_enviar, "prazos": prazos, "cancelamento": cancelamento, "sus": montar_sus(f, enviadas, hoje_ts),
+        "a_enviar": a_enviar, "prazos": prazos, "cancelamento": cancelamento, "sus": montar_sus(f, enviadas, hoje_ts, prazo_envio),
         "sem_protocolo": {"qtd": int(len(sem_protocolo)), "valor": float(sem_protocolo["_valor"].fillna(0).sum()),
                           "itens": gp.tabela(["Fatura (Id)", "Convênio", "Status", "Enviada em", "Valor"],
                                              [[int(r["Fatura - Id"]), r["_op"], r["_st"], gp.dbr(r["Fatura - Data de Envio"]), gp.reais(r["_valor"])]
@@ -368,8 +409,8 @@ def alertas_faturas(fg: dict, funil: dict, ref_rotulo: str) -> list[dict]:
         ae = fg["a_enviar"]
         crit, aten = ae["acima_critica"], ae["acima_atencao"]
         proprio = ae["dentro_do_prazo_proprio"]
-        nota_proprio = (f" {', '.join(html.escape(x) for x in proprio['nomes'])} fica de fora enquanto estiver dentro do seu prazo próprio "
-                        f"({proprio['qtd']} fatura(s), {pc_brl(proprio['valor'])}).") if proprio["qtd"] else ""
+        nota_proprio = (f" Ficam de fora, por estarem dentro do prazo habitual de cada convênio ({', '.join(html.escape(x) for x in proprio['nomes'])}): "
+                        f"{proprio['qtd']} fatura(s), {pc_brl(proprio['valor'])}.") if proprio["qtd"] else ""
         if crit["qtd"]:
             out.append({"nivel": "critico", "titulo": f"Faturas paradas há mais de {ESPERA_CRITICA} dias sem envio",
                         "itens": ae["itens_espera"],

@@ -265,7 +265,7 @@ $$;
 
 -- ---------------------------------------------------------------- o aviso de "Faturas esperando envio" justificado em 14/10/2026
 -- A justificativa dizia que o envio da Petrobras é dia 20/10/2026: a data vira a data prevista (e o aviso fica como informação até lá). O painel de
--- Faturamento também mudou nesse dia: o SUS passou a ter prazo próprio (45 dias) e uma análise mês a mês. Só mexe no aviso que bate com isso, uma vez.
+-- Faturamento também mudou: cada convênio passou a ter o seu prazo de envio, aprendido do histórico, e o SUS uma análise mês a mês. Só mexe no aviso que bate com isso, uma vez.
 with alvo as (
   update public.aviso set previsto_para = date '2026-10-20'
   where painel = 'faturamento' and tipo = 'fat_espera_envio' and status = 'justificado' and previsto_para is null
@@ -274,6 +274,6 @@ with alvo as (
 )
 insert into public.aviso_evento (aviso_id, painel, tipo, detalhe, itens_total)
 select id, painel, 'atualizacao',
-       'Painel atualizado em 14/10/2026: o SUS passou a ter prazo próprio de 45 dias (em vez de 7) e uma análise mês a mês; a data de envio informada na justificativa '
+       'Painel atualizado em 15/10/2026: cada convênio passou a ter o seu prazo de envio, aprendido da média de dias da emissão ao envio (o SUS tem também uma análise mês a mês); a data de envio informada na justificativa '
        || '(20/10/2026) foi registrada como data prevista: o aviso fica como informação até lá e reabre se o problema continuar depois.', itens_total
 from alvo;

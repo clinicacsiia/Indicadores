@@ -73,7 +73,7 @@ class ColetarTest(unittest.TestCase):
         gp.anotar("faturamento", [a])
         self.assertEqual(a["id"], "fat_espera_envio")
         self.assertIn("data prevista", a["guia"]["dica"])
-        self.assertEqual(a["guia"]["atualizacao"]["em"], "2026-10-14")
+        self.assertEqual(a["guia"]["atualizacao"]["em"], "2026-10-15")
         outro = {"nivel": "atencao", "titulo": "Faturas ativas sem valor", "texto": "x"}
         gp.anotar("faturamento", [outro])
         self.assertNotIn("dica", outro["guia"])

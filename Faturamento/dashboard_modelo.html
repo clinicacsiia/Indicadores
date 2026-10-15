@@ -185,17 +185,18 @@ function susGraf() {
       m.a_enviar ? `${fat(m.a_enviar)} a enviar (${brl(m.valor_a_enviar)}), ${m.espera_max < 1 ? 'emitidas hoje' : 'esperando há até ' + dias(m.espera_max)}` : ''].filter(Boolean).join(' · ');
     return `<h3 style="margin-top:20px">${esc(m.rotulo)} <small style="font-weight:400;color:var(--muted)">${fat(total)} emitidas no mês, contando as canceladas</small></h3>${empilhada(segs, v => num(v))}${detalhe ? `<p class="nota">${detalhe}.</p>` : ''}`;
   }).join('');
+  const prazosTxt = s.prazos.length ? s.prazos.map(x => `${esc(bonito(x.nome))}: ${num(x.tipico, 0)} dias em média (${fat(x.amostras)} enviada${x.amostras === 1 ? '' : 's'}${x.amostras < 3 ? ', ainda pouco histórico' : ''})`).join('; ') : 'ainda sem fatura enviada';
   const comDias = s.meses.filter(m => m.dias_envio_mediana != null);
   const prazo = barras([
     ...comDias.map(m => ({ rotulo: `${nome} · ${m.rotulo}`, valor: m.dias_envio_mediana, texto: dias(m.dias_envio_mediana), extra: `${m.enviadas} fat.`, marca: s.limite_atencao, cor: 'var(--accent)',
-      tip: `${nome} · ${m.rotulo}\nDa emissão ao envio: ${dias(m.dias_envio_mediana)} (mediana; até ${dias(m.dias_envio_max)})\nO painel só avisa depois de ${s.limite_atencao} dias` })),
+      tip: `${nome} · ${m.rotulo}\nDa emissão ao envio: ${dias(m.dias_envio_mediana)} (mediana; até ${dias(m.dias_envio_max)})\nO painel só avisa depois de ${s.limite_atencao} dias (prazo habitual dele)` })),
     ...(s.demais.mediana != null ? [{ rotulo: 'Demais convênios', valor: s.demais.mediana, texto: dias(s.demais.mediana), extra: `${s.demais.qtd} fat.`, marca: ESPERA_PADRAO,
       tip: `Demais convênios\nDa emissão ao envio: ${dias(s.demais.mediana)} (mediana)\nO painel avisa depois de ${ESPERA_PADRAO} dias` }] : [])], '', '36%');
   const cols = [{ t: 'Mês' }, { t: 'Emitidas', n: 1 }, { t: 'Canceladas', n: 1 }, { t: 'A enviar', n: 1 }, { t: 'Enviadas', n: 1 }, { t: 'A enviar (R$)', n: 1 }, { t: 'Enviado (R$)', n: 1 }, { t: 'Emissão → envio', n: 1 }, { t: 'Espera máx. a enviar', n: 1 }];
   const linhas = s.meses.map(m => [esc(m.rotulo), num(m.emitidas), m.canceladas ? num(m.canceladas) : VAZIO, m.a_enviar ? num(m.a_enviar) : VAZIO, m.enviadas ? num(m.enviadas) : VAZIO,
     brlz(m.valor_a_enviar), brlz(m.valor_enviado), m.dias_envio_mediana == null ? VAZIO : dias(m.dias_envio_mediana), m.espera_max == null ? VAZIO : (m.espera_max < 1 ? 'Hoje' : dias(m.espera_max))]);
   return `<section><h2>${esc(nome)}: mês a mês</h2>
-    <p class="nota">Os meses em que o ${esc(nome)} aparece nas faturas emitidas. Ele não sai no mesmo dia como os demais convênios, por isso tem <b>prazo próprio</b>: o painel só avisa depois de <b>${s.limite_atencao} dias</b> esperando envio (crítico depois de ${s.limite_critica}), e não dos ${ESPERA_PADRAO} dias dos outros.
+    <p class="nota">Os meses em que o ${esc(nome)} aparece nas faturas emitidas. Ele não sai no mesmo dia como os demais convênios, por isso o painel usa o <b>prazo habitual dele</b>, aprendido do histórico: ${prazosTxt}, e só avisa depois de <b>${s.limite_atencao} dias</b> esperando envio, e não dos ${ESPERA_PADRAO} dos outros. O prazo se ajusta sozinho conforme mais faturas forem enviadas.
     ${s.canceladas ? ` <b>${num(s.canceladas)}</b> de ${num(s.total)} faturas ${esc(nome)} foram canceladas (<b>${pct(s.pct_canceladas, 0)}</b>), o que indica que ele é refeito várias vezes antes de sair; confirme com o faturamento se é o esperado.` : ''}</p>
     ${blocos}
     ${comDias.length ? `<h3 style="margin-top:24px">Da emissão ao envio</h3><p class="nota">Dias entre emitir e enviar (mediana das faturas já enviadas). A marca em cada barra é o prazo a partir do qual o painel avisa.</p>${prazo}` : ''}
@@ -254,6 +255,13 @@ function detalhes(m) {
     const lista = a.lista.length ? `<h3 style="margin-top:20px">As ${a.lista.length} faturas esperando há mais tempo</h3>${tabela([{ t: 'Fatura', n: 1 }, { t: 'Convênio' }, { t: 'Emitida em' }, { t: 'Espera', n: 1 }, { t: 'Valor', n: 1 }, { t: 'Emitida por' }],
       a.lista.map(x => [num(x.id), esc(bonito(x.operadora)), dataBR(x.emitida), x.dias + (x.dias === 1 ? ' dia' : ' dias'), brl(x.valor), esc(x.usuario || '—')]))}` : '';
     itens.push(acordeao('Faturas a enviar: por convênio e as mais antigas', `<p class="nota">Posição de hoje (${dataBR(D.hoje)}): faturas emitidas e ainda não enviadas ao convênio. É dinheiro já faturado cujo prazo de pagamento ainda não começou.${mesmoDia}${semValor} “Já enviadas” mostra se o convênio já recebeu alguma fatura.</p>${op}${lista}`, { dica: `${num(a.qtd)} faturas · ${brlc(a.valor)}` }));
+  }
+  if (fg.tem && fg.a_enviar.prazos_aprendidos.length) {
+    const pa = fg.a_enviar.prazos_aprendidos;
+    const poucos = pa.filter(x => x.amostras < 3).length;
+    itens.push(acordeao('Prazo de envio de cada convênio (aprendido do histórico)', `<p class="nota">O painel mede quanto cada convênio leva da emissão ao envio e só avisa quando uma fatura espera mais que o prazo habitual dele (média de dias × 1,3 + 7 dias; nunca menos de ${fg.a_enviar.limite_atencao}). Com poucas faturas enviadas vale o maior prazo que já aconteceu; um caso isolado muito acima do normal não entra na média, só entra se se repetir.${poucos ? ` <b>${poucos}</b> convênio(s) ainda têm menos de 3 faturas enviadas (pouco histórico).` : ''}</p>` +
+      tabela([{ t: 'Convênio' }, { t: 'Faturas enviadas', n: 1 }, { t: 'Prazo habitual (dias)', n: 1 }, { t: 'Maior até hoje', n: 1 }, { t: 'Avisa depois de', n: 1 }],
+        pa.map(x => [esc(bonito(x.nome)), num(x.amostras) + (x.amostras < 3 ? ' (pouco histórico)' : ''), num(x.tipico, 1), num(x.maximo) + ' dias', num(x.atencao) + ' dias'])), { dica: `${pa.length} convênios` }));
   }
   if (fg.tem && fg.prazos.qtd) {
     const p = fg.prazos;

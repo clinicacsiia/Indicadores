@@ -48,11 +48,12 @@ PERSISTENTES = {"fat_glosa", "fat_receita_queda", "des_repetidas", "sup_encerrad
 # por causa de um aviso ja tratado: {"em": "AAAA-MM-DD", "texto": ...}.
 DICAS = {
     "fat_espera_envio": "O envio já tem data marcada (portal do convênio que só abre em certo dia, lote mensal...)? Ao justificar, informe a data prevista: o aviso "
-                        "fica como informação até lá e só reabre se a data passar sem a fatura sair. O SUS não entra nesta conta: ele tem prazo próprio (veja o gráfico do SUS no painel).",
+                        "fica como informação até lá e só reabre se a data passar sem a fatura sair. Cada convênio tem o seu prazo, aprendido de quanto ele costuma levar para enviar "
+                        "(o SUS leva bem mais que os outros: veja o gráfico do SUS e a tabela de prazos no painel).",
 }
 ATUALIZACOES = {
-    "fat_espera_envio": {"em": "2026-10-14", "texto": "O SUS passou a ter prazo próprio (45 dias, em vez de 7) e uma análise mês a mês no painel de Faturamento; "
-                                                      "o aviso passou a aceitar a data prevista de envio."},
+    "fat_espera_envio": {"em": "2026-10-15", "texto": "Cada convênio passou a ter o seu prazo de envio, aprendido da média de dias que ele leva da emissão ao envio "
+                                                      "(o SUS tem ainda uma análise mês a mês no painel de Faturamento); o aviso passou a aceitar a data prevista de envio."},
 }
 
 # (painel, regex do titulo, id, relatorios, passos, resolve)
@@ -62,7 +63,7 @@ REGRAS = [
      ["Abra o relatório de Faturas Emitidas no Klingo e use o período livre de Data de Emissão (do mês da fatura mais antiga da lista até hoje).",
       "Deixe só o status “A Enviar”. Procure cada fatura da lista pelo número (coluna Fatura - Id); a mais antiga atrasa mais o prazo de pagamento do convênio.",
       "Envie a fatura. Se o envio é feito pelo portal do convênio, marque a fatura como enviada no Klingo."],
-     "Some quando nenhuma fatura estiver “A enviar” há mais de 7 dias (o SUS, que tem prazo próprio, só conta depois de 45), na próxima atualização."),
+     "Some quando nenhuma fatura estiver “A enviar” há mais de 7 dias (cada convênio tem o seu prazo habitual, aprendido do histórico: o SUS, por exemplo, leva bem mais), na próxima atualização."),
     ("faturamento", r"^Convênios com faturas emitidas e nenhuma enviada", "fat_nunca_enviou", [13355],
      ["No relatório de Faturas Emitidas, filtre a Operadora do convênio e o status “A Enviar”.",
       "Pergunte ao faturamento se o envio desse convênio é feito fora do Klingo (portal do convênio).",

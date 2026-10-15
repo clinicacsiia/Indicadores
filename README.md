@@ -261,11 +261,18 @@ recorrência de verdade). Quem justificou, quando, a previsão e o texto ficam n
 **Dica e nota de atualização no guia.** `guia_pendencias.DICAS` e `ATUALIZACOES` acrescentam ao guia de um alerta uma dica e "Painel atualizado em
 dd/mm/aaaa: ..." (aparecem no painel e na aba Avisos). Use `ATUALIZACOES` quando uma regra do painel mudar por causa de um aviso já tratado.
 
-**SUS no Faturamento.** O SUS não sai no mesmo dia como os demais convênios (a única fatura SUS enviada até 14/10/2026 saiu 35 dias depois da
-emissão), então tem **prazo próprio** de envio: `PRAZO_ENVIO_PROPRIO` em `Faturamento/gerar_faturamento.py` (45 dias para atenção, 75 para crítico, em
-vez de 7 e 30). O aviso "Faturas esperando envio" não conta o SUS enquanto estiver no prazo e diz isso no texto. O painel ganhou a seção **"SUS: mês a
-mês"** (Análise), com os meses em que ele aparece: faturas enviadas, a enviar e canceladas, dias da emissão ao envio contra os demais convênios.
-Reveja o prazo quando houver mais faturas SUS enviadas (hoje é uma só). Teste: `tests/test_faturamento_sus.py`.
+**Prazo de envio de cada convênio (aprendido) e o SUS no Faturamento.** Cada convênio leva um tempo diferente da emissão ao envio (a maioria
+sai no mesmo dia; a única fatura SUS enviada até 14/10/2026 saiu 35 dias depois). O painel **aprende o prazo habitual de cada um** com as faturas já
+enviadas (`prazo_tipico` em `Faturamento/gerar_faturamento.py`) e só avisa em "Faturas esperando envio" quando uma fatura espera mais que **prazo
+habitual × 1,3 + 7 dias** (nunca menos de 7; crítico 23 dias depois). Para não se enganar:
+- sem fatura enviada: vale o prazo geral (7 dias);
+- **pouco histórico** (menos de 3 enviadas, `MIN_AMOSTRAS`): vale o **maior** que já aconteceu (um convênio com uma única fatura, de 90 dias, tem 90 dias);
+- com histórico: a **média**, **sem os casos isolados**: quem passou de 2× a mediana + 3 dias só entra na média se isso se **repetir** (2 vezes,
+  `RECORRENCIA`). Assim um caso fora da normalidade não puxa o prazo do convênio, mas se virar rotina o prazo acompanha.
+A tabela "Prazo de envio de cada convênio" (Detalhes) mostra o prazo habitual, quantas faturas entraram e quando o painel avisa. O aviso não conta a
+fatura que está dentro do prazo habitual do convênio e diz isso no texto. O SUS ganhou também a seção **"SUS: mês a mês"** (Análise): os meses em que
+ele aparece, com faturas enviadas, a enviar e canceladas e os dias da emissão ao envio contra os demais convênios (`ACOMPANHAR_MES_A_MES`).
+Teste: `tests/test_faturamento_sus.py`.
 
 **Avisos que podem ser aceitos** (`guia_pendencias.PERSISTENTES`: cortesia com valor zero, glosa conhecida, queda sazonal, meta
 decidida...): não são erro de cadastro e continuam aparecendo mesmo depois de resolvidos. Fechados com justificativa, **ficam
