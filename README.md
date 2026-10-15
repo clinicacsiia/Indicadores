@@ -187,6 +187,22 @@ Todas as abas (Início, Metas, Configurações e os 7 painéis em Python) seguem
   `metas_atendimentos_periodo(de, ate)` (migration `20261014120000_metas_periodo_livre.sql`); **aplique a migration** antes de usar o
   período livre em Metas (o filtro por mês continua usando `metas_atendimentos_mes`).
 
+### Aplicar migrations no Supabase pelo Claude (e o que já foi aplicado)
+
+Projeto de produção: `Indicadores`, id `syhcvonwthtqalpjcmtj`. O Claude aplica migrations pela ferramenta `apply_migration` do Supabase, mas ela
+**cancela sozinha (`cancelled`, sem aplicar nada) quando a chamada tem `drop function`** (e foi assim com a migration inteira de uma vez). Não é falta
+de permissão nem erro de conexão (as consultas de leitura funcionam). O que funciona, e deve ser repetido:
+- **dividir em chamadas pequenas** e deixar o `drop function` sozinho em uma chamada (ou fora, usando só `create or replace` com a assinatura nova);
+- conferir depois com `execute_sql` (colunas, funções, constraints); `execute_sql` com vários comandos devolve só o resultado do último;
+- o que tiver `drop function` e não passar, rodar no SQL Editor do Supabase (https://supabase.com/dashboard/project/syhcvonwthtqalpjcmtj/sql/new).
+As versões que o Supabase registra em `list_migrations` não são as dos arquivos (ele usa a data da aplicação), e migrations aplicadas pelo SQL Editor
+não aparecem na lista: confira pelo banco, não pela lista.
+
+**15/10/2026, `20261017110000_aviso_informacao_e_previsao.sql`:** aplicada em 4 partes pelo `apply_migration` (colunas e tipos de evento; `fechar_aviso` e
+`reabrir_aviso` novos; `aviso_sincronizar`; ajuste do aviso de Faturamento justificado em 14/10, que ganhou a data prevista 20/10/2026 e a nota de
+atualização). **Pendente, opcional:** remover as duas versões antigas, que o site não usa mais (o `drop function` foi cancelado):
+`drop function if exists public.fechar_aviso(bigint, text); drop function if exists public.reabrir_aviso(bigint);`
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
