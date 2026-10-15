@@ -74,6 +74,8 @@ export type ResultadoMes = {
   totalAtendimentos: number;
   totalForaDasMetas: number;
   convenioInformado: boolean;
+  /** Atendimentos que contam em alguma meta, separados pelo convênio (cada atendimento uma vez só). */
+  convenio: { sus: number; naoSus: number; semConvenio: number };
   geral: { pct: number; situacao: Situacao; itensTotal: number; itensOk: number };
   grupos: ResultadoGrupo[];
   fora: ForaDasMetas[];
@@ -383,6 +385,14 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
   });
   const fora = [...foraMapa.values()].sort((a, b) => b.qtd - a.qtd);
 
+  const convenio = { sus: 0, naoSus: 0, semConvenio: 0 };
+  preparadas.forEach((l, i) => {
+    if (contagem[i] === 0) return;
+    if (l.sus) convenio.sus += l.original.qtd;
+    else if (l.semConvenio) convenio.semConvenio += l.original.qtd;
+    else convenio.naoSus += l.original.qtd;
+  });
+
   const geralPct = somaMeta ? (somaCap / somaMeta) * 100 : 0;
   return {
     mes,
@@ -396,6 +406,7 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
     totalAtendimentos: total,
     totalForaDasMetas: totalFora,
     convenioInformado: preparadas.some((l) => !l.semConvenio),
+    convenio,
     geral: { pct: geralPct, situacao: situacaoDe(geralPct, esperado), itensTotal, itensOk },
     grupos,
     fora,
