@@ -8,3 +8,4 @@ next-env.d.ts
 __pycache__/
 *.pyc
 .cache_*.pkl
+Tempo/saida_exemplo/
