@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tempo</title>
+<style>
+__CSS__
+  .mes-pick select { max-width: 280px; }
+  .mes-pick[hidden] { display: none; }
+  .minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 8px 40px; }
+  .minis > * { min-width: 0; }
+  .sub-aviso { font-size: 13px; color: var(--ink2); margin: 10px 0 0; border-left: 2px solid var(--neutro-2); padding-left: 10px; }
+  td.rank, th.rank { color: var(--muted); width: 1%; text-align: right; font-variant-numeric: tabular-nums; }
+  .leituras { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+  .leituras li { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: baseline; font-size: 15px; }
+  .leituras .chip { min-width: 0; }
+  /* mapa de calor: linhas = dia da semana (ou equipamento), colunas = hora. O numero fica dentro da celula; a cor so reforca. */
+  .mapa { display: grid; grid-template-columns: minmax(64px, 132px) repeat(var(--cols), minmax(0, 1fr)); gap: 3px; font-variant-numeric: tabular-nums; margin-top: 10px; }
+  .mapa > * { min-width: 0; }
+  .mapa .cab { font-size: 11.5px; color: var(--muted); text-align: center; padding-bottom: 2px; }
+  .mapa .lin { font-size: 12.5px; color: var(--ink2); align-self: center; padding-right: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mapa .c { text-align: center; font-size: 12px; padding: 7px 0; border-radius: 4px; color: var(--ink);
+             background: color-mix(in srgb, var(--cor, var(--accent)) calc(var(--t, 0) * 100%), var(--surface-2)); }
+  .mapa .c[data-alto="1"] { color: var(--on-accent); font-weight: 650; }
+  .mapa .c.sem { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--grid); }
+  .mapa .c:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .legenda-mapa { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legenda-mapa i { display: block; width: 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--surface-2), var(--cor, var(--accent))); }
+  @media (max-width: 640px) { .leituras li { grid-template-columns: 1fr; gap: 2px; } .mapa .c { font-size: 10.5px; padding: 6px 0; } }
+  @media print {
+    header .acoes, .aviso, details.ajuda, .btn, #tip { display: none !important; }
+    .kpi, .barra, tr, .mapa { break-inside: avoid; }
+    .mapa .c { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    thead { display: table-header-group; }
+    h1, h2, h3 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head top">
+    <div class="page-head-text">
+      <span class="eyebrow">Clínica CSI</span>
+      <h1 class="page-title">Tempo</h1>
+      <div class="sub page-lede" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <button class="btn" id="btn-imprimir" type="button" title="Imprime (ou salva em PDF) o que está na tela">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg>
+        <span>Imprimir</span>
+      </button>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <section class="toolbar" id="toolbar" aria-label="Filtros">
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+  </section>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Fonte:</b> os mesmos relatórios do painel Atendimento (Atendimentos e Fluxo na Recepção, do Klingo): nada é baixado duas vezes e o <b>Atualizar agora</b> daqui atualiza o Atendimento. O relatório de fluxo traz início e fim de cada etapa em segundos; ele não traz o número do atendimento nem o paciente, então a visita é achada por data do registro, profissional e convênio (a mesma regra do Atendimento).</li>
+        <li><b>A hora é a do Check-In</b> (a chegada do paciente). “Às 10h” quer dizer: quem chegou entre 10h e 10h59. Cada gráfico mostra o que esperou quem chegou naquela hora.</li>
+        <li><b>Espera</b> = do Check-In até o início da etapa <b>Em Atendimento</b>. <b>Fila</b> = tempo na etapa <b>Chamado</b> (esperando ser chamado). <b>Tempo total</b> = do Check-In até o fim de <b>Finalizado</b>. Usei a <b>mediana</b> (metade fica abaixo) e o <b>90%</b> (o valor que só 1 em cada 10 ultrapassa): poucos casos absurdos distorcem a média. Mediana e 90% de cada hora e de cada dia são calculados direto dos atendimentos, nunca como média de horas.</li>
+        <li><b>Pior hora / gargalo do dia:</b> a hora, entre as que tiveram ao menos <span data-lim="minimo_pico"></span> chegadas, em que 90% dos pacientes esperaram mais. Hora com menos chegadas que isso não disputa: 2 pacientes esperando muito não são um pico.</li>
+        <li><b>Pacientes na clínica, na fila e em atendimento:</b> quantos pacientes, em média, há em cada estado em cada hora do dia. É o tempo de cada paciente repartido pelas horas que ele ocupa (um paciente das 10:30 às 12:15 conta meio paciente às 10h, um às 11h e um quarto às 12h) e dividido pelos dias medidos.</li>
+        <li><b>Casos fora do normal:</b> encerramento esquecido (uma etapa que ficou aberta por horas ou dias) distorce qualquer média. Cada etapa tem uma <b>cerca</b> calculada do histórico inteiro, por etapa e setor (método <span data-met></span>, em escala logarítmica, que respeita o fato de a espera ter cauda longa), nunca abaixo de <span data-lim="piso_outlier_min"></span> min. Acima da cerca, ou acima do teto (etapa <span data-lim="etapa_aberta_max_min" data-h="1"></span> h; “Em Atendimento” <span data-lim="exame_valido_max_min"></span> min; espera <span data-lim="espera_valida_max_min"></span> min; tempo total <span data-lim="permanencia_valida_max_min"></span> min), o tempo <b>não entra nas medianas</b>, mas o atendimento continua contado nas chegadas. A cerca de cada etapa está em Detalhes.</li>
+        <li><b>Equipamentos:</b> a ocupação só existe para os exames em que o relatório traz o <b>equipamento</b> no lugar do profissional (RM, TC, densitometria, mamografia...). Nos demais, a coluna traz o nome de quem atendeu, e a máquina não é conhecida. Por isso o painel mostra a <b>cobertura</b> (quantos exames foram identificados) junto: <b>sem ela os percentuais enganam</b>. A ociosidade é o tempo, dentro do expediente (<span data-exp></span>), em que o equipamento ficou sem exame entre um uso e o seguinte; não há registro de manutenção ou desligamento, então “ocioso” pode incluir máquina parada.</li>
+        <li><b>Limites:</b> espera aceitável <span data-lim="espera_meta_min"></span> min e crítica <span data-lim="espera_critica_min"></span> min (os mesmos do Atendimento). Podem ser ajustados em <b>Tempo\parametros.json</b>.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e leitura automática), <b>Análise</b> (hora a hora, dia da semana, gargalo por dia, setores, equipamentos e casos fora do normal) e <b>Detalhes</b> (tabelas completas, recolhidas).</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const L = D.limites;
+const CHAVES = chavesMeses(D);
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const hh = h => String(h).padStart(2, '0') + 'h';
+const mn = v => v == null ? '—' : v < 100 ? `${num(v, 0)} min` : `${num(v / 60, 1)} h`;
+const classeEspera = v => v == null ? '' : v > L.espera_critica_min ? 'ruim' : v > L.espera_meta_min ? 'medio' : '';
+const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const ORDEM_NIVEL = { critico: 0, atencao: 1, info: 2 };
+const [EXP_INI, EXP_FIM] = D.expediente;
+const dentroDoExpediente = h => h >= EXP_INI && h < EXP_FIM;
+
+document.querySelectorAll('[data-lim]').forEach(el => { const v = L[el.dataset.lim]; el.textContent = el.dataset.h ? num(v / 60, 0) : v; });
+document.querySelectorAll('[data-met]').forEach(el => { el.textContent = D.metodo === 'mad' ? 'z-score robusto (MAD)' : 'IQR de Tukey'; });
+document.querySelectorAll('[data-exp]').forEach(el => { el.textContent = `${hh(EXP_INI)} às ${hh(EXP_FIM)}`; });
+$('sub').textContent = `Quanto tempo o paciente espera e fica na clínica, hora a hora · fonte: relatórios de Atendimentos e Fluxo do Paciente do Klingo · dados de ${D.dados_em}`;
+
+// ====================== graficos de apoio ======================
+// mapa de calor: linhas = [{rotulo, celulas: {hora: {texto, t, tip}}}], colunas = horas. t de 0 a 1; sem celula = hora sem dado.
+function mapaCalor(linhasMapa, horas, o = {}) {
+  if (!linhasMapa.length || !horas.length) return `<p class="vazio">${o.vazio || 'Sem dados neste período.'}</p>`;
+  const cab = `<div></div>` + horas.map(h => `<div class="cab">${String(h).padStart(2, '0')}</div>`).join('');
+  const corpo = linhasMapa.map(l => `<div class="lin" title="${esc(l.rotulo)}">${esc(l.rotulo)}</div>` + horas.map(h => {
+    const c = l.celulas[h];
+    if (!c) return `<div class="c sem" aria-label="${esc(l.rotulo)} ${hh(h)}: sem dados">·</div>`;
+    return `<div class="c${c.t == null ? ' sem' : ''}" tabindex="0" style="--t:${(c.t ?? 0).toFixed(3)}${o.cor ? `;--cor:${o.cor}` : ''}"${c.t != null && c.t > .55 ? ' data-alto="1"' : ''} data-tip="${esc(c.tip)}">${c.texto}</div>`;
+  }).join('')).join('');
+  return `<div class="mapa" style="--cols:${horas.length}" role="img" aria-label="${esc(o.aria || 'Mapa de calor por hora')}">${cab}${corpo}</div>` +
+    (o.legenda ? `<div class="legenda-mapa" style="${o.cor ? `--cor:${o.cor}` : ''}"><span>${o.legenda[0]}</span><i></i><span>${o.legenda[1]}</span></div>` : '');
+}
+
+// ====================== RESUMO ======================
+function kpisHtml(m, prev) {
+  const k = m.kpis, pk = prev && prev.kpis ? prev.kpis : null, antes = m.periodo ? 'o período anterior' : 'o mês anterior';
+  const rot = esc(m.rotulo);
+  return `<div class="kpis">
+    ${kpi(`Chegadas em ${rot}`, num(k.n), { destaque: 1, comp: pk ? comp(varPct(k.por_dia, pk.por_dia), 'por dia contra ' + antes) : (m.fechado ? (m.periodo ? 'Período fechado' : 'Mês fechado') : 'Mês em andamento'),
+      sub: `<b>${num(k.por_dia, 0)}</b> por dia em ${num(k.dias)} dias com movimento${k.hora_cheia == null ? '' : ` · mais cheio às <b>${hh(k.hora_cheia)}</b> (${num(k.hora_cheia_dia, 0)}/dia)`}` })}
+    ${kpi('Espera (mediana)', mn(k.espera.med), { classe: classeEspera(k.espera.med), comp: k.espera.med == null ? '' : comp(k.espera.med - L.espera_meta_min, `contra a meta de ${L.espera_meta_min} min`, { inverso: true, fmt: v => mn(v) }),
+      sub: `Check-In até o início do atendimento · 90% esperam até <b>${mn(k.espera.p90)}</b> · ${num(k.espera.n)} medidos` })}
+    ${kpi('Tempo total na clínica (mediana)', mn(k.tat.med), { comp: pk && pk.tat.med ? comp(varPct(k.tat.med, pk.tat.med), 'contra ' + antes, { inverso: true }) : '',
+      sub: `Check-In até o fim de Finalizado · 90% até <b>${mn(k.tat.p90)}</b> · ${num(k.tat.n)} medidos` })}
+    ${kpi('Pior hora para chegar', k.pior_hora == null ? '—' : hh(k.pior_hora), { classe: classeEspera(k.pior_hora_p90),
+      sub: k.pior_hora == null ? `Nenhuma hora com ${L.minimo_pico} chegadas ou mais` : `90% de quem chega nela espera até <b>${mn(k.pior_hora_p90)}</b> (mediana ${mn(k.pior_hora_med)})` })}
+    ${kpi('Horas de espera acumuladas', `${num(k.horas_espera, 0)} h`, { comp: pk ? comp(varPct(k.horas_espera / Math.max(k.dias, 1), pk.horas_espera / Math.max(pk.dias, 1)), 'por dia contra ' + antes, { inverso: true }) : '',
+      sub: `Soma da espera de todos os pacientes · <b>${num(k.horas_espera / Math.max(k.dias, 1), 1)}</b> h por dia` })}
+    ${kpi('Tempos fora do normal', pct(k.outliers_pct, 1), { sub: `<b>${num(k.outliers)}</b> atendimentos com uma etapa esquecida ou muito acima da cerca: ficam fora das medianas` })}
+  </div>`;
+}
+
+function leiturasHtml(m) {
+  if (!m.leituras.length) return '';
+  const itens = [...m.leituras].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
+  return `<section><h2>O que os números dizem</h2><p class="nota">Leitura automática do período. Do mais urgente para o menos urgente.</p><ul class="leituras">${itens.map(l => `<li>${chip(l.nivel)}<span>${l.texto}</span></li>`).join('')}</ul></section>`;
+}
+
+// ====================== ANALISE ======================
+function horaAHora(m) {
+  const H = m.horas;
+  const xRot = H.map(h => ({ x: h.h, t: String(h.h).padStart(2, '0') }));
+  const serie = (nome, campo, cor, extra = {}) => ({ nome, cor, pontos: H.map(h => ({ x: h.h, y: h[campo] })), ...extra });
+  const tip = (x, extras) => { const h = H.find(z => z.h === x); return `${hh(x)} · ${num(h.n)} chegadas (${num(h.por_dia, 1)} por dia)\n${extras(h)}`; };
+  const esp = linhas({ W: 760, H: 250, mr: 118, fmt: v => mn(v), xRot, aria: 'Espera por hora de chegada',
+    tipX: x => tip(x, h => `Espera: mediana ${mn(h.esp_med)}, 90% até ${mn(h.esp_p90)}\nFila para ser chamado: mediana ${mn(h.fila_med)}\nAcima de ${L.espera_meta_min} min: ${pct(h.esp_acima, 0)}`),
+    series: [serie('90% até', 'esp_p90', 'var(--neutro-2)', { traco: 1, rotuloFim: true }), serie('Mediana', 'esp_med', 'var(--accent)', { principal: true, marcaPico: true })] });
+  const tat = linhas({ W: 760, H: 250, mr: 118, fmt: v => mn(v), xRot, aria: 'Tempo total por hora de chegada',
+    tipX: x => tip(x, h => `Tempo total: mediana ${mn(h.tat_med)}, 90% até ${mn(h.tat_p90)}`),
+    series: [serie('90% até', 'tat_p90', 'var(--neutro-2)', { traco: 1, rotuloFim: true }), serie('Mediana', 'tat_med', 'var(--accent)', { principal: true, marcaPico: true })] });
+  const chegadas = barras(H.map(h => ({ rotulo: hh(h.h), valor: h.por_dia || 0, texto: num(h.por_dia, 1), extra: 'por dia', cor: dentroDoExpediente(h.h) ? undefined : 'var(--neutro-2)',
+    tip: `${hh(h.h)}\n${num(h.n)} chegadas no período (${num(h.por_dia, 1)} por dia)${dentroDoExpediente(h.h) ? '' : '\nFora do expediente'}` })), 'Sem chegadas.', '16%', { porPagina: 30 });
+  return `<section><h2>Hora a hora</h2><p class="nota">A hora é a do Check-In. A linha cheia é o que a metade dos pacientes espera; a tracejada, o que só 1 em cada 10 ultrapassa.</p>
+    <div class="grid2"><div><h3>Espera por hora de chegada</h3>${esp}</div><div><h3>Chegadas por hora (média por dia)</h3>${chegadas}</div></div>
+    <div class="grid2" style="margin-top:28px"><div><h3>Tempo total na clínica por hora de chegada</h3>${tat}</div><div>${pacientesPorHora(m)}</div></div></section>`;
+}
+
+function pacientesPorHora(m) {
+  const H = m.horas, xRot = H.map(h => ({ x: h.h, t: String(h.h).padStart(2, '0') }));
+  const serie = (nome, campo, cor, extra = {}) => ({ nome, cor, pontos: H.map(h => ({ x: h.h, y: h[campo] })), rotuloFim: true, ...extra });
+  const g = linhas({ W: 760, H: 250, mr: 118, fmt: v => num(v, 1), xRot, aria: 'Pacientes em cada estado, por hora do dia',
+    tipX: x => { const h = H.find(z => z.h === x); return `${hh(x)} · em média\n${num(h.na_clinica, 1)} pacientes na clínica\n${num(h.na_fila, 1)} na fila para ser chamado\n${num(h.em_atendimento, 1)} em atendimento`; },
+    series: [serie('Na clínica', 'na_clinica', 'var(--accent)', { principal: true }), serie('Na fila', 'na_fila', 'var(--serious)'), serie('Em atendimento', 'em_atendimento', 'var(--neutro)')] });
+  return `<h3>Pacientes na clínica, na fila e em atendimento</h3>${g}`;
+}
+
+function mapaDaSemana(m) {
+  if (!m.semana.length) return '';
+  const horas = [...new Set(m.semana.map(c => c.h))].sort((a, b) => a - b);
+  const dias = [...new Set(m.semana.map(c => c.d))].sort((a, b) => a - b);
+  const por = new Map(m.semana.map(c => [c.d + '|' + c.h, c]));
+  const topo = Math.max(L.espera_critica_min * 1.5, 1);
+  const linhasMapa = dias.map(d => ({ rotulo: DIAS[d], celulas: Object.fromEntries(horas.filter(h => por.has(d + '|' + h)).map(h => {
+    const c = por.get(d + '|' + h);
+    return [h, c.esp_med == null ? { texto: '·', t: null, tip: `${DIAS[d]} ${hh(h)}\n${num(c.n)} chegadas: poucas para medir (mínimo ${L.minimo_celula_mapa})` }
+      : { texto: num(c.esp_med, 0), t: Math.min(c.esp_med / topo, 1), tip: `${DIAS[d]} ${hh(h)}\nEspera mediana ${mn(c.esp_med)} · 90% até ${mn(c.esp_p90)}\n${num(c.n)} chegadas` }];
+  })) }));
+  return `<section><h2>Dia da semana × hora</h2><p class="nota">Espera mediana, em minutos, de quem chegou em cada hora de cada dia da semana. Célula vazia = menos de ${L.minimo_celula_mapa} chegadas medidas.</p>
+    ${mapaCalor(linhasMapa, horas, { aria: 'Espera mediana por dia da semana e hora', legenda: ['0 min', `${num(topo, 0)} min ou mais`], vazio: 'Sem chegadas medidas neste período.' })}</section>`;
+}
+
+function gargaloDoDia(m) {
+  const dias = m.dias.filter(d => d.pico_p90 != null);
+  if (!dias.length) return m.periodo ? `<section><h2>Gargalo de cada dia</h2><p class="vazio">O dia a dia só aparece quando se escolhe um mês. Os horários de pico do período estão em “Hora a hora”.</p></section>` : '';
+  const cont = {};
+  dias.forEach(d => { cont[d.pico_h] = (cont[d.pico_h] || 0) + 1; });
+  const ranking = barras(Object.entries(cont).sort((a, b) => b[1] - a[1]).map(([h, n]) => ({ rotulo: hh(h), valor: n, texto: `${n} ${n === 1 ? 'dia' : 'dias'}`, extra: pct(n / dias.length * 100, 0) })), 'Sem dias medidos.', '16%', { porPagina: 24 });
+  return `<section><h2>Gargalo de cada dia</h2><p class="nota">Em cada dia, a hora em que 90% dos pacientes esperaram mais (só entram horas com ${L.minimo_pico} chegadas ou mais).</p>
+    <div class="grid2"><div><h3>Em que hora o gargalo cai</h3>${ranking}</div>
+    <div>${miniLinha('Espera (90%) na hora de pico de cada dia', dias, 'pico_p90', { cor: 'var(--serious)', fmt: v => mn(v), W: 560 })}${miniLinha('Chegadas por dia', m.dias, 'n', { cor: 'var(--neutro)' })}</div></div></section>`;
+}
+
+function porSetor(m) {
+  if (!m.setores.length) return '';
+  const barrasSetor = barras(m.setores.map(s => ({ rotulo: s.nome, valor: s.esp_med || 0, texto: mn(s.esp_med), extra: `90% até ${mn(s.esp_p90)}`, cor: s.esp_med > L.espera_critica_min ? 'var(--crit)' : s.esp_med > L.espera_meta_min ? 'var(--serious)' : undefined,
+    tip: `${s.nome}\nEspera mediana ${mn(s.esp_med)}, 90% até ${mn(s.esp_p90)}\nFila ${mn(s.fila_med)} · tempo total ${mn(s.tat_med)}\nPior hora: ${s.pior_h == null ? '—' : hh(s.pior_h) + ' (90% até ' + mn(s.pior_p90) + ')'}` })), 'Sem dados.', '30%');
+  return `<section><h2>Por setor</h2><p class="nota">Espera mediana de cada setor. A pior hora de cada um está em Detalhes.</p>${barrasSetor}</section>`;
+}
+
+function equipamentos(m) {
+  const q = m.equipamentos || {};
+  const cob = (q.cobertura || []).filter(c => c.total > 0);
+  const aviso = cob.length ? `<p class="sub-aviso"><b>Cobertura:</b> ${cob.map(c => `${esc(c.setor)}: ${num(c.identificados)} de ${num(c.total)} exames com equipamento identificado (${pct(c.pct, 0)})`).join(' · ')}. Nos demais exames o relatório traz o nome do profissional, não da máquina: os percentuais abaixo valem só para os exames identificados.</p>` : '';
+  if (!q.recursos || !q.recursos.length) return `<section><h2>Equipamentos</h2><p class="vazio">Nenhum exame com equipamento identificado neste período.</p>${aviso}</section>`;
+  const horas = [...new Set(q.horas.map(c => c.h))].sort((a, b) => a - b);
+  const linhasMapa = q.recursos.map(r => ({ rotulo: r.nome, celulas: Object.fromEntries(q.horas.filter(c => c.r === r.nome && c.pct_ocupado != null).map(c => [c.h, { texto: num(c.pct_ocupado, 0), t: c.pct_ocupado / 100,
+    tip: `${r.nome} · ${hh(c.h)}\nOcupado ${pct(c.pct_ocupado, 0)} do tempo, ocioso ${pct(100 - c.pct_ocupado, 0)}` }])) }));
+  const ocioso = barras(q.recursos.map(r => ({ rotulo: r.nome, valor: r.pct_ocioso || 0, texto: pct(r.pct_ocioso, 0), extra: 'ocioso', tip: `${r.nome}\n${num(r.usos)} exames identificados\nOcupado ${num(r.min_ocupado / 60, 0)} h, ocioso ${num(r.min_ocioso / 60, 0)} h dentro do expediente` })), 'Sem dados.', '30%', { max: 100 });
+  return `<section><h2>Equipamentos identificados</h2><p class="nota">Tempo ocioso dentro do expediente (${hh(EXP_INI)} às ${hh(EXP_FIM)}): o que sobra entre um exame e o seguinte.</p>${aviso}
+    <div class="grid2" style="margin-top:20px"><div><h3>% do expediente ocioso</h3>${ocioso}</div><div><h3>% ocupado, por hora</h3>${mapaCalor(linhasMapa, horas, { cor: 'var(--s3)', aria: 'Ocupação do equipamento por hora', legenda: ['0%', '100%'] })}</div></div></section>`;
+}
+
+function foraDoNormal(m) {
+  const L2 = m.limites.filter(l => l.outliers > 0);
+  const total = m.limites.reduce((s, l) => s + l.outliers, 0);
+  const porEtapa = {};
+  L2.forEach(l => { porEtapa[l.etapa] = (porEtapa[l.etapa] || 0) + l.outliers; });
+  const g = barras(Object.entries(porEtapa).sort((a, b) => b[1] - a[1]).map(([etapa, n]) => ({ rotulo: etapa, valor: n, texto: num(n), extra: 'casos',
+    tip: `${etapa}\n${n} etapas acima da cerca (${m.limites.filter(l => l.etapa === etapa).map(l => `${l.setor}: até ${mn(l.limite)}`).join('; ')})` })), 'Nenhuma etapa fora do normal neste período.', '30%');
+  return `<section><h2>Casos fora do normal</h2><p class="nota">Etapas que ficaram abertas por muito mais tempo que o normal para a própria etapa (<b>${num(total)}</b> no período). Elas não entram nas medianas. A cerca de cada etapa está em Detalhes.</p>${g}</section>`;
+}
+
+// ====================== DETALHES ======================
+function detalhes(m) {
+  const horas = tabela([{ t: 'Hora' }, { t: 'Chegadas', n: 1 }, { t: 'Por dia', n: 1 }, { t: 'Espera (mediana)', n: 1 }, { t: 'Espera (90%)', n: 1 }, { t: `Acima de ${L.espera_meta_min} min`, n: 1 }, { t: 'Fila (mediana)', n: 1 }, { t: 'Tempo total (mediana)', n: 1 }, { t: 'Na clínica', n: 1 }, { t: 'Na fila', n: 1 }, { t: 'Em atendimento', n: 1 }, { t: 'Horas de espera', n: 1 }, { t: 'Fora do normal', n: 1 }],
+    m.horas.map(h => [hh(h.h), num(h.n), num(h.por_dia, 1), `<span class="${classeEspera(h.esp_med)}">${mn(h.esp_med)}</span>`, `<span class="${classeEspera(h.esp_p90)}">${mn(h.esp_p90)}</span>`, pct(h.esp_acima, 0), mn(h.fila_med), mn(h.tat_med), num(h.na_clinica, 1), num(h.na_fila, 1), num(h.em_atendimento, 1), num(h.horas_espera, 1), num(h.outliers)]));
+  const dias = m.dias.length ? tabela([{ t: 'Dia' }, { t: 'Chegadas', n: 1 }, { t: 'Espera (mediana)', n: 1 }, { t: 'Espera (90%)', n: 1 }, { t: 'Tempo total (mediana)', n: 1 }, { t: 'Hora do gargalo', n: 1 }, { t: 'Espera (90%) no gargalo', n: 1 }, { t: 'Fora do normal', n: 1 }],
+    m.dias.map(d => [dataBR(d.d) + (d.dom ? ' (domingo)' : ''), num(d.n), mn(d.esp_med), mn(d.esp_p90), mn(d.tat_med), d.pico_h == null ? VAZIO : hh(d.pico_h), d.pico_p90 == null ? VAZIO : `<span class="${classeEspera(d.pico_p90)}">${mn(d.pico_p90)}</span>`, num(d.outliers)])) : '';
+  const setores = tabela([{ t: 'Setor' }, { t: 'Chegadas', n: 1 }, { t: 'Espera (mediana)', n: 1 }, { t: 'Espera (90%)', n: 1 }, { t: 'Fila (mediana)', n: 1 }, { t: 'Tempo total (mediana)', n: 1 }, { t: 'Tempo total (90%)', n: 1 }, { t: 'Pior hora', n: 1 }, { t: 'Espera (90%) nela', n: 1 }, { t: 'Fora do normal', n: 1 }],
+    m.setores.map(s => [esc(s.nome), num(s.n), mn(s.esp_med), mn(s.esp_p90), mn(s.fila_med), mn(s.tat_med), mn(s.tat_p90), s.pior_h == null ? VAZIO : hh(s.pior_h), mn(s.pior_p90), num(s.outliers)]));
+  const eq = (m.equipamentos.recursos || []).length ? tabela([{ t: 'Equipamento' }, { t: 'Exames identificados', n: 1 }, { t: 'Horas ocupado', n: 1 }, { t: 'Horas ocioso', n: 1 }, { t: '% ocioso', n: 1 }],
+    m.equipamentos.recursos.map(r => [esc(r.nome), num(r.usos), num(r.min_ocupado / 60, 1), num(r.min_ocioso / 60, 1), pct(r.pct_ocioso, 0)])) : '<p class="vazio">Sem equipamentos identificados.</p>';
+  const cercas = tabela([{ t: 'Etapa' }, { t: 'Setor' }, { t: 'Etapas medidas', n: 1 }, { t: 'Mediana', n: 1 }, { t: 'Cerca (acima disso é fora do normal)', n: 1 }, { t: 'Casos acima', n: 1 }, { t: 'Maior tempo', n: 1 }],
+    m.limites.map(l => [esc(l.etapa), esc(l.setor), num(l.n), mn(l.med), mn(l.limite), l.outliers ? `<span class="ruim">${num(l.outliers)}</span>` : '0', mn(l.maior)]));
+  return acordeao('Hora a hora', horas, { dica: `${m.horas.length} horas` }) + (dias ? acordeao('Dia a dia', dias, { dica: `${m.dias.length} dias` }) : '') +
+    acordeao('Por setor', setores) + acordeao('Equipamentos identificados', eq) + acordeao('Cerca de cada etapa', `<p class="nota">A cerca vem do histórico inteiro (não muda de um mês para o outro), por etapa e setor. Tempo acima dela não entra nas medianas.</p>${cercas}`);
+}
+
+function render(ym) {
+  const m = D.meses[ym];
+  if (!m || !m.kpis) { $('conteudo').innerHTML = `<div class="card"><h2>Sem atendimentos medidos em ${esc(m ? m.rotulo : ym)}</h2><p class="nota">O relatório de fluxo não trouxe chegadas neste período.</p></div>`; return; }
+  const prev = anteriorDe(D, CHAVES, ym);
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período' : 'Os números do mês', kpisHtml(m, prev) + leiturasHtml(m)) +
+    tier('Análise', 'Hora a hora, dia da semana, gargalo, setores, equipamentos e casos fora do normal',
+      horaAHora(m) + mapaDaSemana(m) + gargaloDoDia(m) + porSetor(m) + equipamentos(m) + foraDoNormal(m)) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+}
+
+if (!CHAVES.length || !D.tem_dados) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">O Tempo usa os relatórios do painel Atendimento. Clique em <b>Atualizar agora</b> para buscá-los no Klingo.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+$('btn-imprimir').addEventListener('click', () => print());
+let abertosParaImprimir = [];
+addEventListener('beforeprint', () => { abertosParaImprimir = [...document.querySelectorAll('details.acord:not([open])')]; abertosParaImprimir.forEach(d => { d.open = true; }); });
+addEventListener('afterprint', () => { abertosParaImprimir.forEach(d => { d.open = false; }); abertosParaImprimir = []; });
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

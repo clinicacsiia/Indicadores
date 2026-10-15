@@ -44,7 +44,7 @@ def setUpModule():
     BANCO.novo_usuario("tok-viewer", "ana@csi.local", "viewer", {"despesas": True, "faturamento": False, "dados_financeiros": True})
     BANCO.novo_usuario("tok-sem-fin", "caio@csi.local", "viewer", {"despesas": True, "faturamento": True, "atendimento": True, "dados_financeiros": False})   # tem os paineis, mas nao os dados financeiros
     BANCO.novo_usuario("tok-sem", "bia@csi.local", "viewer", {})
-    todos = {p: True for p in ("faturamento", "financeiro", "despesas", "indicadores", "cesta", "suprimentos", "atendimento")}
+    todos = {p: True for p in ("faturamento", "financeiro", "despesas", "indicadores", "cesta", "suprimentos", "atendimento", "tempo")}
     BANCO.novo_usuario("tok-todos-fin", "gil@csi.local", "viewer", {**todos, "dados_financeiros": True})
     BANCO.novo_usuario("tok-todos-sem-fin", "ivo@csi.local", "viewer", {**todos, "dados_financeiros": False})
     BANCO.novo_usuario("tok-so-fin", "lia@csi.local", "viewer", {"dados_financeiros": True})   # tem os dados financeiros, mas nenhum painel liberado

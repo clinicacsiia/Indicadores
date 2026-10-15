@@ -70,7 +70,7 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
   sincroniza qualquer relatório cadastrado em `dim_relatorio` (ver seção
   "Data warehouse de relatórios" abaixo).
 
-## Painéis em Python (Faturamento, Financeiro, Despesas, Indicadores, Cesta, Suprimentos, Atendimento)
+## Painéis em Python (Faturamento, Financeiro, Despesas, Indicadores, Cesta, Suprimentos, Atendimento, Tempo)
 
 São os painéis do programa local (`servidor_portal.py` / `Indicadores CSI.exe`), agora publicados neste mesmo site. O
 código de cálculo (`*/gerar_*.py`, `klingo_relatorios.py`, `painel_comum.py`) e as telas
@@ -166,7 +166,7 @@ Sem a tabela, o código segue sem trava (como antes). Refazer só a página fica
 
 ### Visual e filtros padronizados
 
-Todas as abas (Início, Metas, Configurações e os 7 painéis em Python) seguem o mesmo padrão do site:
+Todas as abas (Início, Metas, Configurações e os 8 painéis em Python) seguem o mesmo padrão do site:
 
 - **Visual:** `painel_base.css` usa as mesmas cores, fontes (Figtree e Bricolage Grotesque), cabeçalho ("Clínica CSI" + título +
   descrição), cartões e tabelas de `app/globals.css`. Dentro do site o painel aparece **sem moldura e com a altura do conteúdo**
@@ -308,6 +308,32 @@ não foram migradas: esses alertas aparecem como abertos na primeira conferênci
 **Limites a saber:** os avisos só são conferidos quando a página do painel é refeita — por alguém abrindo o painel, pelo botão **Atualizar
 agora** ou pelo cron diário —, então um aviso pode estar até um dia atrasado. "Voltou a acontecer" só é detectado entre uma conferência
 e outra (um problema que some e volta entre duas conferências não é visto).
+
+## Aba Tempo
+
+Quanto o paciente espera e fica na clínica, **hora a hora**: espera, tempo total, pico de gargalo de cada dia, pacientes simultâneos, ocupação dos equipamentos e os
+tempos "fora do normal" (encerramento esquecido). Painel `tempo` (`Tempo/`), **sem dinheiro** (`"financeiro": "nenhum"` no `modulos.json`); nasce bloqueado como os outros e
+é liberado por usuário em Configurações.
+
+- **Sem relatório próprio.** Lê as abas "Atendimentos" (#13402) e "Fluxo na Recepção" (#13404) que o painel Atendimento já guarda, então não duplica dado no banco (o plano
+  gratuito tem 500 MB) e a página se refaz sozinha quando o Atendimento atualiza (`armazenamento.DEPENDENCIAS["tempo"] = ["atendimento"]`). **Atualizar agora** no Tempo
+  atualiza o Atendimento. Os limites de espera (`espera_meta_min`, `espera_critica_min`...) vêm de `Atendimento/parametros.json`; `Tempo/parametros.json` acrescenta os próprios
+  (método de outlier, piso, mínimo de chegadas para a "pior hora") e sobrepõe os herdados. Expediente, dias de atendimento e feriados vêm do `metas.json`.
+- **Contas em `Tempo/metricas_tempo.py`** (pandas puro, sem Klingo nem Supabase; testado em pandas 2.2 e 3.0): `ciclo_por_atendimento` (Check-In → fim de Finalizado = tempo total;
+  Check-In → início de Em Atendimento = espera; etapa Chamado = fila), `sinalizar_outliers` (IQR de Tukey ou MAD, em escala log, por grupo, com piso, teto e cerca global para grupo
+  pequeno), `ratear_por_janela` (reparte cada intervalo pelas horas que ele toca; `resample` sozinho joga o intervalo inteiro na hora do início), `intervalos_de_uso`
+  (ociosidade = buraco entre exames, com sentinelas e fusão de usos sobrepostos), `perfil_por_hora`, `carga_por_hora`, `pico_de_gargalo` e `construir_tabelas` (as mesmas
+  contas como tabelas planas para BI: `janelas_hora`, `janelas_dia`, `gargalo_dia`, `ocupacao_hora`, `ocupacao_dia`, `limites`). `Tempo/exemplo_tempo.py` roda tudo com dados sintéticos.
+  O raciocínio e os números dos dados reais estão em `Tempo/RELATORIO.md`.
+- **Regras a não esquecer:** a hora é a do **Check-In**; mediana e 90% de cada hora e dia são recalculados dos atendimentos (nunca média de médias); a **cerca de outlier vem do
+  histórico inteiro** (por etapa e setor), não do mês mostrado, para o limite não mudar de um mês para o outro; o atendimento com tempo fora do normal continua contado nas
+  chegadas, só não entra nas medianas; fora do expediente a ociosidade não conta.
+- **Limite dos dados:** só parte dos exames traz o **equipamento** na coluna "Profissional / Equipamento" (em setembro, 124 de 1.374 linhas de RM/TC); nos outros a coluna traz o
+  nome do profissional. Por isso a seção de equipamentos mostra a **cobertura** (exames identificados ÷ total) ao lado dos percentuais e a "ociosidade" pode incluir máquina parada
+  (não há log de status do equipamento). Para ociosidade confiável é preciso saber a máquina de cada exame ou receber os eventos do equipamento.
+- **Testes:** `tests/test_tempo.py` (contas, com respostas feitas à mão) e `tests/test_tempo_painel.py` (página gerada de dados inventados em `tests/paineis_de_mentira.py`, nos três
+  períodos do filtro, e aberta no Chromium: sem erro de JavaScript, sem sobra horizontal no celular). Painel novo precisa entrar na lista `todos` de `tests/test_nuvem.py` (permissões).
+- **Não verificado:** o tema escuro da tela (os mesmos tokens de cor do resto do site), o tempo da página com o volume real de um ano e o deploy na Vercel de verdade.
 
 ## Aba Metas
 

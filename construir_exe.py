@@ -32,7 +32,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent
 SAIDA = RAIZ.parent   # o .exe pronto fica na pasta principal, ao lado de "Codigo-fonte"
 CODIGO, SEMENTE = "codigo", "semente"
-METAS, FAT, FIN, CESTA, IND, SUP, ATE, DESP = "Acompanhamento de META", "Faturamento", "Financeiro", "Cesta", "Indicadores", "Suprimentos", "Atendimento", "Despesas"
+METAS, FAT, FIN, CESTA, IND, SUP, ATE, DESP, TEMPO = "Acompanhamento de META", "Faturamento", "Financeiro", "Cesta", "Indicadores", "Suprimentos", "Atendimento", "Despesas", "Tempo"
 ARQUIVOS = {   # caminho relativo -> categoria
     "servidor_portal.py": CODIGO, "klingo_relatorios.py": CODIGO, "painel_comum.py": CODIGO,
     "painel_base.css": CODIGO, "painel_base.js": CODIGO, "portal.html": CODIGO, "modulos.json": CODIGO,
@@ -52,6 +52,8 @@ ARQUIVOS = {   # caminho relativo -> categoria
     f"{ATE}/gerar_atendimento.py": CODIGO, f"{ATE}/dashboard_modelo.html": CODIGO, f"{ATE}/relatorios.json": CODIGO,
     f"{ATE}/responsaveis.json": SEMENTE,   # quem cuida de que: ajustavel, so e copiado se ainda nao existir
     f"{ATE}/parametros.json": SEMENTE,   # os limites podem ser ajustados pelo usuario: so e copiado se ainda nao existir
+    f"{TEMPO}/gerar_tempo.py": CODIGO, f"{TEMPO}/metricas_tempo.py": CODIGO, f"{TEMPO}/dashboard_modelo.html": CODIGO,   # le os dados do Atendimento (sem relatorios.json proprio)
+    f"{TEMPO}/parametros.json": SEMENTE,
 }
 # nao tem como o PyInstaller descobrir sozinho (carregados por nome ou por plugin): garante que entram
 # (o playwright e so da exportacao de PDF, exportar_pdf.py; a captura dos relatorios usa a API externa do Klingo, sem navegador)

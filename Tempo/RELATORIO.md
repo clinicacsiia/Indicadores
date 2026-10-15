@@ -100,7 +100,7 @@ Arquivo: `Tempo/metricas_tempo.py` (funções pequenas, comentários só onde o 
 
 | Tabela | Grão | Para quê |
 | --- | --- | --- |
-| `janelas_hora` | hora × setor × métrica (`tat_min`, `espera_min`) | curva do dia, mapa de calor dia da semana × hora |
+| `janelas_hora` | hora × setor × métrica (`tat_min`, `espera_min`, `fila_min`) | curva do dia, mapa de calor dia da semana × hora |
 | `janelas_dia` | dia × setor × métrica | tendência (calculada dos atendimentos, não das horas) |
 | `gargalo_dia` | dia × setor | "hora de pico" de cada dia |
 | `ocupacao_hora` / `ocupacao_dia` | hora ou dia × recurso | % de ociosidade (`min_ocupado + min_ocioso + min_outros = min_disponivel`) |
@@ -109,16 +109,15 @@ Arquivo: `Tempo/metricas_tempo.py` (funções pequenas, comentários só onde o 
 
 Regras seguidas (testadas): sem MultiIndex nem índice com significado; **nenhum Timedelta** (BI não entende; tempos em minutos `float32` com 2 casas, contagens `int32`); datas sem fuso mais `dia`, `hora`, `dia_semana` (0 = segunda) prontos; texto repetido como `category`; chaves nunca nulas e sem linha repetida; `janela_fechada` marca a janela ainda em andamento; ordenado pelas chaves. Formato **longo** (coluna `metrica`) nas janelas de atendimento, para somar métricas sem mudar o esquema; **largo** na ocupação, onde as medidas são sempre as mesmas.
 
-## 8. Como encaixar a aba no site (não foi feito)
+## 8. A aba no site (feito depois deste relatório)
 
-Os painéis são definidos por arquivos; nada abaixo foi aplicado, para você escolher o nome antes.
+A aba **Tempo** foi criada (`Tempo/gerar_tempo.py`, `Tempo/dashboard_modelo.html`, `Tempo/parametros.json`) e descrita no README, seção "Aba Tempo". Decisões:
 
-1. `modulos.json`: novo módulo `tempo` (`"tipo": "relatorios"`, `"pasta": "Tempo"`, `"codigo": "gerar_tempo"`, `"financeiro": "nenhum"`: a aba não tem R$). Sem o campo, o painel conta como "total" e exigiria "Dados financeiros".
-2. `Tempo/relatorios.json` com os ids 13402 e 13404 (copie o formato de `Atendimento/relatorios.json`) e `Tempo/parametros.json` (expediente, piso, teto, mínimo para o pico).
-3. `Tempo/gerar_tempo.py` com `gerar(de, ate, devolver_html)` e `atualizar()`, como os outros; ele chama `construir_tabelas` e injeta o JSON no `dashboard_modelo.html`. Siga o `Cesta/` ou o `Atendimento/` como molde.
-4. `vercel.json`: acrescentar `Tempo/**` nas quatro listas `includeFiles`.
-5. Painel novo nasce **bloqueado**: liberar por usuário em Configurações.
-6. Rodar a suíte inteira (`python3 -m unittest discover -s tests`), que tem a matriz painel × usuário × rota.
+1. `modulos.json`: módulo `tempo` com `"financeiro": "nenhum"` (a aba não tem R$). Painel novo nasce bloqueado; liberar por usuário em Configurações.
+2. **Sem `relatorios.json` próprio**: lê as abas do Atendimento (já guardadas no banco), para não duplicar dado (o plano gratuito do Supabase tem 500 MB e o #13404 é podado em 46 dias no banco de coleta) e para a página se refazer quando o Atendimento atualiza (`armazenamento.DEPENDENCIAS`).
+3. `vercel.json`: `Tempo/**` nas quatro funções que geram páginas; `construir_exe.py`: arquivos da aba no programa local.
+4. A **hora** é o eixo da tela: espera e tempo total por hora de chegada, mapa dia da semana × hora, pacientes na clínica/fila/atendimento por hora, gargalo de cada dia e ocupação dos equipamentos por hora.
+5. Definições mudaram em relação ao módulo do relatório: **espera** = Check-In até o início de Em Atendimento (como o painel Atendimento), **fila** = etapa Chamado, e a chegada é o **Check-In** (não o início da primeira etapa).
 
 Desempenho: com dados sintéticos, 104 mil etapas (26 mil atendimentos) levam 0,6 s em `construir_tabelas`. **Não foi medido** com as linhas reais nem na Vercel (que também faz a leitura do banco e a página).
 

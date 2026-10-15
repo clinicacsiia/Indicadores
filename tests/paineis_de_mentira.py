@@ -28,7 +28,7 @@ def so_arquivos(f):
     return interno
 
 
-for _p in (RAIZ, RAIZ / "Atendimento", RAIZ / "Cesta", RAIZ / "Suprimentos", RAIZ / "Acompanhamento de META"):
+for _p in (RAIZ, RAIZ / "Atendimento", RAIZ / "Cesta", RAIZ / "Suprimentos", RAIZ / "Tempo", RAIZ / "Acompanhamento de META"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
@@ -193,6 +193,53 @@ def pagina_indicadores(de=None, ate=None) -> str:
 
 
 PAGINAS_SO_DINHEIRO = {"financeiro": pagina_financeiro, "faturamento": pagina_faturamento, "indicadores": pagina_indicadores}
+
+# ------------------------------------------------------------------ Tempo (sem dinheiro: nao e painel "misto")
+def fluxo_de_mentira(seed: int = 11, ate: datetime = datetime(2026, 10, 14), forcar_esquecidos: float = 0.012) -> pd.DataFrame:
+    """Aba "Fluxo na Recepcao" inventada, com o que o Tempo precisa medir: pico as 9h e as 14h (esperas maiores nelas), tres setores, exames em
+    equipamento (RM, TC, DENSITOMETRIA, MAMOGRAFIA) e etapas esquecidas abertas por dias."""
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    pesos_hora = {7: 3, 8: 7, 9: 14, 10: 11, 11: 7, 12: 3, 13: 6, 14: 12, 15: 8, 16: 5, 17: 2}
+    horas, pesos = list(pesos_hora), np.array(list(pesos_hora.values()), float)
+    pesos /= pesos.sum()
+    setores = {"CSI": ["DENSITOMETRIA", "MAMOGRAFIA"], "CSI - 2": ["RM", "TC"], "PEDIATRIA": []}
+    medicos = ["DR ANA LIMA", "DR BRUNO REIS", "DRA CARLA SOUZA"]
+    linhas = []
+    d = datetime(2026, 9, 1)
+    while d <= ate:
+        if d.weekday() < 6:
+            for _ in range(70):
+                h = int(rng.choice(horas, p=pesos))
+                ci = d.replace(hour=h) + timedelta(seconds=int(rng.integers(0, 3600)))
+                setor = str(rng.choice(list(setores), p=[.5, .35, .15]))
+                equip = setores[setor]
+                prof = str(rng.choice(equip)) if equip and rng.random() < .4 else str(rng.choice(medicos))
+                conv = str(rng.choice(["UNIMED", "SUS", "PARTICULAR", "GEAP"]))
+                registro = ci - timedelta(minutes=int(rng.integers(0, 3)))
+                pico = 1.0 + (1.6 if h in (9, 10, 14) else 0.0)
+                t = ci + timedelta(seconds=int(rng.integers(30, 240)))
+                for etapa, med in (("Cadastro", 1.1), ("Procedimentos", 1.0), ("Chamado", 14 * pico), ("Em Atendimento", 18), ("Finalizado", 3)):
+                    dur = rng.lognormal(np.log(med * 60), 0.7)
+                    if rng.random() < forcar_esquecidos and etapa in ("Finalizado", "Procedimentos"):
+                        dur = rng.uniform(2, 30) * 86400
+                    fim = t + timedelta(seconds=float(dur))
+                    linhas.append({"Data do Atendimento": registro, "Profissional / Equipamento": prof, "Convênio": conv, "Setor (CSI/RM/RX/TC)": setor, "Fila": "A", "Etapa": etapa,
+                                   "Check-In": ci, "Início da Etapa": t, "Fim da Etapa": fim, "Atendimentos (Qtde)": 1})
+                    t = fim + timedelta(seconds=int(rng.integers(0, 60)))
+        d += timedelta(days=1)
+    return pd.DataFrame(linhas)
+
+
+@so_arquivos
+def pagina_tempo(de=None, ate=None) -> str:
+    import gerar_tempo as gt
+    abas = {gt.ABA_FLUXO: fluxo_de_mentira()}
+    with mock.patch.object(gt, "lido_com_cache", lambda arq, nome, fn: abas):
+        return gt.gerar(de, ate, devolver_html=True)
+
+
+PAGINAS_SEM_DINHEIRO = {"tempo": pagina_tempo}
 
 PAGINAS = {"atendimento": pagina_atendimento, "cesta": pagina_cesta, "suprimentos": pagina_suprimentos}
 # visoes do filtro De/Ate que cada painel entrega (a pagina de sempre, varios meses, dias exatos): o servidor calcula cada uma e a limpeza vale para todas
