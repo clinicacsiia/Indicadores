@@ -80,6 +80,36 @@ function Barra({ pct, esperado, situacao }: { pct: number; esperado: number; sit
   );
 }
 
+function BarraConvenio({ sus, naoSus, semConvenio }: { sus: number; naoSus: number; semConvenio: number }) {
+  const total = sus + naoSus + semConvenio;
+  const parte = (v: number) => `${(v / total) * 100}%`;
+  return (
+    <div className="convenio-bar" aria-hidden="true">
+      {sus > 0 && <span className="convenio-seg" data-tipo="sus" style={{ width: parte(sus) }} />}
+      {naoSus > 0 && <span className="convenio-seg" data-tipo="nao-sus" style={{ width: parte(naoSus) }} />}
+      {semConvenio > 0 && <span className="convenio-seg" data-tipo="sem" style={{ width: parte(semConvenio) }} />}
+    </div>
+  );
+}
+
+function LinhaConvenio({ nome, sus, naoSus, semConvenio, destaque }: { nome: string; sus: number; naoSus: number; semConvenio: number; destaque?: boolean }) {
+  const total = sus + naoSus + semConvenio;
+  if (total === 0) return null;
+  const pctSus = (sus / total) * 100;
+  return (
+    <li className="convenio-linha" data-destaque={destaque ? "" : undefined}>
+      <span className="convenio-nome">{nome}</span>
+      <BarraConvenio sus={sus} naoSus={naoSus} semConvenio={semConvenio} />
+      <span className="convenio-num">
+        <b>{inteiro.format(sus)}</b> SUS <span className="meta-sep">·</span> <b>{inteiro.format(naoSus)}</b> não SUS
+        <span className="meta-sep"> · </span>
+        {pctTexto(pctSus)} SUS
+        {semConvenio > 0 && ` · ${inteiro.format(semConvenio)} sem convênio`}
+      </span>
+    </li>
+  );
+}
+
 function LinhaMeta({ item, esperado, convenio }: { item: ResultadoItem; esperado: number; convenio: boolean }) {
   return (
     <tr>
@@ -285,6 +315,36 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
               </article>
             </div>
           </section>
+
+          {resultado.convenioInformado && (
+            <section className="panel" aria-labelledby="convenio-titulo">
+              <div className="panel-head">
+                <div>
+                  <h2 className="panel-title" id="convenio-titulo">
+                    SUS e não SUS
+                  </h2>
+                  <p className="panel-sub">Quanto dos atendimentos que contam nas metas foi pelo SUS e quanto foi por outro convênio ou particular.</p>
+                </div>
+              </div>
+              <div className="convenio-legenda" aria-hidden="true">
+                <span data-tipo="sus">SUS</span>
+                <span data-tipo="nao-sus">Não SUS</span>
+                {resultado.convenio.semConvenio > 0 && <span data-tipo="sem">Sem convênio informado</span>}
+              </div>
+              <ul className="convenio-lista">
+                <LinhaConvenio nome="Todas as metas" {...resultado.convenio} destaque />
+                {resultado.grupos.map((g) => (
+                  <LinhaConvenio
+                    key={g.id}
+                    nome={g.nome}
+                    sus={g.itens.reduce((s, i) => s + i.sus, 0)}
+                    naoSus={g.itens.reduce((s, i) => s + i.naoSus, 0)}
+                    semConvenio={g.itens.reduce((s, i) => s + i.semConvenio, 0)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
 
           {resultado.grupos.map((g) => (
             <section className="panel" key={g.id} aria-labelledby={`grupo-${g.id}`}>

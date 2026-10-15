@@ -1576,6 +1576,81 @@ select {
   font-size: 24px;
   letter-spacing: -0.02em;
 }
+/* SUS x não SUS: barra empilhada por grupo de metas. */
+.convenio-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 0 20px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.convenio-legenda span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.convenio-legenda span::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--tipo-cor);
+}
+.convenio-legenda [data-tipo="sus"],
+.convenio-seg[data-tipo="sus"] {
+  --tipo-cor: var(--s-realizados);
+}
+.convenio-legenda [data-tipo="nao-sus"],
+.convenio-seg[data-tipo="nao-sus"] {
+  --tipo-cor: var(--s-agendados);
+}
+.convenio-legenda [data-tipo="sem"],
+.convenio-seg[data-tipo="sem"] {
+  --tipo-cor: var(--s-neutra);
+}
+.convenio-lista {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 16px 20px 20px;
+  list-style: none;
+}
+.convenio-linha {
+  display: grid;
+  gap: 6px;
+}
+.convenio-nome {
+  font-weight: 600;
+}
+.convenio-linha[data-destaque] .convenio-nome {
+  font-family: var(--font-display);
+}
+.convenio-bar {
+  display: flex;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+.convenio-linha[data-destaque] .convenio-bar {
+  height: 20px;
+}
+.convenio-seg {
+  display: block;
+  height: 100%;
+  background: var(--tipo-cor);
+}
+.convenio-seg + .convenio-seg {
+  border-left: 2px solid var(--surface);
+}
+.convenio-num {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.convenio-num b {
+  color: var(--ink);
+}
 .meta-legenda {
   max-width: 90ch;
   padding: 0 4px;
