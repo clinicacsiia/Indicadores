@@ -20,7 +20,8 @@ export type TipoEvento =
   | "reaberto"
   | "informado"
   | "prazo_vencido"
-  | "atualizacao";
+  | "atualizacao"
+  | "correcao";
 
 export type GuiaAviso = {
   relatorios?: { id: number; nome: string; url: string }[];
@@ -102,6 +103,7 @@ export const ROTULO_EVENTO: Record<TipoEvento, string> = {
   informado: "Voltou, mantido como informação",
   prazo_vencido: "Reaberto: a data prevista passou",
   atualizacao: "Painel atualizado",
+  correcao: "Correção de registro",
 };
 
 const MESES = [
