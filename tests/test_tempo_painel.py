@@ -24,6 +24,12 @@ import paineis_de_mentira as pm  # noqa: E402  (poe as pastas dos paineis no sys
 DINHEIRO = re.compile(r'"(receita|ticket|valor|custo_unit|custo)"')
 
 
+def so_arquivos():
+    """Gera a pagina como no computador da clinica (arquivos), mesmo que outro teste ja tenha ligado o modo Supabase (portal_nuvem faz isso ao ser importado):
+    sem isto, `gerar` tenta falar com um Supabase simulado que ja foi desligado e cada teste espera o tempo limite (4 min)."""
+    return mock.patch.dict(os.environ, {"PORTAL_ARMAZENAMENTO": "arquivos", "VERCEL": ""})
+
+
 def dados_da_pagina(html: str) -> dict:
     m = re.search(r'<script id="dados" type="application/json">(.*?)</script>', html, re.S)
     assert m, "a pagina nao traz o JSON de dados"
@@ -149,7 +155,7 @@ class PaginaTest(unittest.TestCase):
     def test_sem_dados_nao_quebra(self):
         import gerar_tempo as gt
         for abas in ({}, {gt.ABA_FLUXO: pd.DataFrame()}, {gt.ABA_FLUXO: pd.DataFrame({"Etapa": []})}):
-            with mock.patch.object(gt, "lido_com_cache", lambda arq, nome, fn, a=abas: a):
+            with so_arquivos(), mock.patch.object(gt, "lido_com_cache", lambda arq, nome, fn, a=abas: a):
                 d = dados_da_pagina(gt.gerar(devolver_html=True))
             self.assertFalse(d["tem_dados"])
             self.assertEqual(d["meses"], {})
@@ -221,7 +227,7 @@ class NoNavegadorTest(unittest.TestCase):
 
     def test_pagina_vazia_diz_o_que_fazer(self):
         import gerar_tempo as gt
-        with mock.patch.object(gt, "lido_com_cache", lambda arq, nome, fn: {}):
+        with so_arquivos(), mock.patch.object(gt, "lido_com_cache", lambda arq, nome, fn: {}):
             dom, erros = self.abrir(gt.gerar(devolver_html=True))
         self.assertEqual(erros, [])
         self.assertIn("Ainda não há dados", dom)
