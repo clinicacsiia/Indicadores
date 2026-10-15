@@ -4,13 +4,17 @@ import { getCurrentProfile } from "@/lib/supabase/profile";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
 import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
 import { metasConfig } from "@/lib/metas/config";
+import { ComparacaoPagante } from "./ComparacaoPagante";
 import {
   agoraSaoPaulo,
+  analisarPagante,
   calcularPeriodo,
   fimDoMes,
   mesesDisponiveis,
   mesesInteiros,
+  serieDiaria,
   type LinhaAtendimento,
+  type LinhaAtendimentoDia,
   type ResultadoItem,
   type Situacao,
 } from "@/lib/metas/calculo";
@@ -205,6 +209,26 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const temDados = linhas.length > 0;
   const resultado = temDados ? calcularPeriodo(metasConfig, de, ate, linhas, agora) : null;
 
+  // Comparação com SUS × só pagante: a evolução dia a dia vem de outra função (mesmas regras de contagem, separada por dia).
+  // Se ela falhar ou ainda não existir no banco, a comparação aparece sem os gráficos de linha.
+  let serie: ReturnType<typeof serieDiaria> | null = null;
+  if (resultado?.convenioInformado) {
+    const { data: porDia, error: erroDia } = await supabase.rpc("metas_atendimentos_por_dia", { p_de: de, p_ate: ate });
+    if (erroDia) console.error("Falha ao carregar atendimentos das metas por dia:", erroDia.message);
+    else {
+      const resp = (porDia ?? null) as { mapeado: boolean; linhas?: LinhaAtendimentoDia[] } | null;
+      if (resp?.mapeado)
+        serie = serieDiaria(
+          metasConfig,
+          de,
+          ate,
+          (resp.linhas ?? []).map((l) => ({ ...l, dia: String(l.dia).slice(0, 10) })),
+          agora
+        );
+    }
+  }
+  const achados = resultado?.convenioInformado ? analisarPagante(resultado, serie) : [];
+
   let sync: { texto: string; estado: "ok" | "stale" | "none" } = { texto: "Ainda sem sincronização", estado: "none" };
   if (resposta?.ultimo_sync) {
     const quando = new Date(resposta.ultimo_sync);
@@ -344,6 +368,10 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                 ))}
               </ul>
             </section>
+          )}
+
+          {resultado.convenioInformado && (
+            <ComparacaoPagante resultado={resultado} serie={serie} achados={achados} nomePeriodo={nomePeriodo} />
           )}
 
           {resultado.grupos.map((g) => (

@@ -326,6 +326,13 @@ vem dele; o dia de hoje conta só a parte do expediente que já passou.
   rodou para o `13339`, a aba mostra "Nenhum atendimento".
 - Atendimentos que não entram em nenhuma meta aparecem em "fora de qualquer
   meta"; os que entram em mais de uma geram um aviso (ajuste as regras).
+- **Metas com SUS × só pagante** (logo abaixo do gráfico "SUS e não SUS"; `app/(app)/metas/ComparacaoPagante.tsx`). A meta é a mesma: a seção mostra
+  quanto dela estaria cumprida se só o pagante contasse (pagante = convênio informado que não é SUS, particular incluído; sem convênio informado não
+  entra em nenhum dos dois lados e é avisado). Barras duplas (geral, grupo e serviço), dois gráficos de linha (cumprimento acumulado com SUS × só
+  pagante × esperado, e participação do pagante em média de 7 dias) e uma leitura automática (`analisarPagante()`). **Só quantidade e porcentagem,
+  nunca R$**: as Metas não trazem receita, então não há valor a esconder de quem não tem "Dados financeiros". Os gráficos de linha vêm de
+  `metas_atendimentos_por_dia(de, ate)` (migration `20261018100000`, mesma regra de contagem, uma linha por dia); sem ela aplicada no banco a seção
+  aparece só com as barras e o aviso de que a evolução dia a dia não está disponível.
 
 **Para colocar no ar:** aplicar a migration, publicar a Edge Function
 `sync-relatorios-dw` e, na aba Metas (como admin), clicar em "Atualizar" para
