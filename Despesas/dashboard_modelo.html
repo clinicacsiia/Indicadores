@@ -167,25 +167,61 @@ document.addEventListener('barra-clique', e => {
   }
 });
 
-function mudancaItens(lista, m, anteriorRot, hist) {
+function mudancaItens(lista, m, anteriorRot, hist, clicavel) {
   return lista.map(t => {
     const dif = hist ? t.hist_dif : t.dif, pctv = hist ? t.hist_pct : t.pct, refRot = hist ? (t.hist_rotulo || anteriorRot) : anteriorRot, refVal = hist ? t.hist_valor : t.anterior;
     return { rotulo: t.nome, valor: Math.abs(dif), texto: sinal(dif), extra: t.nova ? 'novo' : t.sumiu ? 'zerou' : pct(pctv, 0),
-      tip: `${t.nome}\n${refRot}: ${brl(refVal)}\n${m.rotulo}: ${brl(t.valor)}\nDiferença: ${sinal(dif)}` };
+      clique: clicavel ? 'sub:' + t.nome : '',
+      tip: `${t.nome}\n${refRot}: ${brl(refVal)}\n${m.rotulo}: ${brl(t.valor)}\nDiferença: ${sinal(dif)}` + (clicavel ? '\nClique para ver os maiores fornecedores e lançamentos' : '') };
   });
 }
+// "O que mais subiu" + detalhe ao lado: clique numa categoria mostra os maiores fornecedores e lancamentos dela no mes; clique num fornecedor filtra os lancamentos
+let SEL_MUD = null;   // {cat, forn}: categoria escolhida em "O que mais subiu" e fornecedor filtrado no detalhe ao lado
+const SEM_FORN = '(sem fornecedor)';
+function mudDetalheHtml(m) {
+  const det = SEL_MUD && m.detalhe_categoria && m.detalhe_categoria[SEL_MUD.cat];
+  if (!det) return '<h2>Detalhe</h2><p class="vazio">Clique numa categoria ao lado para ver os maiores fornecedores e lançamentos dela.</p>';
+  const forn = SEL_MUD.forn, nomeForn = l => (l.fornecedor && String(l.fornecedor).trim()) || SEM_FORN;
+  const itens = det.fornecedores.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 0), clique: 'mudf:' + i.nome,
+    tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)} da categoria)\n${num(i.qtd)} lançamento(s)\n${forn === i.nome ? 'Clique para tirar o filtro' : 'Clique para filtrar os lançamentos'}` }));
+  const lancs = forn ? det.lancamentos.filter(l => nomeForn(l) === forn) : det.lancamentos;
+  const tab = lancs.length ? `<h3 style="margin:16px 0 4px;font-size:14px">Lançamentos${forn ? ' de ' + esc(forn) : ''} (${num(lancs.length)})</h3>${listaLancamentos(lancs.slice(0, 100))}${lancs.length > 100 ? `<p class="nota">Mostrando os 100 maiores de ${num(lancs.length)}.</p>` : ''}` : '<p class="vazio">Nenhum lançamento.</p>';
+  const filtro = forn ? `<p class="nota">Filtrando por <b>${esc(forn)}</b> <button type="button" class="btn-mini" data-mud-limpar>Mostrar todos</button></p>` : '';
+  return `<h2>${esc(SEL_MUD.cat)}: os maiores</h2><p class="nota">Fornecedores de ${esc(m.rotulo)} nesta categoria, do maior para o menor. Clique num fornecedor para filtrar os lançamentos.</p>` +
+    barras(itens, 'Nenhum fornecedor.', '44%', { porPagina: 8, sel: forn ? itens.findIndex(i => i.rotulo === forn) : -1 }) + filtro + tab;
+}
+function mudDetalheRedesenhar() {
+  const el = document.getElementById('mud-detalhe'); if (el && M_ATUAL) el.innerHTML = mudDetalheHtml(M_ATUAL);
+}
+document.addEventListener('barra-clique', e => {
+  const c = e.detail.clique; if (!c || !M_ATUAL) return;
+  const [tipo, ...resto] = c.split(':'); const nome = resto.join(':');
+  if (tipo === 'sub') {
+    SEL_MUD = { cat: nome, forn: null, mes: M_ATUAL.rotulo };
+    const w = e.detail.el.closest('.barras'); if (w) w.querySelectorAll('.barra-sel').forEach(b => b.classList.remove('barra-sel'));
+    e.detail.el.classList.add('barra-sel');
+    mudDetalheRedesenhar();
+  } else if (tipo === 'mudf' && SEL_MUD) {
+    SEL_MUD.forn = SEL_MUD.forn === nome ? null : nome;
+    mudDetalheRedesenhar();
+  }
+});
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-mud-limpar]') && SEL_MUD) { SEL_MUD.forn = null; mudDetalheRedesenhar(); } });
+
 function mudancasGraf(m) {
   if (m.situacao === 'previsto') return `<section><h2>O que mudou</h2><p class="vazio">Mês futuro: só há o que já foi lançado, então não comparo com o mês anterior.</p></section>`;
   if (m.parcial) return `<section><h2>O que mudou</h2><p class="vazio">Este mês é histórico de antes do Klingo: não comparo.</p></section>`;
   if (!m.mudancas) return `<section><h2>O que mudou</h2><p class="vazio">${m.anterior_parcial ? 'O mês anterior é histórico de antes do Klingo e pode estar incompleto: não comparo.' : (m.periodo ? 'Não há período anterior confiável (de mesmo tamanho) para comparar.' : 'Este é o primeiro mês confiável do painel: não há mês anterior para comparar.')}</p></section>`;
   const md = m.mudancas, mf = m.mudancas_forn, aberto = m.situacao === 'em_curso', ant = m.mes_anterior;
-  const caiu = `<div><h2>O que mais caiu</h2>${aberto
-    ? '<p class="nota">Não aponto quedas em mês em andamento: o que parece queda pode ser lançamento que ainda não entrou.</p>'
-    : `<p class="nota">Diferença por categoria entre ${esc(ant)} e ${esc(m.rotulo)}.</p>${barras(mudancaItens(md.cairam, m, ant), 'Nenhuma categoria caiu.', '44%')}`}</div>`;
+  const subiram = md.subiram.filter(t => m.detalhe_categoria && m.detalhe_categoria[t.nome]);
+  if (!SEL_MUD || SEL_MUD.mes !== m.rotulo || !subiram.some(t => t.nome === SEL_MUD.cat)) SEL_MUD = subiram.length ? { cat: subiram[0].nome, forn: null, mes: m.rotulo } : null;   // abre ja na maior alta; outro mes recomeca
+  const itensSub = mudancaItens(md.subiram, m, ant, true, true);
+  const selIdx = SEL_MUD ? md.subiram.findIndex(t => t.nome === SEL_MUD.cat) : -1;
+  const lado = `<div><div id="mud-detalhe">${mudDetalheHtml(m)}</div></div>`;
   const novos = mf.novos.map(t => ({ rotulo: t.nome, valor: t.valor, texto: brlc(t.valor), extra: 'novo', tip: `${t.nome}\nSem despesa desde ${esc(D.inicio_confiavel)}\n${m.rotulo}: ${brl(t.valor)}` }));
   return `<section class="grid2">
     <div><h2>O que mais subiu</h2><p class="nota">Diferença de cada categoria contra o <b>último mês em que ela teve lançamento</b> (não precisa ser ${esc(ant)}: um fornecedor pago a cada 2 meses, por exemplo, não aparece como "novo" só porque pulou um mês).${aberto ? ' O mês ainda recebe lançamentos: o aumento pode ser maior.' : ''}</p>
-      ${barras(mudancaItens(md.subiram, m, ant, true), 'Nenhuma categoria subiu.', '44%')}</div>${caiu}</section>
+      ${barras(itensSub, 'Nenhuma categoria subiu.', '44%', { sel: selIdx })}</div>${lado}</section>
     <section class="grid2">
     <div><h2>Fornecedores que mais subiram</h2><p class="nota">Diferença de cada fornecedor contra o último mês em que ele teve lançamento.</p>
       ${barras(mudancaItens(mf.subiram, m, ant, true), 'Nenhum fornecedor subiu.', '44%')}</div>
