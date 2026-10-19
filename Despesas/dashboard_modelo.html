@@ -34,7 +34,7 @@ __CSS__
     </div>
   </header>
   <section class="toolbar" id="toolbar" aria-label="Filtros">
-      <label class="mes-pick">Mês de competência <select id="mes"></select></label>
+      <label class="mes-pick">Mês de vencimento <select id="mes"></select></label>
   </section>
   <div class="aviso" id="aviso" hidden></div>
   <main id="conteudo"></main>
@@ -44,7 +44,7 @@ __CSS__
     <div class="corpo">
       <ul>
         <li><b>Fontes:</b> três relatórios do Klingo. O de <b>Evolução das Despesas por Categoria e Mês</b> (nº 13505) dá o valor <b>bruto</b>; o de <b>Despesas Detalhadas por Lançamento (Valor Líquido)</b> (nº 13509) dá o <b>líquido</b> e o número do lançamento. O painel cruza os dois linha a linha. O terceiro, de <b>Receita Produzida</b> (nº 26, o mesmo do painel Faturamento), só alimenta o bloco de Repasse médico.</li>
-        <li><b>Mês de competência:</b> os números do mês somam o que foi lançado <b>com competência</b> naquele mês, e não o que vence ou foi pago nele. Por isso os totais podem diferir do painel Financeiro, que olha o vencimento.</li>
+        <li><b>Mês de vencimento:</b> os números do mês somam o que <b>vence</b> naquele mês, não o que tem competência nele (o vencimento vem do Financeiro, pelo ID do lançamento). Um boleto de competência setembro que vence em outubro entra em outubro. A competência continua nas tabelas de lançamentos. A exceção é o Repasse médico, que segue a competência para poder ser comparado com a produção do mês.</li>
         <li><b>Bruto e líquido:</b> o líquido é o bruto menos as retenções (imposto retido do prestador). A diferença aparece como <b>retenções</b>. Se o Klingo não tiver o desconto lançado, líquido e bruto saem iguais.</li>
         <li><b>Só despesas:</b> o relatório também traz os créditos (receitas); eles ficam de fora<span id="txt-creditos"></span>.</li>
         <li><b>Compras de estoque:</b> as compras feitas pelo módulo de Suprimentos (descrição “Compra de Estoque: …”) entram aqui<span id="txt-estoque"></span>. O painel Financeiro não as enxerga.</li>
@@ -79,7 +79,7 @@ const VAZIO = '<span style="color:var(--muted)">—</span>';
 const brlOu = v => v == null ? VAZIO : brl(v);
 const sinal = v => (v >= 0 ? '+' : '−') + brlc(Math.abs(v));
 
-$('sub').textContent = `Fonte: relatórios de Despesas por Categoria (bruto), de Despesas Detalhadas (líquido) e de Receita Produzida (repasse médico) do Klingo · competência · dados de ${D.dados_em}`;
+$('sub').textContent = `Fonte: relatórios de Despesas por Categoria (bruto), de Despesas Detalhadas (líquido) e de Receita Produzida (repasse médico) do Klingo · vencimento · dados de ${D.dados_em}`;
 if (D.creditos_ignorados && D.creditos_ignorados.qtd) $('txt-creditos').textContent = ` (${num(D.creditos_ignorados.qtd)} lançamentos, ${brl(D.creditos_ignorados.valor)})`;
 if (D.compras_estoque && D.compras_estoque.qtd) $('txt-estoque').textContent = ` (${num(D.compras_estoque.qtd)} lançamentos, ${brl(D.compras_estoque.valor)} no período)`;
 if (D.evolucao && D.evolucao.length) $('txt-primeiro').textContent = D.evolucao[0].rotulo;
@@ -127,10 +127,10 @@ function evolucaoHtml() {
   if (hist.length) series.push({ nome: curto_ ? 'Histórico' : 'Antes do Klingo', cor: 'var(--neutro-3)', larg: 1.6, pontos: pt(hist) });
   if (fechados.length) series.push({ nome: 'Fechado', cor: 'var(--accent)', principal: true, pontos: pt(fechados) });   // sem ligar ao historico: a diferenca entre antes e depois do Klingo e de cobertura dos dados, nao de gasto
   if (abertos.length) series.push({ nome: curto_ ? 'Em aberto' : 'Em aberto e futuro', cor: 'var(--neutro)', traco: true, rotuloFim: true, pontos: pt([...ult(fechados.length ? fechados : hist), ...abertos]) });
-  const g = linhas({ W: e.length > 9 ? 980 : 760, mr: curto_ ? 170 : 118, fmt: brlc, rotulosEm: e.length <= 12 && !curto_ ? 'todos' : undefined, aria: 'Despesas por mês de competência', tipX,
+  const g = linhas({ W: e.length > 9 ? 980 : 760, mr: curto_ ? 170 : 118, fmt: brlc, rotulosEm: e.length <= 12 && !curto_ ? 'todos' : undefined, aria: 'Despesas por mês de vencimento', tipX,
     xRot: e.map((x, i) => ({ x: i, t: curto(x.rotulo, x.ym) })).filter((t, i) => !curto_ || i % 2 === 0), series });
   return `<section><h2>Evolução mês a mês</h2>
-    <p class="nota">Total de despesas (bruto) por mês de competência. ${hist.length ? 'A linha cinza clara é o histórico de antes do Klingo, que pode estar incompleto. ' : ''}A linha cheia são os meses fechados. A tracejada é o mês em andamento e os que vêm: mostra só o que já foi lançado (contratos e parcelas recorrentes), então fica abaixo do que esses meses devem chegar a ter (veja a Previsão).</p>${g}</section>`;
+    <p class="nota">Total de despesas (bruto) por mês de vencimento. ${hist.length ? 'A linha cinza clara é o histórico de antes do Klingo, que pode estar incompleto. ' : ''}A linha cheia são os meses fechados. A tracejada é o mês em andamento e os que vêm: mostra só o que já foi lançado (contratos e parcelas recorrentes), então fica abaixo do que esses meses devem chegar a ter (veja a Previsão).</p>${g}</section>`;
 }
 
 // ====================== ANALISE ======================
@@ -277,7 +277,7 @@ function historicoHtml() {
     <p class="nota">As seis categorias com maior soma desde ${esc(D.inicio_confiavel)} (o que veio antes está nas tabelas abaixo), mês a mês. Linha cheia: meses fechados; tracejada: mês em andamento e futuros (só o já lançado). A etiqueta diz se a categoria é recorrente (aparece em 2 meses ou mais) ou avulsa.</p>
     <div class="multiplos">${mini}</div></section>
     <section>${acordeao('Mês a mês: bruto, líquido, retenções e variação', `<p class="nota">A variação compara com o mês anterior só quando os dois estão fechados e depois do início confiável (${esc(D.inicio_confiavel)}). Verde = gastou menos.</p>` + tabMes, { aberto: true, dica: `${ev.length} meses` })}
-    ${acordeao('Categoria por mês', `<p class="nota">Competência de cada mês, do mais claro (menor) ao mais escuro (maior valor da tabela; a escala é suavizada para os valores pequenos também aparecerem). * Mês futuro: só o que já foi lançado. Categorias da maior para a menor soma.</p>` + tabMx, { dica: `${mx.length} categorias · ${ev.length} meses` })}</section>`;
+    ${acordeao('Categoria por mês', `<p class="nota">Vencimento de cada mês, do mais claro (menor) ao mais escuro (maior valor da tabela; a escala é suavizada para os valores pequenos também aparecerem). * Mês futuro: só o que já foi lançado. Categorias da maior para a menor soma.</p>` + tabMx, { dica: `${mx.length} categorias · ${ev.length} meses` })}</section>`;
 }
 
 // ====================== PLANILHA ======================
@@ -302,7 +302,7 @@ function planilhaMatriz() {
   linhas.push(`<tr class="geral"><td>Total das despesas</td>${P.geral.map(v => `<td class="n">${cel(v)}</td>`).join('')}<td class="n">${cel(P.total)}</td></tr>`);
   const tabela_ = `<div class="tab-wrap"><table class="plan"><thead><tr>${cab.map(c => `<th class="${c.n ? 'n' : ''}">${esc(c.t)}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
   const notas = [
-    `Até ${esc(P.meses.filter(m => m.fonte === 'planilha').slice(-1)[0]?.rotulo || '')}, os valores são os da planilha antiga (em cinza). De ${esc(P.inicio_klingo)} em diante vêm do Klingo, pela competência, somando o bruto das categorias ligadas a cada item (despesa_de_para). * Mês em andamento.`,
+    `Até ${esc(P.meses.filter(m => m.fonte === 'planilha').slice(-1)[0]?.rotulo || '')}, os valores são os da planilha antiga (em cinza). De ${esc(P.inicio_klingo)} em diante vêm do Klingo, pelo vencimento, somando o bruto das categorias ligadas a cada item (despesa_de_para). * Mês em andamento.`,
   ];
   if (P.sem_destino.length) notas.push(`<b>${P.sem_destino.length} categoria(s) do Klingo ainda não têm item na planilha</b> e estão no grupo SEM CLASSIFICAÇÃO (${esc(P.sem_destino.slice(0, 5).map(c => `${c.categoria}: ${brl(c.valor)}`).join('; '))}${P.sem_destino.length > 5 ? '…' : ''}). Ligue cada uma ao item certo na tabela despesa_de_para.`);
   if (P.itens_sem_klingo.length) notas.push(`<b>${P.itens_sem_klingo.length} item(ns) da planilha não têm categoria no Klingo</b> e só mostram os meses antigos: ${esc(P.itens_sem_klingo.join(', '))}. Para eles voltarem a aparecer, é preciso criar a categoria no Klingo (ou ligar uma já existente).`);
@@ -372,7 +372,7 @@ function previsaoHtml() {
     ${barras(faltas.map(f => ({ rotulo: f.nome, valor: f.falta, texto: brlc(f.falta), extra: f.lancado ? 'lançado ' + brlc(f.lancado) : 'nada lançado', tip: `${f.nome}\nValor típico: ${brl(f.tipico)}\nLançado em ${atual.rotulo}: ${brl(f.lancado)}\nFalta: ${brl(f.falta)}` })), '', '44%')}</section>` : '';
   const temRet = p.retencao_pct > 0.05;
   const premissas = `<section><h2>Como a previsão é feita</h2><ul class="motivos">
-    <li><b>Já lançado</b> é certo: o que o Klingo já tem com competência em cada mês.</li>
+    <li><b>Já lançado</b> é certo: o que o Klingo já tem com vencimento em cada mês.</li>
     <li><b>Esperado</b> completa cada categoria recorrente (${num(p.recorrentes)} no momento) até o seu valor típico, a mediana dos meses confiáveis já lançados, fechados e futuros. Categorias avulsas não entram.</li>
     <li><b>Com avulsos</b> soma ao esperado a média mensal de despesas avulsas dos meses fechados (${p.avulso_medio != null ? brlc(p.avulso_medio) : 'sem base'}). Pode sobrar ou faltar: uma despesa avulsa grande pesa muito numa média de poucos meses.</li>
     <li><b>Base:</b> ${num(p.fechados)} mês(es) fechado(s) confiável(is) (${p.fechados_rotulos.length ? esc(p.fechados_rotulos.join(', ')) : 'nenhum'}), desde ${esc(p.inicio)}. ${p.fechados < 3 ? 'É pouco: trate os números como ordem de grandeza.' : ''}</li>
@@ -557,8 +557,8 @@ document.addEventListener('change', e => { if (e.target && e.target.id === 'mes-
 // ====================== DETALHES ======================
 function listaLancamentos(lista) {
   const temLiq = D.conferencia && D.conferencia.liquido;
-  return tabela([{ t: 'Lanç.' }, { t: 'Competência' }, { t: 'Categoria' }, { t: 'Fornecedor' }, { t: 'Descrição', txt: 1 }, { t: 'Bruto', n: 1 }, ...(temLiq ? [{ t: 'Líquido', n: 1 }] : [])],
-    lista.map(l => [l.id == null ? '—' : String(l.id), dataBR(l.competencia), esc(l.categoria), esc(l.fornecedor || '—'), esc(l.descricao || '—'), brl(l.valor), ...(temLiq ? [brl(l.liquido)] : [])]));
+  return tabela([{ t: 'Lanç.' }, { t: 'Vencimento' }, { t: 'Competência' }, { t: 'Categoria' }, { t: 'Fornecedor' }, { t: 'Descrição', txt: 1 }, { t: 'Bruto', n: 1 }, ...(temLiq ? [{ t: 'Líquido', n: 1 }] : [])],
+    lista.map(l => [l.id == null ? '—' : String(l.id), dataBR(l.vencimento), dataBR(l.competencia), esc(l.categoria), esc(l.fornecedor || '—'), esc(l.descricao || '—'), brl(l.valor), ...(temLiq ? [brl(l.liquido)] : [])]));
 }
 function detalhes(m) {
   const it = [];

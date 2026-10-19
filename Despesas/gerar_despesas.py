@@ -150,6 +150,33 @@ def juntar(bruto: pd.DataFrame, liq: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
     return m[["ID", "Despesa", "Competência", "Descrição", "Fornecedor", "Bruto", "Líquido", "_ym"]], creditos, conf
 
 
+# ---------------------------------------------------------------- mes de VENCIMENTO
+def aplicar_vencimento(d: pd.DataFrame, lanc: pd.DataFrame | None, inicio: str, ultimo_ym: str) -> tuple[pd.DataFrame, dict]:
+    """O painel conta cada despesa no mes em que ela VENCE, nao no da competencia (a competencia continua na tabela, so deixa de mandar).
+
+    O vencimento vem do Financeiro (#798, pelo ID do lancamento, que o #13509 traz). Sem vencimento (relatorio do Financeiro ainda nao baixado,
+    ou lancamento emitido antes do periodo baixado dele) a linha fica no mes da competencia e entra na contagem 'sem_vencimento' (avisada no painel).
+    Colunas novas: Vencimento (data usada pelo painel; a da competencia quando falta), _ym (mes dela) e _comp_ym (mes da competencia, so para o
+    repasse medico, que se compara com a producao do mes). Linhas que vencem depois do ultimo mes baixado ficam de fora: o que tem competencia
+    ainda mais a frente nao foi baixado, entao esses meses estariam incompletos."""
+    d = d.copy()
+    d["_comp_ym"] = d["_ym"]
+    ven = {}
+    if lanc is not None and len(lanc) and {"Lançamento", "Vencimento"} <= set(lanc.columns):
+        v = lanc[lanc["Lançamento"].notna() & lanc["Vencimento"].notna()].drop_duplicates(subset=["Lançamento"], keep="last")   # o #798 repete o lancamento (uma linha por conta)
+        ven = {int(i): t for i, t in zip(v["Lançamento"], v["Vencimento"])}
+    d["Vencimento"] = d["ID"].map(lambda i: ven.get(int(i)) if pd.notna(i) else None)
+    d["Vencimento"] = pd.to_datetime(d["Vencimento"], errors="coerce")
+    falta = d["Vencimento"].isna()
+    sem = d[falta & (d["_comp_ym"] >= inicio)]
+    d["Vencimento"] = d["Vencimento"].fillna(d["Competência"])
+    d["_ym"] = d["Vencimento"].dt.strftime("%Y-%m").fillna(d["_comp_ym"])
+    fora = d["_ym"] > ultimo_ym
+    info = {"com_vencimento": int((~falta).sum()), "sem_vencimento": int(len(sem)), "valor_sem_vencimento": float(sem["Bruto"].sum()),
+            "mudaram_de_mes": int(((~falta) & (d["_ym"] != d["_comp_ym"])).sum()), "alem_do_baixado": int(fora.sum()), "financeiro": bool(ven)}
+    return d[~fora].copy(), info
+
+
 # ---------------------------------------------------------------- agrupamentos
 def agrupar(x: pd.DataFrame, campo: str, top: int | None = None, ref: dict | None = None) -> list[dict]:
     """Soma bruto, liquido e quantidade por categoria/fornecedor (maior primeiro). 'ref' = valor de referencia por nome (media dos meses
@@ -201,15 +228,15 @@ def mudancas(atual: list[dict], anterior: list[dict], hist: dict[str, tuple[floa
 
 
 def linha_lancamento(r) -> dict:
-    return {"id": None if pd.isna(r["ID"]) else int(r["ID"]), "competencia": r["Competência"], "categoria": r["Despesa"], "fornecedor": r["Fornecedor"],
+    return {"id": None if pd.isna(r["ID"]) else int(r["ID"]), "vencimento": r["Vencimento"], "competencia": r["Competência"], "categoria": r["Despesa"], "fornecedor": r["Fornecedor"],
             "descricao": r["Descrição"], "valor": float(r["Bruto"]), "liquido": float(r["Líquido"])}
 
 
 def itens_lancamentos(x: pd.DataFrame) -> dict:
     """Tabela 'quais sao' dos alertas sobre lancamentos."""
-    linhas = [["" if pd.isna(r["ID"]) else int(r["ID"]), gp.dbr(r["Competência"]), r["Despesa"], texto(r["Fornecedor"], "(sem fornecedor)"), texto(r["Descrição"]), gp.reais(r["Bruto"])]
+    linhas = [["" if pd.isna(r["ID"]) else int(r["ID"]), gp.dbr(r["Vencimento"]), r["Despesa"], texto(r["Fornecedor"], "(sem fornecedor)"), texto(r["Descrição"]), gp.reais(r["Bruto"])]
               for _, r in x.iterrows()]
-    return gp.tabela(["Lançamento", "Competência", "Categoria", "Fornecedor", "Descrição", "Valor"], linhas, total=len(x), numericas=(0, 5))
+    return gp.tabela(["Lançamento", "Vencimento", "Categoria", "Fornecedor", "Descrição", "Valor"], linhas, total=len(x), numericas=(0, 5))
 
 
 # ---------------------------------------------------------------- previsao
@@ -371,6 +398,7 @@ def bloco_producao(pp: pd.DataFrame, pagos: dict[str, float] | None) -> dict:
 def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_hoje: str, inicio: str, per: pc.Periodo | None = None) -> dict:
     """Tudo sobre o repasse médico: o Honorário Médico lançado nas despesas (por mês, médico e empresa) e a produção de cada médico (#26) para comparar."""
     h = d[d["Despesa"] == HONORARIO].copy()
+    h["_ym"] = h["_comp_ym"]   # o repasse se compara com a producao do mes (data do atendimento), entao continua pela competencia
     tem_prod = prod is not None and len(prod) > 0 and set(COLUNAS_PROD) <= set(prod.columns)
     p = None
     if tem_prod:
@@ -405,7 +433,7 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
         if pp is not None and not len(pp):
             pp = None
         bruto, liq = float(hh["Bruto"].sum()), float(hh["Líquido"].sum())
-        desp = meses[ym]["total"] if ym in meses else 0.0
+        desp = float(d.loc[d["_comp_ym"] == ym, "Bruto"].sum())   # total do mes pela competencia, como o repasse e a producao
         producao = float(pp["Valor"].sum()) if pp is not None else None
         producao_medico = float(pp.loc[pp["M"] != SEM_MEDICO, "Valor"].sum()) if pp is not None else None
         evolucao.append({"ym": ym, "rotulo": pc.rotulo_mes(ym), "situacao": "fechado" if ym < ym_hoje else "em_curso", "parcial": ym < inicio, "bruto": bruto, "liquido": liq,
@@ -437,7 +465,7 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
             pp = None
         if len(hh) or pp is not None:
             bruto, liq = float(hh["Bruto"].sum()), float(hh["Líquido"].sum())
-            desp = float(d.loc[per.dentro(d["Competência"]), "Bruto"].sum()) if per.exato else sum(meses[y]["total"] for y in per.yms if y in meses)
+            desp = float(d.loc[per.dentro(d["Competência"]), "Bruto"].sum()) if per.exato else float(d.loc[d["_comp_ym"].isin(per.yms), "Bruto"].sum())
             producao = float(pp["Valor"].sum()) if pp is not None else None
             rep = bloco_repasse(hh, pp) if len(hh) else None
             pagos = {m["nome"]: m["bruto"] for m in rep["medicos"]} if rep else None
@@ -533,7 +561,7 @@ def montar_mes(ym: str, d: pd.DataFrame, ctx: dict, prev: dict | None, per: pc.P
     """Um mes, ou (per) um periodo de varios meses: "ym" e o ultimo mes dele, as linhas de todos entram juntas e a referencia dos outros meses
     fechados (media mensal) vale pelo tamanho do periodo. `prev` e o mes (ou periodo) anterior ja calculado."""
     yms = per.yms if per else [ym]
-    x = d[per.dentro(d["Competência"])] if (per and per.exato) else d[d["_ym"].isin(yms)]
+    x = d[per.dentro(d["Vencimento"])] if (per and per.exato) else d[d["_ym"].isin(yms)]
     sit = "fechado" if ym < ctx["hoje"] else ("em_curso" if ym == ctx["hoje"] else "previsto")
     parcial = (per.ini if per else ym) < ctx["inicio"]              # antes do Klingo: historico que pode estar incompleto
     rotulo = per.rotulo if per else pc.rotulo_mes(ym)
@@ -599,6 +627,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     if len(bruto) and set(COLUNAS_BRUTO) <= set(bruto.columns):
         d, creditos, conf = juntar(bruto, liq)
         d["Despesa"] = d["Despesa"].fillna("(sem categoria)")
+        d, venc = aplicar_vencimento(d, lancamentos_do_financeiro(), inicio, str(bruto[k.COL_MES].max()))
         if len(d):
             ordem = k.meses_entre(defn["primeiro_mes"], max(ym_hoje, d["_ym"].max()))
             tab = d[d["_ym"].isin(ordem)].pivot_table(index="Despesa", columns="_ym", values="Bruto", aggfunc="sum", fill_value=0.0).reindex(columns=ordem, fill_value=0.0)
@@ -639,6 +668,12 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
             extras["compras_estoque"] = {"qtd": int(len(estoque)), "valor": float(estoque["Bruto"].sum())}
             extras["creditos_ignorados"] = {"qtd": int(len(creditos)), "valor": float(creditos["Valor"].fillna(0).sum())}
             extras["conferencia"] = conf
+            extras["vencimento"] = venc
+            if venc["sem_vencimento"]:
+                atencao.append({"nivel": "atencao", "titulo": "Despesas sem data de vencimento (contadas pela competência)",
+                                "texto": f"<b>{venc['sem_vencimento']}</b> lançamento(s), somando <b>{brl(venc['valor_sem_vencimento'])}</b>, não têm vencimento no Financeiro (#798) e ficaram no mês da competência. "
+                                         + ("Costuma ser lançamento emitido antes do período que o Financeiro baixa, ou o Financeiro ainda não atualizado: use <b>Atualizar agora</b>." if venc["financeiro"]
+                                            else "O relatório do Financeiro ainda não foi baixado: use <b>Atualizar agora</b>. Enquanto isso, todos os meses estão pela competência.")})
             extras["planilha"] = pl.montar(d, lancamentos_do_financeiro(), inicio, ym_hoje)
 
             # ---- repasse medico (Honorario Medico lancado x producao de cada medico)
@@ -668,7 +703,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
             # ---- o periodo escolhido no filtro De/Ate (varios meses juntos): entra por ultimo, para nao somar nos historicos acima
             if per and not per.unico:
                 if per.exato:
-                    info["notas"] = ["As despesas são contadas pela data de competência de cada lançamento; as médias dos outros meses valem pelo tamanho do período."]
+                    info["notas"] = ["As despesas são contadas pela data de vencimento de cada lançamento; as médias dos outros meses valem pelo tamanho do período."]
 
                 def anterior_de(q: pc.Periodo):
                     a = q.anterior

@@ -313,6 +313,18 @@ não foram migradas: esses alertas aparecem como abertos na primeira conferênci
 agora** ou pelo cron diário —, então um aviso pode estar até um dia atrasado. "Voltou a acontecer" só é detectado entre uma conferência
 e outra (um problema que some e volta entre duas conferências não é visto).
 
+## Despesas: o mês é o do vencimento
+
+Desde 19/10/2026 o painel de Despesas conta cada lançamento no mês em que ele **vence**, não no da competência (um boleto de competência setembro que vence em outubro entra
+em outubro). O vencimento vem do Financeiro (#798) pelo **ID do lançamento** (o #13509 traz o ID); a conta está em `aplicar_vencimento()`, em `Despesas/gerar_despesas.py`, e tudo
+que agrupa por mês (KPIs, evolução, categorias, fornecedores, previsão, matriz da aba Planilha, filtro De/Até por dia) já usa a coluna `_ym` dela. Detalhes:
+
+- Lançamento sem vencimento no Financeiro (emitido antes do período que o #798 baixa, ou Financeiro ainda não atualizado) fica no mês da competência e vira o aviso "Despesas sem
+  data de vencimento" no alto do painel.
+- Os relatórios continuam baixados por competência (6 meses à frente). O que vence depois do último mês baixado fica de fora, para o último mês não aparecer incompleto.
+- **Repasse médico** é a exceção: continua por competência (e o total de despesas dele também), porque se compara com a produção do mês (data do atendimento).
+- As tabelas de lançamentos mostram as duas datas (Vencimento e Competência). Testes: `MesDeVencimentoTest` em `tests/test_planilha_despesas.py`.
+
 ## Aba Planilha (Despesas)
 
 A planilha de despesas que a equipe consultava (`FORNECEDORES - MM.AAAA.xlsx`, abas "Planilha2" e "Planilha1") virou a aba **Planilha** do painel de Despesas, no mesmo
