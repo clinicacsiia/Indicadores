@@ -519,7 +519,8 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
             "total": {"bruto": float(h["Bruto"].sum()), "liquido": float(h["Líquido"].sum()), "qtd": int(len(h)), "n_medicos": len(acum)},
             "mais_de_uma_empresa": [{"nome": m["nome"], "empresas": m["empresas"]} for m in mais_de_uma], "repetidos": repetidos,
             "sem_repasse": [{"ym": e["ym"], "rotulo": e["rotulo"], "producao": e["producao"], "em_curso": e["situacao"] == "em_curso"} for e in sem_repasse],
-            "ultimo_repasse": {"rotulo": pc.rotulo_mes(com_repasse[-1]), "bruto": float(h.loc[h["_ym"] == com_repasse[-1], "Bruto"].sum())} if com_repasse else None}
+            "ultimo_repasse": {"rotulo": pc.rotulo_mes(com_repasse[-1]), "bruto": float(h.loc[h["_ym"] == com_repasse[-1], "Bruto"].sum()),
+                              "qtd": int((h["_ym"] == com_repasse[-1]).sum())} if com_repasse else None}
 
 
 def pc_mes_anterior(ym: str) -> str:
@@ -694,10 +695,18 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
             if repasse.get("ok") and repasse["sem_repasse"]:
                 sr, ult = repasse["sem_repasse"], repasse["ultimo_repasse"]
                 lista = ", ".join(f"<b>{e['rotulo']}</b> ({brl(e['producao'])})" for e in sr)
+                # quem precisa ser apurado primeiro: a producao de cada medico nos meses sem repasse, do maior para o menor
+                a_apurar: dict[str, float] = {}
+                for e in sr:
+                    for med in (repasse["por_mes"].get(e["ym"], {}).get("producao") or {}).get("medicos", []):
+                        a_apurar[med["nome"]] = a_apurar.get(med["nome"], 0.0) + med["valor"]
+                fila = sorted(a_apurar.items(), key=lambda kv: -kv[1])
+                ultimo = (f" O último mês com lançamento foi <b>{ult['rotulo']}</b> ({ult['qtd']} lançamento{'s' if ult['qtd'] != 1 else ''}, {brl(ult['bruto'])})." if ult else "")
                 atencao.append({"nivel": "atencao", "titulo": "Produção médica sem Honorário Médico lançado",
-                                "texto": f"Há produção em {lista}, mas nenhum lançamento de <b>Honorário Médico</b> nessas competências"
-                                         + (f"; o último repasse lançado é de <b>{ult['rotulo']}</b> ({brl(ult['bruto'])})." if ult else ".")
-                                         + " Ou o repasse ainda não foi lançado, ou é pago fora do Klingo, ou está em outra categoria: enquanto isso, o total de despesas desses meses não inclui o repasse. Ver “Repasse médico”."})
+                                "itens": gp.tabela(["Médico", "Produzido nesses meses"], [[nome, gp.reais(v)] for nome, v in fila], total=len(fila), numericas=(1,)),
+                                "texto": f"Há produção em {lista}, mas nenhum lançamento de <b>Honorário Médico</b> nessas competências.{ultimo} "
+                                         "O painel só vê o que foi lançado no Financeiro do Klingo; o cálculo do repasse (Repasse > Rateios) e a apuração ficam em outro módulo, que ele não lê. "
+                                         "Enquanto isso, o total de despesas desses meses não inclui o repasse. A tabela traz os médicos dessa produção, do maior para o menor; veja “Como achar e resolver” e “Repasse médico”."})
 
             # ---- aviso global: a retencao existia no historico e sumiu
             ret_antes = sum(m["retido"] for ym, m in meses.items() if ym < inicio)
@@ -726,6 +735,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
 
     arq = arquivo_dados()
     dados_em = datetime.fromtimestamp(arq.stat().st_mtime) if arq.exists() else datetime.now()
+    gp.anotar("despesas", atencao)   # os alertas de "hoje" (repasse sem lancamento...) tambem ganham guia e vao para a aba Avisos
     payload = {
         "gerado_em": datetime.now().strftime("%d/%m/%Y %H:%M"), "dados_em": dados_em.strftime("%d/%m/%Y %H:%M"),
         "versao": int(dados_em.timestamp()), "hoje": hoje.isoformat(), "inicio_confiavel": pc.rotulo_mes(inicio),

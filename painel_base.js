@@ -41,6 +41,8 @@ const linkAviso = a => `/avisos?painel=${encodeURIComponent(painelAtual())}&avis
 function guiaHtml(a) {
   const g = a.guia, it = a.itens;
   const links = g.relatorios.map(r => `<a class="btn-mini link" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir no Klingo: ${esc(r.nome)} ↗</a>`).join('');
+  const menus = [...new Set(g.relatorios.map(r => r.menu).filter(Boolean))];   // onde o dado mora no menu do Klingo (guia_pendencias.MENUS)
+  const menu = menus.length ? `<p class="al-dica"><b>Pelo menu do Klingo:</b> ${menus.map(m => esc(m)).join(' · ')}</p>` : '';
   const passos = g.passos.map(p => `<li>${esc(p)}</li>`).join('');
   let tab = '';
   if (it && it.linhas.length) {
@@ -53,7 +55,7 @@ function guiaHtml(a) {
   }
   const dica = g.dica ? `<p class="al-dica"><b>Dica:</b> ${esc(g.dica)}</p>` : '';
   const atualizacao = g.atualizacao ? `<p class="al-dica"><b>Painel atualizado em ${dataBR(g.atualizacao.em)}:</b> ${esc(g.atualizacao.texto)}</p>` : '';
-  return `<div class="al-guia" hidden><h4>Onde olhar</h4><div class="al-links">${links}</div>` +
+  return `<div class="al-guia" hidden><h4>Onde olhar</h4><div class="al-links">${links}</div>${menu}` +
     `<h4>Passo a passo</h4><ol>${passos}</ol>${dica}${atualizacao}${tab}` +
     `<p class="al-resolve"><b>Quando o painel considera resolvido:</b> ${esc(g.resolve)} Depois de corrigir no Klingo, use <b>Atualizar agora</b> para conferir.</p></div>`;
 }

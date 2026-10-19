@@ -32,6 +32,7 @@ MIN_DIAS_PROJECAO = 3          # dias uteis completos para projetar o fechamento
 # faturas emitidas (#13355): status do Klingo
 A_ENVIAR, ENVIADA, MOVIMENTADA, CANCELADA = "A Enviar", "Enviada", "Movimentada", "Cancelada"
 ENVIADAS = (ENVIADA, MOVIMENTADA)
+STATUS_CONHECIDOS = (A_ENVIAR, ENVIADA, MOVIMENTADA, CANCELADA)   # o Klingo tambem tem "Aguardando Protocolo" na tela: se aparecer nos dados, o alerta avisa
 ESPERA_ATENCAO = 7             # dias esperando envio: o normal e sair no mesmo dia (3/4 das enviadas saem no dia da emissao)
 ESPERA_CRITICA = 30
 # PRAZO DE ENVIO DE CADA CONVENIO, aprendido do historico: cada convenio leva um tempo diferente da emissao ao envio (a maioria sai no mesmo dia; o SUS
@@ -315,6 +316,7 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
     # falhas de cadastro
     sem_protocolo = enviadas[enviadas["Fatura - Envio - Protocolo"].isna()]
     sem_valor = ativas[ativas["_valor"].fillna(0) <= 0]
+    desconhecidos = f[f["_st"].notna() & ~f["_st"].isin(STATUS_CONHECIDOS)]   # contam como "ativas", mas nao como a enviar nem como enviadas
     retencoes = ativas["Fatura - Valor Retenções"].fillna(0)
     return {
         "tem": True, "total": int(len(f)), "ativas": int(len(ativas)),
@@ -326,6 +328,10 @@ def montar_faturas(f: pd.DataFrame, hoje: date) -> dict:
                                              [[int(r["Fatura - Id"]), r["_op"], r["_st"], gp.dbr(r["Fatura - Data de Envio"]), gp.reais(r["_valor"])]
                                               for _, r in sem_protocolo.sort_values("Fatura - Data de Envio").iterrows()], total=len(sem_protocolo), numericas=(0, 4)),
                           "nomes": sorted(sem_protocolo["_op"].unique().tolist())},
+        "status_novo": {"qtd": int(len(desconhecidos)), "valor": float(desconhecidos["_valor"].fillna(0).sum()), "nomes": sorted(desconhecidos["_st"].astype(str).unique().tolist()),
+                        "itens": gp.tabela(["Fatura (Id)", "Convênio", "Status", "Emitida em", "Valor"],
+                                           [[int(r["Fatura - Id"]), r["_op"], r["_st"], gp.dbr(r["Fatura - Data de Emissão"]), gp.reais(r["_valor"])]
+                                            for _, r in desconhecidos.sort_values("Fatura - Data de Emissão").iterrows()], total=len(desconhecidos), numericas=(0, 4))},
         "sem_valor": {"qtd": int(len(sem_valor)), "a_enviar": int((sem_valor["_st"] == A_ENVIAR).sum()),
                       "itens": gp.tabela(["Fatura (Id)", "Convênio", "Status", "Emitida em"],
                                          [[int(r["Fatura - Id"]), r["_op"], r["_st"], gp.dbr(r["Fatura - Data de Emissão"])]
@@ -437,6 +443,11 @@ def alertas_faturas(fg: dict, funil: dict, ref_rotulo: str) -> list[dict]:
         if sv["qtd"]:
             out.append({"nivel": "atencao", "titulo": "Faturas ativas sem valor", "itens": sv["itens"],
                         "texto": f"<b>{sv['qtd']}</b> fatura(s) não canceladas estão sem valor ({sv['a_enviar']} esperando envio). Elas ficam fora dos totais."})
+        sn = fg["status_novo"]
+        if sn["qtd"]:
+            out.append({"nivel": "atencao", "titulo": "Faturas em um status que o painel não conhece", "itens": sn["itens"],
+                        "texto": f"<b>{sn['qtd']}</b> fatura(s), <b>{pc_brl(sn['valor'])}</b>, estão no status {', '.join('“' + html.escape(x) + '”' for x in sn['nomes'])}. "
+                                 f"O painel só conhece A Enviar, Enviada, Movimentada e Cancelada: essas faturas entram nos totais, mas ficam de fora de “esperando envio”, dos prazos de envio e de pagamento e da conferência de protocolo."})
         sp = fg["sem_protocolo"]
         if sp["qtd"]:
             out.append({"nivel": "info", "titulo": "Faturas enviadas sem protocolo", "itens": sp["itens"],

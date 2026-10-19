@@ -28,6 +28,19 @@ RELATORIOS = {
     13505: "Financeiro - Evolução das Despesas por Categoria e Mês - Mensal", 13509: "Financeiro - Despesas Detalhadas por Lançamento (Valor Líquido) - Mensal",
     13339: "Base das Metas (exames realizados)", 13402: "Atendimentos - Visão Gerencial de Produtividade, Espera e Receita - Mensal",
 }
+# ONDE O DADO MORA NO MENU DO KLINGO (informado pela clinica em 19/10/2026): o relatorio e a leitura do painel; para CONFERIR e CORRIGIR, a pessoa abre a aba
+# abaixo. Cada link do guia ganha uma linha "Pelo menu do Klingo: ...". So entram aqui os relatorios cuja origem a clinica confirmou.
+FATURAS = "Faturamento > aba Faturas (filtro de status e de data de Emissão, Envio ou Vencimento)"
+LANCAMENTO = "Financeiro > aba Lançamento (filtro de Categoria)"
+MENUS = {
+    26: "Faturamento > aba Guias", 13329: "Faturamento > aba Guias", 13374: "Faturamento > aba Guias (guias com pendência: aba Pendências)",
+    13355: FATURAS, 13328: FATURAS,
+    798: LANCAMENTO, 13505: LANCAMENTO, 13509: LANCAMENTO,
+    13297: "Financeiro > menu “...” > Pagamentos Particulares Pendentes",
+    13295: "Financeiro > menu “...” > Posição de Recebimentos/Glosas", 13375: "Financeiro > menu “...” > Posição de Recebimentos/Glosas",
+    13385: "Suprimentos > aba Movimentações (posição de cada item por local: aba Saldos)", 13387: "Suprimentos > aba Atendimento",
+    13404: "Recepção > tela principal (fila do dia)",
+}
 # alertas que dependem do mes escolhido na tela; os demais descrevem a posicao de hoje, igual em qualquer mes
 ESCOPO_MES = {"fat_sem_fatura", "fat_falta_faturar", "fat_pouco_recebido", "fat_glosa", "fat_receita_queda", "fat_producao_diverge",
               "fin_pagar_maior", "des_zero", "des_repetidas", "des_sem_fornecedor", "sup_encerrados", "sup_parciais", "sup_sem_setor",
@@ -51,6 +64,10 @@ DICAS = {
                         "fica como informação até lá e só reabre se a data passar sem a fatura sair. Cada convênio tem o seu prazo, aprendido de quanto ele costuma levar para enviar "
                         "(o SUS leva bem mais que os outros: veja o gráfico do SUS e a tabela de prazos no painel).",
 }
+DICAS["des_repasse_sem_honorario"] = (
+    "Levantamento feito pela clínica no Klingo em 19/10/2026 (Repasse > Rateios > Por Profissional, últimos 90 dias, “Não Repassados”, os 12 maiores produtores): "
+    "R$ 421.148,73 de repasse já calculado (rateio) e R$ 0,00 repassado. O cálculo existe; o que não estava sendo feito era a etapa de Apuração, por isso Repasse > Repasses "
+    "ficava vazio e nada chegava ao Financeiro. A tela do Klingo não tem a opção “todos os profissionais”: é um por vez. Estes valores são daquele dia e não se atualizam aqui.")
 ATUALIZACOES = {
     "fat_espera_envio": {"em": "2026-10-15", "texto": "Cada convênio passou a ter o seu prazo de envio, aprendido da média de dias que ele leva da emissão ao envio "
                                                       "(o SUS tem ainda uma análise mês a mês no painel de Faturamento); o aviso passou a aceitar a data prevista de envio."},
@@ -79,8 +96,13 @@ REGRAS = [
      "Some quando nenhuma fatura ativa estiver sem valor."),
     ("faturamento", r"^Faturas enviadas sem protocolo", "fat_sem_protocolo", [13355],
      ["No relatório de Faturas Emitidas, filtre os status Enviada e Movimentada e procure as faturas da lista (coluna Fatura - Id) com Fatura - Envio - Protocolo vazio.",
+      "Na tela Faturamento > Faturas o filtro de status tem também “Fatura Aguardando Protocolo”: confira se alguma das faturas da lista está nele.",
       "Informe o número do protocolo do envio na fatura, para conseguir conciliar o pagamento com o convênio."],
      "Some quando toda fatura enviada tiver protocolo."),
+    ("faturamento", r"^Faturas em um status que o painel não conhece", "fat_status_desconhecido", [13355],
+     ["Em Faturamento > aba Faturas, filtre pelos status e descubra qual status novo apareceu (a tabela abaixo traz a fatura e o status).",
+      "O painel só conhece A Enviar, Enviada, Movimentada e Cancelada. Se o status é novo no Klingo (por exemplo “Aguardando Protocolo”), não adianta mexer nas faturas: o painel precisa ser ajustado para contá-lo."],
+     "Some quando todas as faturas estiverem em um dos quatro status conhecidos (ou depois que o painel passar a tratar o status novo)."),
     ("faturamento", r"^Convênios com produção em .* e nenhuma fatura", "fat_sem_fatura", [13329, 13355],
      ["No relatório de Produção por Convênio confira o Produzido do convênio no mês (use o período do mês).",
       "No relatório de Faturas Emitidas, filtre a Operadora e a Data Inicial do mês: se não aparece fatura (nem cancelada), ela ainda não foi emitida.",
@@ -88,7 +110,8 @@ REGRAS = [
      "Some quando o convênio tiver ao menos uma fatura emitida com início no mês."),
     ("faturamento", r"^Produzido de .* que ainda não virou fatura", "fat_falta_faturar", [13329, 13355],
      ["No relatório de Produção por Convênio, compare por convênio o Produzido do mês com o valor das faturas dele no relatório de Faturas Emitidas (Data Inicial no mês).",
-      "Os convênios da lista são os que têm mais produzido sem fatura: emita ou complete a fatura do período."],
+      "Os convênios da lista são os que têm mais produzido sem fatura: emita ou complete a fatura do período.",
+      "Antes de emitir, olhe Faturamento > aba Pendências (guias com pendência de recepção ou correção, com o motivo): uma guia parada ali pode ser a razão de não ter entrado em fatura."],
      "Some quando o produzido sem fatura ficar abaixo de 10% do produzido do mês."),
     ("faturamento", r"^Faturas vencidas e ainda não baixadas", "fat_vencidas", [13328],
      ["Abra o relatório de Faturas em Aberto (Faturas Não Baixadas) e ordene por Vencimento: as vencidas ficam no topo. Procure pelo Nº do Lote.",
@@ -98,8 +121,9 @@ REGRAS = [
      ["No relatório de Produção por Convênio, compare por convênio Produzido e Recebido do mês fechado.",
       "Confira no extrato do banco ou no portal do convênio o que já entrou e lance a baixa (identificação de crédito) no Klingo."],
      "Some quando o recebido passar de 10% do produzido do mês de referência."),
-    ("faturamento", r"^Glosa registrada", "fat_glosa", [13329],
+    ("faturamento", r"^Glosa registrada", "fat_glosa", [13329, 13375],
      ["No relatório de Produção por Convênio, veja as colunas Glosa e Glosa Acatada por convênio.",
+      "O que cada convênio pagou, glosou e recusou, fatura por fatura, está em Financeiro > menu “...” > Posição de Recebimentos/Glosas.",
       "Decida entre recorrer ou aceitar a glosa de cada convênio da lista."],
      "Não some sozinho: a glosa fica no mês. Marque como resolvido quando todas tiverem recurso ou aceite."),
     ("faturamento", r"^Faturas em aberto sem valor", "fat_aberto_sem_valor", [13328],
@@ -121,10 +145,11 @@ REGRAS = [
      "Some quando o previsto a receber passar do que há a pagar no mês."),
     ("financeiro", r"^Contas vencidas sem baixa", "fin_vencidas", [798],
      ["Abra o relatório de Lançamentos Financeiros. Atenção: o período do relatório filtra pela data de EMISSÃO, então use um período que comece antes da emissão (a lista abaixo traz o número do lançamento e o vencimento).",
-      "Procure o lançamento pelo número. Se já foi pago, dê a baixa informando a Conta; se não foi, está em atraso."],
+      "Procure o lançamento pelo número. Se já foi pago, dê a baixa informando a Conta; se não foi, está em atraso.",
+      "Para conferir o total, Financeiro > aba Visão Geral mostra as contas a pagar e a receber em atraso e as que vencem hoje."],
      "Some quando o lançamento tiver Conta preenchida (baixa dada)."),
     ("financeiro", r"^Vencimentos nos próximos 7 dias", "fin_proximos_7", [798],
-     ["No relatório de Lançamentos Financeiros, procure os lançamentos da lista pelo número (período que inclua a emissão deles).", "Programe o pagamento ou confirme o caixa."],
+     ["No relatório de Lançamentos Financeiros, procure os lançamentos da lista pelo número (período que inclua a emissão deles).", "Programe o pagamento ou confirme o caixa (Financeiro > aba Visão Geral traz o saldo por conta bancária)."],
      "Some depois do vencimento ou da baixa dos lançamentos."),
     ("financeiro", r"^Convênios: quase nenhum crédito identificado", "fin_creditos_convenio", [13295, 13329],
      ["No relatório de Créditos de Convênio (Identificações de Créditos de Fatura) veja os créditos já identificados do mês.",
@@ -142,18 +167,27 @@ REGRAS = [
     # ------------------------------------------------------------------ Despesas
     ("despesas", r"^Despesas lançadas com valor zero", "des_zero", [13509, 13505],
      ["Abra o relatório de Despesas Detalhadas por Lançamento (Valor Líquido) e use o período livre do mês indicado (o filtro é Lançamento - Competência). A tabela abaixo traz o número do lançamento (coluna ID do Lançamento do relatório).",
-      "Para editar, procure esse número no relatório de Lançamentos Financeiros e abra o lançamento.",
+      "Para editar, abra Financeiro > aba Lançamento no Klingo, filtre a Categoria da despesa e procure esse número; abra o lançamento.",
       "Preencha o valor, ou exclua o lançamento se ele não é mais necessário."],
      "Some quando nenhuma despesa do mês tiver valor zero."),
     ("despesas", r"^Possíveis lançamentos repetidos", "des_repetidas", [13509, 13505],
      ["Abra o relatório de Despesas Detalhadas por Lançamento (Valor Líquido) no mês indicado e procure os números de lançamento da última coluna da tabela abaixo (mesma categoria, fornecedor, descrição e valor, com números diferentes).",
-      "Confira no Klingo se são parcelas ou itens iguais de verdade. Se um lançamento foi feito duas vezes por engano, exclua o repetido.",
+      "Confira no Klingo (Financeiro > aba Lançamento, filtrando a Categoria) se são parcelas ou itens iguais de verdade. Se um lançamento foi feito duas vezes por engano, exclua o repetido.",
       "O painel não decide sozinho: quando for legítimo, use “Marcar como resolvido”."],
      "Some quando não houver mais lançamentos idênticos no mês. Se forem legítimos, marque como resolvido."),
     ("despesas", r"^Despesas sem fornecedor", "des_sem_fornecedor", [13509, 13505],
      ["No relatório de Despesas Detalhadas por Lançamento (Valor Líquido), filtre o mês indicado e procure os números de lançamento da tabela abaixo (a coluna Fornecedor está vazia).",
-      "No Klingo, abra o lançamento (pelo relatório de Lançamentos Financeiros, procurando esse número) e informe o fornecedor."],
+      "No Klingo, abra o lançamento (Financeiro > aba Lançamento, filtrando a Categoria e procurando esse número) e informe o fornecedor."],
      "Some quando todas as despesas do mês tiverem fornecedor."),
+
+    ("despesas", r"^Produção médica sem Honorário Médico lançado", "des_repasse_sem_honorario", [13505, 26],
+     ["No Klingo, abra o módulo Repasse e vá à aba Apuração (a terceira, ao lado de Repasses e Rateios). O Rateio calcula o repasse sozinho; é a Apuração que o transforma em repasse de verdade.",
+      "Escolha um profissional por vez (não há “todos”) e o período em aberto; para recuperar o atraso, comece pelos últimos 90 dias. Siga a ordem da tabela abaixo: são os médicos de maior produção sem repasse.",
+      "Clique em “Apurar Produção” e repita para cada profissional com produção no período.",
+      "Confira se o repasse apurado passou a aparecer em Repasse > aba Repasses (estava vazia).",
+      "Lance o valor apurado de cada médico em Financeiro > aba Lançamento, na categoria Honorário Médico (no Klingo: “Deduções da receita: Honorários Médicos: Honorário Médico”), com a competência do mês da produção.",
+      "Faça disso uma rotina mensal, logo depois de fechar cada mês: assim o painel sempre tem o repasse do mês."],
+     "Some quando houver Honorário Médico lançado na competência de cada mês com produção (depois de lançar, use Atualizar agora)."),
 
     # ------------------------------------------------------------------ Suprimentos
     ("suprimentos", r"^Pedidos encerrados sem entrega", "sup_encerrados", [13387],
@@ -360,7 +394,7 @@ _COMPILADAS = [(p, re.compile(rx), i, rels, passos, res) for p, rx, i, rels, pas
 
 
 def _relatorio(rid: int) -> dict:
-    return {"id": rid, "nome": RELATORIOS.get(rid, f"Relatório #{rid}"), "url": f"{KLINGO}{rid}"}
+    return {"id": rid, "nome": RELATORIOS.get(rid, f"Relatório #{rid}"), "url": f"{KLINGO}{rid}", **({"menu": MENUS[rid]} if rid in MENUS else {})}
 
 
 def dbr(v) -> str:

@@ -37,6 +37,7 @@ function Guia({ aviso }: { aviso: Aviso }) {
   const { guia, itens } = aviso;
   const relatorios = (guia.relatorios ?? []).filter((r) => urlKlingoValida(r.url));
   const passos = guia.passos ?? [];
+  const menus = [...new Set(relatorios.map((r) => r.menu).filter((m): m is string => !!m))];
   if (!relatorios.length && !passos.length && !itens?.linhas?.length && !guia.dica && !guia.atualizacao) return null;
   const numericas = new Set(itens?.numericas ?? []);
   return (
@@ -51,6 +52,11 @@ function Guia({ aviso }: { aviso: Aviso }) {
               </a>
             ))}
           </div>
+        )}
+        {menus.length > 0 && (
+          <p className="aviso-dica">
+            <b>Pelo menu do Klingo:</b> {menus.join(" · ")}
+          </p>
         )}
         {passos.length > 0 && (
           <>

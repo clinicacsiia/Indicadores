@@ -24,7 +24,7 @@ export type TipoEvento =
   | "correcao";
 
 export type GuiaAviso = {
-  relatorios?: { id: number; nome: string; url: string }[];
+  relatorios?: { id: number; nome: string; url: string; menu?: string }[];
   passos?: string[];
   resolve?: string;
   dica?: string;

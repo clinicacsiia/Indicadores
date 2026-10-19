@@ -203,6 +203,19 @@ valor para ver os lançamentos do mês, no nome para ver a evolução; há busca
 
 O cálculo é `fornecedor_por_mes` / `casar_lista` em `Despesas/gerar_despesas.py` (testes: `tests/test_despesas_fornecedor.py`).
 
+### Onde achar no Klingo (menus) e o aviso do repasse médico
+
+- **Menu do Klingo no guia:** `guia_pendencias.MENUS` liga cada relatório à aba do Klingo onde o mesmo dado mora (Faturamento > Faturas/Guias/Pendências,
+  Financeiro > Lançamento e menu "...", Suprimentos > Atendimento/Movimentações/Saldos, Recepção). O guia do alerta ganha a linha "Pelo menu do Klingo: ..."
+  (`painel_base.js` e `AvisoCard.tsx`). Só entram relatórios cuja origem a clínica confirmou (19/10/2026); relatório sem menu fica como antes.
+- **Repasse médico sem lançamento** (`des_repasse_sem_honorario`): o alerta de Despesas "Produção médica sem Honorário Médico lançado" agora passa por
+  `gp.anotar`, então tem guia e aparece na aba **Avisos** (antes só aparecia dentro da página). Traz a fila de médicos (maior produção primeiro) e o passo a
+  passo do Klingo: Repasse > Apuração > "Apurar Produção" > conferir em Repasses > lançar em Financeiro > Lançamento (categoria Honorário Médico). O painel **não lê**
+  o módulo Repasse (Rateios, Apuração): o que está no guia sobre eles foi informado pela clínica. Um relatório do Klingo com o rateio por profissional
+  permitiria mostrar devido × repassado × lançado direto aqui.
+- **Status de fatura desconhecido** (`fat_status_desconhecido`): o painel de Faturamento conhece A Enviar, Enviada, Movimentada e Cancelada; uma fatura em outro
+  status (a tela do Klingo também tem "Aguardando Protocolo") entraria nos totais mas ficaria fora de "esperando envio", dos prazos e do protocolo, então agora avisa.
+
 ### Aplicar migrations no Supabase pelo Claude (e o que já foi aplicado)
 
 Projeto de produção: `Indicadores`, id `syhcvonwthtqalpjcmtj`. O Claude aplica migrations pela ferramenta `apply_migration` do Supabase, mas ela
