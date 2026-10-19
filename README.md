@@ -142,7 +142,8 @@ botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?
 - **Horário:** as funções rodam com fuso de Brasília (`TZ=BRT3`), senão "hoje" viraria amanhã depois das 21h.
 - **Cron (opcional):** `vercel.json` agenda `/api/preaquecer` todo dia às 06:30 (Brasília) para refazer as páginas e o primeiro
   acesso do dia não esperar a conta (a Cesta chega a levar mais de 1 min). Só funciona se existir a variável `CRON_SECRET`.
-- **Não existe na Vercel:** exportar PDF (precisa do Chromium do `exportar_pdf.py`), acesso em rede/`.exe`, usuários próprios
+- **Não existe na Vercel:** exportar PDF pelo Chromium do `exportar_pdf.py` (no site, a aba **Configurações → Extrair** gera o PDF pelo
+  navegador: `/extrair` empilha os painéis e abre a impressão), acesso em rede/`.exe`, usuários próprios
   do portal e as "visões" em PDF do Atendimento. A aba **Metas** continua sendo a do site (abaixo); a base das Metas em Python
   só existe para o Atendimento.
 
