@@ -175,6 +175,17 @@
   .barra-marca { position: absolute; z-index: 0; top: 1px; bottom: 1px; width: 2px; margin-left: -1px; background: var(--ink); opacity: .7; }
   .barra.destaque .barra-fill { background: var(--accent); }
   .barra:hover .barra-fill, .barra:focus-visible .barra-fill { filter: brightness(1.12); }
+  .barra-clicavel { cursor: pointer; border-radius: 6px; }
+  .barra-clicavel:hover, .barra-clicavel:focus-visible { background: var(--surface-2); outline: none; }
+  .barra-clicavel:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+
+  /* modal generico (drill-down de categoria/fornecedor etc.) */
+  .modal-painel { border: 0; border-radius: var(--radius-lg); padding: 0; width: min(760px, 92vw); max-height: 85vh; box-shadow: 0 12px 40px rgba(14, 28, 46, 0.25); background: var(--surface); color: var(--ink); }
+  .modal-painel::backdrop { background: rgba(10, 18, 32, 0.5); }
+  .modal-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--grid); position: sticky; top: 0; background: var(--surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .modal-cab h2 { margin: 0; font-size: 17px; }
+  .modal-x { width: 32px; min-height: 32px; padding: 0; flex: none; }
+  .modal-corpo { padding: 16px 20px 20px; overflow: auto; max-height: calc(85vh - 60px); }
   @media (max-width: 560px) {   /* tela estreita: rotulo na primeira linha, barra embaixo (nada fica cortado) */
     .barra { grid-template-columns: 1fr; row-gap: 2px; }
     .barra-rot { white-space: normal; }
