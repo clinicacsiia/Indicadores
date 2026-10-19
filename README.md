@@ -209,6 +209,9 @@ atualização PR#36, postada por engano em "Quase nada de convênio aparece como
 e foi para o histórico de "Faturas esperando envio há mais de 7 dias", que mantém a justificativa e a data prevista (20/10/2026) de quem fechou antes. Os dois
 históricos ganharam o evento "Correção de registro"; a linha original não foi apagada.
 
+**19/10/2026, `20261019120000_despesas_planilha.sql` (+ `..120100_..._base.sql` e `..120200_..._historico.sql`):** aplicadas pelo `apply_migration` (as tabelas, sem `drop`) e pelo
+`execute_sql` (os dados de seed: 78 itens, 59 ligações categoria → item, 33 linhas de fornecedor e 659 valores mensais de out/2025 a ago/2026). Ver "Aba Planilha (Despesas)".
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -309,6 +312,26 @@ não foram migradas: esses alertas aparecem como abertos na primeira conferênci
 **Limites a saber:** os avisos só são conferidos quando a página do painel é refeita — por alguém abrindo o painel, pelo botão **Atualizar
 agora** ou pelo cron diário —, então um aviso pode estar até um dia atrasado. "Voltou a acontecer" só é detectado entre uma conferência
 e outra (um problema que some e volta entre duas conferências não é visto).
+
+## Aba Planilha (Despesas)
+
+A planilha de despesas que a equipe consultava (`FORNECEDORES - MM.AAAA.xlsx`, abas "Planilha2" e "Planilha1") virou a aba **Planilha** do painel de Despesas, no mesmo
+formato (grupos > itens > meses; fornecedores com divisão CSI / CSI 2), atualizada sozinha pelo Klingo. Código: `Despesas/planilha_despesas.py`; tela: `planilhaMatriz()` e
+`planilhaFornecedores()` em `Despesas/dashboard_modelo.html`; testes: `tests/test_planilha_despesas.py`.
+
+- **Despesas por grupo e mês** (antiga Planilha2). Cada lançamento do #13505 vai para um item da planilha pela tabela `despesa_de_para` (categoria do Klingo → item). Meses **antes do
+  início confiável** (`inicio_confiavel` do `Despesas/relatorios.json`, hoje 2026-09) usam os valores da planilha antiga, guardados em `despesa_historico` (out/2025 a ago/2026); do
+  início em diante, só o Klingo. Categoria do Klingo que o de-para não conhece cai no grupo **SEM CLASSIFICAÇÃO** (o total nunca perde dinheiro). Item da planilha sem categoria no Klingo
+  aparece com "só histórico". Ligação deduzida (não confirmada pela planilha de mapeamento) aparece com "a confirmar" (`despesa_de_para.confirmado = false`).
+- **Fornecedores do mês** (antiga Planilha1). O que **vence** no mês na empresa `CLÍNICA DE SAÚDE E IMAGEM - CSI`, somado por fornecedor com o nome da planilha antiga e dividido entre CSI e
+  CSI 2 (`despesa_fornecedor.pct_csi`, 50% como na planilha). O Financeiro (#798) traz empresa e vencimento mas não o fornecedor; as Despesas Detalhadas (#13509) trazem o fornecedor; o painel
+  cruza os dois pelo **ID do lançamento** (o #798 repete o lançamento, uma linha por conta/conciliação: conta uma vez). Por isso `armazenamento.DEPENDENCIAS["despesas"] = ["financeiro"]` e o
+  "Atualizar agora" das Despesas atualiza também o Financeiro. O que não está na lista da planilha aparece em "Outros fornecedores".
+- **Onde editar (Table Editor do Supabase):** `despesa_item` (layout), `despesa_de_para` (categoria → item), `despesa_historico` (meses antigos), `despesa_fornecedor` (nome na planilha, fornecedor e
+  categoria do Klingo que entram nele, % da CSI). RLS ligado e sem policy: só o servidor lê. No programa local (Excel) e se o banco não responder, vale `Despesas/planilha_base.json`.
+- **Reimportar a planilha:** `python Despesas/importar_planilha.py "FORNECEDORES - 09.2026.xlsx"` regrava os itens e os meses do JSON (e avisa quando um total da planilha não bate com a soma
+  dos itens: em fev/2026 a própria planilha diz R$ 815.406,09 de total e os grupos somam R$ 827.433,06; o painel mostra a soma).
+- **Falha na aba não derruba o painel:** sem base, sem Financeiro ou com erro de conta, a parte afetada mostra o motivo e o resto das Despesas abre normalmente.
 
 ## Aba Tempo
 

@@ -26,6 +26,7 @@ import klingo_relatorios as k  # noqa: E402
 import painel_comum as pc  # noqa: E402
 import gerar_dashboard as gd  # noqa: E402  (norm das Metas)
 import guia_pendencias as gp  # noqa: E402
+import planilha_despesas as pl  # noqa: E402  (aba "Planilha": grupos x itens x meses e fornecedores CSI / CSI 2)
 
 MODELO = PASTA / "dashboard_modelo.html"
 SAIDA = PASTA / "Dashboard Despesas.html"
@@ -56,7 +57,26 @@ def arquivo_dados() -> Path:
 
 
 def atualizar(forcar: bool = False, historico: bool = False) -> dict:
-    return k.atualizar(PASTA, forcar=forcar, historico=historico)
+    """Baixa os relatorios desta pasta e, em seguida, os de Financeiro (#798: a aba Planilha usa a empresa e o vencimento dele)."""
+    partes = [k.atualizar(PASTA, forcar=forcar, historico=historico)]
+    try:
+        pasta_fin = str(PASTA.parent / "Financeiro")
+        if pasta_fin not in sys.path:
+            sys.path.insert(0, pasta_fin)
+        import gerar_financeiro as gfin  # noqa: E402  (so aqui: Despesas abre sem o Financeiro)
+        partes.append(gfin.atualizar(forcar=forcar, historico=historico))
+    except Exception as e:   # noqa: BLE001 (sem o Financeiro, so a divisao CSI / CSI 2 fica desatualizada)
+        partes.append({"atualizou": False, "mensagem": f"Financeiro não atualizado ({type(e).__name__}: {e}).", "avisos": []})
+    return {"atualizou": any(p.get("atualizou") for p in partes), "mensagem": " ".join(p["mensagem"] for p in partes),
+            "avisos": [a for p in partes for a in p.get("avisos", [])]}
+
+
+def lancamentos_do_financeiro() -> pd.DataFrame | None:
+    """Aba Lançamentos (#798) do painel Financeiro, ou None se ainda nao ha. Nunca derruba o painel."""
+    try:
+        return k.carregar(PASTA.parent / "Financeiro").get("Lançamentos")
+    except Exception:   # noqa: BLE001
+        return None
 
 
 def brl(v: float) -> str:
@@ -619,6 +639,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
             extras["compras_estoque"] = {"qtd": int(len(estoque)), "valor": float(estoque["Bruto"].sum())}
             extras["creditos_ignorados"] = {"qtd": int(len(creditos)), "valor": float(creditos["Valor"].fillna(0).sum())}
             extras["conferencia"] = conf
+            extras["planilha"] = pl.montar(d, lancamentos_do_financeiro(), inicio, ym_hoje)
 
             # ---- repasse medico (Honorario Medico lancado x producao de cada medico)
             repasse = montar_repasse(d, abas.get(ABA_PROD), meses, ym_hoje, inicio, per=per)
