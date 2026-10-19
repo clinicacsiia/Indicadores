@@ -188,6 +188,21 @@ Todas as abas (Início, Metas, Configurações e os 8 painéis em Python) seguem
   `metas_atendimentos_periodo(de, ate)` (migration `20261014120000_metas_periodo_livre.sql`); **aplique a migration** antes de usar o
   período livre em Metas (o filtro por mês continua usando `metas_atendimentos_mes`).
 
+### Despesas: fornecedor mês a mês
+
+Em **Despesas > Histórico**, a tabela interativa "Fornecedor mês a mês" mostra quanto cada fornecedor custou em cada mês de competência (bruto): clique num
+valor para ver os lançamentos do mês, no nome para ver a evolução; há busca, ordenação e o modo "Variação %". Duas visões:
+
+- **Todos os fornecedores:** o nome exatamente como o Klingo grava (`Fornecedor` do relatório #13505).
+- **Minha lista:** os itens que a clínica acompanha, em `Despesas/relatorios.json` > `fornecedores_acompanhados`. Os nomes da lista nem sempre são
+  os do Klingo (ex.: "JRL - FGTS" é o fornecedor `FGTS (FUNDO DE GARANTIA...)`), então cada item diz como achar os lançamentos: `fornecedor` (trechos do
+  nome no Klingo, sem diferenciar maiúsculas e acentos) e/ou `categoria` (trechos da categoria; vale os dois juntos, e assim "Folha Salarial" e
+  "Adiantamento" separam o mesmo fornecedor). Sem nenhum dos dois, vale o próprio nome do item. Um item pode juntar vários fornecedores, e um
+  lançamento entra só no primeiro item que o reconhece. Item sem lançamento aparece como "sem correspondência" (o botão "Procurar nos fornecedores
+  do Klingo" já leva à outra visão com a busca preenchida). Para corrigir ou ligar um item: edite o item no `relatorios.json`.
+
+O cálculo é `fornecedor_por_mes` / `casar_lista` em `Despesas/gerar_despesas.py` (testes: `tests/test_despesas_fornecedor.py`).
+
 ### Aplicar migrations no Supabase pelo Claude (e o que já foi aplicado)
 
 Projeto de produção: `Indicadores`, id `syhcvonwthtqalpjcmtj`. O Claude aplica migrations pela ferramenta `apply_migration` do Supabase, mas ela

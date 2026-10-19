@@ -11,6 +11,37 @@ __CSS__
 .calor { display: block; padding: 2px 6px; margin: -2px -6px; border-radius: 4px; }
 .pre td.n b, .linha-hist td { white-space: nowrap; }
 .tag-parcial { font-size: 11px; color: var(--muted); border: 1px solid var(--line, #ddd); border-radius: 10px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
+.fm-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 10px 0 4px; }
+.fm-seg { display: inline-flex; border: 1px solid var(--base); border-radius: var(--radius-sm); overflow: hidden; }
+.fm-seg button { font: inherit; font-size: 13px; font-weight: 600; padding: 0 12px; min-height: 36px; background: var(--surface); color: var(--ink2); border: 0; cursor: pointer; }
+.fm-seg button + button { border-left: 1px solid var(--base); }
+.fm-seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.fm-bar label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.fm-bar input[type=search], .fm-bar select { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--base); border-radius: var(--radius-sm); padding: 0 10px; min-height: 36px; }
+.fm-bar input[type=search] { width: 220px; max-width: 100%; }
+.fm-tab { border-collapse: separate; border-spacing: 0; }
+.fm-tab th, .fm-tab td { white-space: nowrap; }
+.fm-tab th:first-child, .fm-tab td:first-child { white-space: normal; min-width: 190px; max-width: 250px; }
+.fm-tab td:first-child .tag-parcial { display: inline-block; margin: 2px 0 0 0; }
+.fm-tab th:first-child, .fm-tab td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--grid); }
+.fm-tab tr.fm-sel td { background: var(--accent-soft); }
+.fm-tab tr.fm-sem td { color: var(--muted); }
+.fm-tab th.fm-mes-sel { color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+@media (max-width: 640px) { .fm-tab th:first-child, .fm-tab td:first-child { min-width: 108px; max-width: 124px; font-size: 12px; } .fm-nome { font-size: 12px; } .fm-bar input[type=search] { width: 100%; } }
+.fm-nome, .fm-cel { font: inherit; color: inherit; background: transparent; border: 1px solid transparent; cursor: pointer; }
+.fm-nome { text-align: left; padding: 2px 4px; margin: -2px -4px; border-radius: 4px; font-weight: 600; }
+.fm-nome:hover { color: var(--accent); }
+.fm-cel { display: block; width: 100%; text-align: right; padding: 2px 6px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+.fm-cel:hover { border-color: var(--accent); }
+.fm-cel[aria-pressed="true"] { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: -1px; font-weight: 650; }
+.fm-vazio { display: block; text-align: right; padding: 2px 6px; }
+.fm-det { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--grid); border-radius: var(--radius); background: var(--surface); scroll-margin-top: 12px; }
+.fm-det-cab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.fm-det-cab h3 { margin: 0; }
+.fm-stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 8px 0 4px; font-size: 13px; color: var(--ink2); }
+.fm-stats b { display: block; font-size: 17px; color: var(--ink); font-family: var(--font-display); }
+.fm-linkmes { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.fm-linkmes[aria-pressed="true"] { font-weight: 700; text-decoration: none; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -48,6 +79,7 @@ __CSS__
         <li><b>Recorrente e avulsa:</b> uma categoria é <b>recorrente</b> quando aparece lançada em 2 meses ou mais, e <b>avulsa</b> quando aparece em um só. É uma regra automática, não uma classificação da clínica.</li>
         <li><b>Previsão:</b> <b>já lançado</b> é o piso (certo). <b>Esperado</b> completa cada categoria recorrente até o seu valor típico (a mediana dos meses confiáveis já lançados). <b>Com avulsos</b> soma ainda a média de despesas avulsas dos meses fechados. Com poucos meses de história é um ponto de partida, não uma garantia, e melhora a cada mês que fecha.</li>
         <li><b>Lançamentos repetidos:</b> duas linhas idênticas com números de lançamento diferentes podem ser parcelas ou um lançamento em duplicidade; o painel só avisa para conferir. As compras de estoque ficam fora dessa conferência.</li>
+        <li><b>Fornecedor mês a mês:</b> na parte <b>Histórico</b>, a tabela mostra quanto cada fornecedor custou em cada mês de competência (bruto). <b>Minha lista</b> traz os itens que a clínica acompanha (cada um pode juntar vários fornecedores do Klingo, ou só uma categoria de um fornecedor; a ligação fica em <code>fornecedores_acompanhados</code>, no <code>relatorios.json</code> do painel) e <b>Todos os fornecedores</b> traz os nomes exatamente como o Klingo os grava. Clique num valor para ver os lançamentos daquele mês.</li>
         <li><b>Repasse médico:</b> é a categoria <b>Honorário Médico</b> das despesas, vista por médico e por empresa (o nome do médico vem da descrição do lançamento). A <b>produção</b> é a receita produzida (faturada, não necessariamente recebida) de cada médico. Os dois lados são ligados pelo nome: vale quando 2 palavras do nome coincidem. Quando um mês só tem um dos lados, o painel mostra esse lado e não calcula o percentual de repasse. Linhas de equipamento ou setor (RM, RX, TC, densitometria...) ficam fora do ranking de médicos.</li>
         <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e alertas do mês), <b>Análise</b> (comparações do mês escolhido), <b>Histórico</b> e <b>Previsão</b> (valem para todos os meses), <b>Repasse médico</b> (com seletor de mês próprio) e <b>Detalhes</b> (tabelas recolhidas: clique para abrir).</li>
         <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz os meses e grava na planilha <b>Despesas.xlsx</b>: o que foi corrigido ou excluído no Klingo muda aqui também.</li>
@@ -202,6 +234,150 @@ function composicaoGraf(m) {
       ${temLiq ? `<h3 style="margin:16px 0 4px;font-size:14px">Retenções mês a mês</h3>` + barras(retMes, '', '34%', { porPagina: 12 }) : ''}</div></section>`;
 }
 
+// ====================== FORNECEDOR POR MES ======================
+// Tabela interativa fornecedor x mes: cada celula e um botao (clique = lancamentos daquele mes, passe o mouse = valor e variacao); o nome abre a evolucao.
+const FM = { vista: 'lista', busca: '', ordem: 'padrao', modo: 'valor', sel: null, mes: null };
+let FM_CACHE = null;
+const semAcento = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function fmDados() {
+  if (FM_CACHE) return FM_CACHE;
+  const F = D.forn_mes;
+  const meses = F.yms.map(ym => D.evolucao.find(e => e.ym === ym) || { ym, rotulo: ym, situacao: 'fechado', parcial: false });
+  const confi = meses.map((m, i) => (!m.parcial && m.situacao === 'fechado') ? i : -1).filter(i => i >= 0);   // meses fechados depois do inicio confiavel: base das medias
+  const naLista = {};   // fornecedor (indice em F.todos) -> itens da lista em que ele entra
+  F.lancs.forEach(l => { if (l[2] >= 0) (naLista[l[1]] = naLista[l[1]] || new Set()).add(F.lista[l[2]].nome); });
+  return (FM_CACHE = { F, meses, confi, refMes: confi.length ? confi[confi.length - 1] : -1, naLista });
+}
+const fmMedia = (r, confi) => confi.length ? soma(confi, i => r.valores[i]) / confi.length : null;
+const fmRotMes = (m, sufixo = true) => esc(curto(m.rotulo, m.ym)) + (sufixo && m.situacao === 'previsto' ? '*' : '');
+function fmVisiveis() {
+  const { F, confi, refMes } = fmDados();
+  const lista = FM.vista === 'lista';
+  let v = (lista ? F.lista : F.todos).map((r, i) => ({ r, i }));
+  const q = semAcento(FM.busca).trim();
+  if (q) v = v.filter(({ r }) => semAcento([r.nome, ...(r.fornecedores || []), ...(r.categorias || [])].join(' ')).includes(q));
+  const ordens = { total: (a, b) => b.r.total - a.r.total, nome: (a, b) => a.r.nome.localeCompare(b.r.nome, 'pt-BR'),
+    ultimo: (a, b) => (refMes < 0 ? 0 : b.r.valores[refMes] - a.r.valores[refMes]), media: (a, b) => (fmMedia(b.r, confi) || 0) - (fmMedia(a.r, confi) || 0) };
+  if (ordens[FM.ordem]) v = [...v].sort(ordens[FM.ordem]);
+  return v;
+}
+function fmCelula(r, i, c) {
+  const { meses } = fmDados();
+  const v = r.valores[c], q = r.qtds[c], ant = c ? r.valores[c - 1] : null, m = meses[c];
+  if (!(v > 0 || q > 0)) return `<span class="fm-vazio" data-tip="${esc(`${r.nome}\n${m.rotulo}: sem lançamento`)}">${VAZIO}</span>`;
+  const max = Math.max(...r.valores, 0);
+  let tip = `${r.nome}\n${m.rotulo} · ${ROT_SIT[m.situacao]}${m.parcial ? ' (histórico)' : ''}\n${brl(v)} · ${q} lançamento${q === 1 ? '' : 's'}`;
+  if (c) {
+    const d = v - ant;
+    tip += `\nMês anterior (${meses[c - 1].rotulo}): ${brl(ant)}` + (ant > 0 ? `\nVariação: ${sinal(d)} (${d >= 0 ? '+' : '−'}${num(Math.abs(d) / ant * 100, 0)}%)` : (v > 0 ? '\nSem lançamento no mês anterior' : ''));
+  }
+  const fundo = FM.modo === 'valor' && v > 0 && max > 0 ? ` style="background:color-mix(in srgb, var(--accent) ${Math.max(7, Math.round(Math.sqrt(v / max) * 58))}%, transparent)"` : '';
+  let corpo;
+  if (FM.modo === 'valor') corpo = v ? num(v, 2) : '0,00';
+  else if (!c) corpo = '<span style="color:var(--muted)">1º mês</span>';
+  else if (!(v > 0)) corpo = '0,00';
+  else if (!(ant > 0)) corpo = '<span class="delta igual">novo</span>';
+  else corpo = comp((v - ant) / ant * 100, '', { inverso: true, d: 0 });
+  const marcado = FM.sel === i && FM.mes === c;
+  return `<button type="button" class="fm-cel"${fundo} data-fm="cel:${i}:${c}" data-tip="${esc(tip)}" aria-pressed="${marcado}" aria-label="${esc(tip.replace(/\n/g, '. '))}">${corpo}</button>`;
+}
+function fmTabela() {
+  const { F, meses, confi } = fmDados();
+  const vis = fmVisiveis(), lista = FM.vista === 'lista';
+  if (!vis.length) return '<p class="vazio">Nenhum fornecedor encontrado para esta busca.</p>';
+  const cab = `<th>${lista ? 'Item da sua lista' : 'Fornecedor'}</th>` + meses.map((m, c) => `<th class="n${FM.mes === c && FM.sel != null ? ' fm-mes-sel' : ''}">${fmRotMes(m)}${m.parcial ? '<span class="tag-parcial">hist.</span>' : ''}</th>`).join('') + '<th class="n">Total</th><th class="n">Média/mês</th>';
+  const corpo = vis.map(({ r, i }) => {
+    const sem = lista && !r.achou;
+    const tag = sem ? '<span class="tag-parcial">sem correspondência</span>' : (!lista && fmDados().naLista[i] ? `<span class="tag-parcial" data-tip="${esc('Na sua lista como: ' + [...fmDados().naLista[i]].join(', '))}">na sua lista</span>` : '');
+    const med = fmMedia(r, confi);
+    const celulas = sem ? meses.map(() => `<span class="fm-vazio">${VAZIO}</span>`) : meses.map((_, c) => fmCelula(r, i, c));
+    return `<tr data-fm-row="${i}" class="${FM.sel === i ? 'fm-sel' : ''}${sem ? ' fm-sem' : ''}"><td><button type="button" class="fm-nome" data-fm="nome:${i}">${esc(r.nome)}</button>${tag}</td>` +
+      celulas.map(h => `<td class="n">${h}</td>`).join('') + `<td class="n"><b>${sem ? VAZIO : brl(r.total)}</b></td><td class="n">${sem || med == null ? VAZIO : brl(med)}</td></tr>`;
+  }).join('');
+  const somaMes = meses.map((_, c) => soma(vis, ({ r }) => r.valores[c]));
+  const rodape = `<tr><td><b>Total da tabela</b></td>${somaMes.map(v => `<td class="n"><b>${num(v, 2)}</b></td>`).join('')}<td class="n"><b>${brl(soma(somaMes))}</b></td><td class="n">${confi.length ? brl(soma(confi, c => somaMes[c]) / confi.length) : VAZIO}</td></tr>`;
+  return `<div class="tab-wrap"><table class="fm-tab"><thead><tr>${cab}</tr></thead><tbody>${corpo}</tbody><tfoot>${rodape}</tfoot></table></div>`;
+}
+function fmDetalhe() {
+  const { F, meses, confi, refMes } = fmDados();
+  if (FM.sel == null) return '<p class="nota" style="margin-top:10px">Clique num valor da tabela para ver os lançamentos daquele mês, ou no nome para ver a evolução mês a mês.</p>';
+  const lista = FM.vista === 'lista', r = (lista ? F.lista : F.todos)[FM.sel];
+  const fechar = '<button type="button" class="btn-mini" data-fm="fechar">Fechar</button>';
+  if (lista && !r.achou) return `<div class="fm-det" id="fm-det"><div class="fm-det-cab"><h3>${esc(r.nome)}</h3>${fechar}</div>
+    <p class="nota" style="margin-top:8px">Nenhum lançamento do Klingo está ligado a este item da lista. O nome que a clínica usa pode ser diferente do que o Klingo grava como fornecedor.</p>
+    <button type="button" class="btn-mini" data-fm="procurar:${FM.sel}">Procurar nos fornecedores do Klingo</button></div>`;
+  const med = fmMedia(r, confi), maior = r.valores.reduce((a, v, i) => v > a.v ? { v, i } : a, { v: 0, i: -1 });
+  const stats = [['Total (todos os meses da tabela)', brl(r.total)], ['Média por mês fechado', med == null ? '—' : brl(med)], ['Maior mês', maior.i < 0 ? '—' : `${brl(maior.v)} (${esc(meses[maior.i].rotulo)})`], ['Meses com lançamento', `${r.meses} de ${meses.length}`]]
+    .map(([t, v]) => `<div>${t}<b>${v}</b></div>`).join('');
+  const idxC = meses.map((m, i) => m.parcial ? -1 : i).filter(i => i >= 0), evC = idxC.map(i => meses[i]), vC = idxC.map(i => r.valores[i]);
+  const xRot = evC.map((x, i) => ({ x: i, t: i % 2 === 0 || evC.length < 7 ? curto(x.rotulo, x.ym) : '' })).filter(t => t.t);
+  const graf = evC.length < 2 ? '' : linhas({ W: 760, H: 190, ml: 44, mr: 84, mt: 24, mb: 24, fmt: brlc, xRot, rotulosEm: 'todos', aria: 'Evolução de ' + r.nome,
+    tipX: i => `${r.nome}\n${evC[i].rotulo} · ${ROT_SIT[evC[i].situacao]}\n${brl(vC[i])}`, series: chaveHist(vC, evC) });
+  const linhasMes = meses.map((m, c) => {
+    const v = r.valores[c], ant = c ? r.valores[c - 1] : null;
+    const rot = r.qtds[c] ? `<button type="button" class="fm-linkmes" data-fm="mes:${c}" aria-pressed="${FM.mes === c}">${esc(m.rotulo)}</button>` : esc(m.rotulo);
+    return [rot + (m.parcial ? '<span class="tag-parcial">histórico</span>' : ''), ROT_SIT[m.situacao], v ? brl(v) : VAZIO, num(r.qtds[c]), c && ant > 0 && v > 0 ? comp((v - ant) / ant * 100, '', { inverso: true, d: 0 }) : (c && !(ant > 0) && v > 0 ? 'novo' : VAZIO)];
+  });
+  const tabMes = tabela([{ t: 'Mês' }, { t: 'Situação' }, { t: 'Valor', n: 1 }, { t: 'Lançamentos', n: 1 }, { t: 'Variação', n: 1 }], linhasMes);
+  const ls = F.lancs.filter(l => (lista ? l[2] === FM.sel : l[1] === FM.sel) && (FM.mes == null || l[0] === FM.mes)).sort((a, b) => b[0] - a[0] || b[7] - a[7]);
+  const MAX = 150, corte = ls.length > MAX ? `<p class="nota">Mostrando os ${MAX} primeiros de ${num(ls.length)}.</p>` : '';
+  const titLanc = FM.mes == null ? 'Lançamentos de todos os meses' : `Lançamentos de ${esc(meses[FM.mes].rotulo)}`;
+  const tabLanc = ls.length ? tabela([{ t: 'Lanç.' }, { t: 'Competência' }, ...(lista ? [{ t: 'Fornecedor' }] : []), { t: 'Categoria' }, { t: 'Descrição', txt: 1 }, { t: 'Bruto', n: 1 }],
+    ls.slice(0, MAX).map(l => [l[3] == null ? '—' : String(l[3]), dataBR(l[4]), ...(lista ? [esc(F.todos[l[1]].nome)] : []), esc(l[5]), esc(l[6] || '—'), brl(l[7])]),
+    ['', '', ...(lista ? [''] : []), '', `<b>Total (${num(ls.length)})</b>`, `<b>${brl(soma(ls, l => l[7]))}</b>`]) : '<p class="vazio">Nenhum lançamento.</p>';
+  const casados = lista && r.fornecedores.length ? `<p class="nota" style="margin:2px 0 0">Reúne os fornecedores do Klingo: ${esc(r.fornecedores.join(' · '))}.</p>` : '';
+  return `<div class="fm-det" id="fm-det"><div class="fm-det-cab"><h3>${esc(r.nome)}</h3>${fechar}</div>${casados}<div class="fm-stats">${stats}</div>
+    ${graf ? `<p class="nota" style="margin:6px 0 0">Evolução desde ${esc(D.inicio_confiavel)} (os meses anteriores, do histórico, estão só na tabela). Linha tracejada: mês em andamento e futuros.</p>${graf}` : ''}
+    <h3 style="margin:14px 0 2px;font-size:14px">Mês a mês</h3>${tabMes}
+    <h3 style="margin:14px 0 2px;font-size:14px">${titLanc}${FM.mes == null ? '' : ' <button type="button" class="btn-mini" data-fm="todosmeses">Ver todos os meses</button>'}</h3>${corte}${tabLanc}</div>`;
+}
+function fmAviso() {
+  const { F } = fmDados(), sem = F.lista.filter(r => !r.achou);
+  if (FM.vista !== 'lista' || !sem.length) return '';
+  return `<p class="nota">Na visão <b>Minha lista</b>, ${F.lista.length - sem.length} de ${F.lista.length} itens já têm lançamentos no Klingo. Ficam sem correspondência: ${esc(sem.map(r => r.nome).join('; '))}. Use <b>Todos os fornecedores</b> para achar o nome que o Klingo usa.</p>`;
+}
+function fmHtml() {
+  if (!D.forn_mes || !D.forn_mes.todos.length) return '';
+  const { F } = fmDados();
+  const seg = (campo, opcoes) => `<span class="fm-seg" role="group">${opcoes.map(([v, t]) => `<button type="button" data-fm="${campo}:${v}" aria-pressed="${FM[campo] === v}">${t}</button>`).join('')}</span>`;
+  return `<section id="fm"><h2>Fornecedor mês a mês</h2>
+    <p class="nota">Quanto cada fornecedor custou em cada mês de competência (valor bruto). <b>Clique num valor</b> para ver os lançamentos do mês e <b>no nome</b> para ver a evolução; passe o mouse para ver a variação sobre o mês anterior. A cor de cada linha vai do mais claro (menor mês) ao mais escuro (maior mês <i>daquele</i> fornecedor), então dá para ver a variação mesmo nos valores pequenos. * Mês futuro: só o que já está lançado. A média considera só os meses fechados depois de ${esc(D.inicio_confiavel)}.</p>
+    <div class="fm-bar">${F.lista.length ? seg('vista', [['lista', `Minha lista (${F.lista.length})`], ['todos', `Todos os fornecedores (${F.todos.length})`]]) : ''}
+      ${seg('modo', [['valor', 'R$ por mês'], ['var', 'Variação %']])}
+      <label>Buscar <input type="search" id="fm-busca" placeholder="nome do fornecedor" value="${esc(FM.busca)}" autocomplete="off"></label>
+      <label>Ordenar <select id="fm-ordem">${[['padrao', 'Ordem padrão'], ['total', 'Maior total'], ['ultimo', 'Maior no último mês fechado'], ['media', 'Maior média'], ['nome', 'Nome (A–Z)']].map(([v, t]) => `<option value="${v}"${FM.ordem === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>
+    <div id="fm-aviso">${fmAviso()}</div>
+    <div id="fm-tab">${fmTabela()}</div><div id="fm-detalhe">${fmDetalhe()}</div></section>`;
+}
+function fmAtualizar() {
+  if (!$('fm-tab')) return;
+  const w = $('fm-tab').querySelector('.tab-wrap'), sl = w ? w.scrollLeft : 0;
+  $('fm-tab').innerHTML = fmTabela();
+  const w2 = $('fm-tab').querySelector('.tab-wrap'); if (w2) w2.scrollLeft = sl;
+  $('fm-detalhe').innerHTML = fmDetalhe();
+  document.querySelectorAll('#fm [data-fm^="vista:"], #fm [data-fm^="modo:"]').forEach(b => { const [campo, v] = b.dataset.fm.split(':'); b.setAttribute('aria-pressed', String(FM[campo] === v)); });
+  $('fm-aviso').innerHTML = fmAviso();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('#fm [data-fm]'); if (!b) return;
+  const [acao, a, c] = b.dataset.fm.split(':'), { F } = fmDados();
+  let rolar = false;
+  if (acao === 'vista' || acao === 'modo') { if (acao === 'vista') { FM.sel = null; FM.mes = null; FM.ordem = 'padrao'; $('fm-ordem').value = 'padrao'; } FM[acao] = a; }
+  else if (acao === 'cel') { FM.sel = +a; FM.mes = +c; rolar = true; }
+  else if (acao === 'nome') { FM.sel = +a; FM.mes = null; rolar = true; }
+  else if (acao === 'mes') FM.mes = +a;
+  else if (acao === 'todosmeses') FM.mes = null;
+  else if (acao === 'fechar') { const volta = FM.sel; FM.sel = null; FM.mes = null; fmAtualizar(); const tr = document.querySelector(`#fm tr[data-fm-row="${volta}"]`); if (tr) tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+  else if (acao === 'procurar') {
+    const nome = F.lista[+a].nome, palavra = nome.split(/[^A-Za-zÀ-ú0-9]+/).filter(Boolean).sort((x, y) => y.length - x.length)[0] || nome;
+    FM.vista = 'todos'; FM.busca = palavra; FM.sel = null; FM.mes = null; FM.ordem = 'padrao'; $('fm-busca').value = palavra; $('fm-ordem').value = 'padrao';
+  }
+  fmAtualizar();
+  if (rolar && $('fm-det')) $('fm-det').scrollIntoView({ block: 'start', behavior: 'smooth' });
+});
+document.addEventListener('input', e => { if (e.target && e.target.id === 'fm-busca') { FM.busca = e.target.value; if (FM.sel != null) { FM.sel = null; FM.mes = null; } fmAtualizar(); } });
+document.addEventListener('change', e => { if (e.target && e.target.id === 'fm-ordem') { FM.ordem = e.target.value; fmAtualizar(); } });
+
 // ====================== HISTORICO ======================
 function chaveHist(valores, ev) {   // uma serie por categoria: meses fechados cheios, mes atual e futuros tracejados
   const fech = [], aberto = [];
@@ -232,7 +408,7 @@ function historicoHtml() {
   const calor = v => v ? `<span class="calor" style="background:color-mix(in srgb, var(--accent) ${Math.max(5, Math.round(Math.sqrt(v / maximo) * 55))}%, transparent)">${brl(v)}</span>` : VAZIO;
   const somaMes = ev.map((_, i) => soma(mx, r => r.valores[i]));
   const tabMx = tabela(cabM, mx.map(r => [esc(r.nome), ...r.valores.map(calor), `<b>${brl(r.total)}</b>`]), ['Total', ...somaMes.map(v => `<b>${brl(v)}</b>`), `<b>${brl(soma(somaMes))}</b>`]);
-  return `<section><h2>As maiores categorias ao longo do tempo</h2>
+  return fmHtml() + `<section><h2>As maiores categorias ao longo do tempo</h2>
     <p class="nota">As seis categorias com maior soma desde ${esc(D.inicio_confiavel)} (o que veio antes está nas tabelas abaixo), mês a mês. Linha cheia: meses fechados; tracejada: mês em andamento e futuros (só o já lançado). A etiqueta diz se a categoria é recorrente (aparece em 2 meses ou mais) ou avulsa.</p>
     <div class="multiplos">${mini}</div></section>
     <section>${acordeao('Mês a mês: bruto, líquido, retenções e variação', `<p class="nota">A variação compara com o mês anterior só quando os dois estão fechados e depois do início confiável (${esc(D.inicio_confiavel)}). Verde = gastou menos.</p>` + tabMes, { aberto: true, dica: `${ev.length} meses` })}

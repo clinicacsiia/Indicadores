@@ -192,6 +192,73 @@ def itens_lancamentos(x: pd.DataFrame) -> dict:
     return gp.tabela(["Lançamento", "Competência", "Categoria", "Fornecedor", "Descrição", "Valor"], linhas, total=len(x), numericas=(0, 5))
 
 
+# ---------------------------------------------------------------- fornecedor mes a mes
+MAX_DESC = 90   # tamanho da descricao de cada lancamento na tela "fornecedor por mes"
+
+
+def _contem(alvo: str, padroes: list[str]) -> bool:
+    return any(p and p in alvo for p in padroes)
+
+
+def casar_lista(d: pd.DataFrame, lista: list[dict]) -> pd.Series:
+    """Para cada lancamento, o indice do item da lista de fornecedores acompanhados (relatorios.json) a que ele pertence, ou -1.
+
+    Cada item pode ter "fornecedor" (trechos do nome do fornecedor no Klingo) e/ou "categoria" (trechos da categoria); quando traz os dois, vale os dois.
+    Sem nenhum, vale o proprio nome do item: o nome do fornecedor contem o item (FOCUS TECNOLOGIA EM SISTEMAS x "FOCUS TECNOLOGIA" nao casa, mas
+    "MEZZOW" casa "MEZZOW HEALTH TECH") ou o item contem o nome do fornecedor (a partir de 5 letras). Um lancamento entra no primeiro item que o reconhece."""
+    forn = d["Fornecedor"].map(lambda v: gd.norm(texto(v)))
+    cat = d["Despesa"].map(lambda v: gd.norm(texto(v)))
+    saida = pd.Series(-1, index=d.index)
+    for i, item in enumerate(lista):
+        pf = [gd.norm(p) for p in item.get("fornecedor", [])]
+        pc_ = [gd.norm(p) for p in item.get("categoria", [])]
+        if not pf and not pc_:
+            nome = gd.norm(item["nome"])
+            casa = forn.map(lambda f: bool(f) and (nome in f or (len(f) >= 5 and f in nome)))
+        else:
+            casa = pd.Series(True, index=d.index)
+            if pf:
+                casa &= forn.map(lambda f: _contem(f, pf))
+            if pc_:
+                casa &= cat.map(lambda c: _contem(c, pc_))
+        saida[casa & (saida < 0)] = i
+    return saida
+
+
+def fornecedor_por_mes(d: pd.DataFrame, ordem: list[str], lista_cfg: list[dict]) -> dict:
+    """Quanto cada fornecedor custou em cada mes (bruto, por competencia), para a tela "Fornecedor por mês".
+
+    - "todos": cada fornecedor do Klingo, do maior para o menor total. - "lista": os itens acompanhados (relatorios.json), na ordem da lista; um item
+    pode juntar varios fornecedores (ex.: INSS + IRRF) ou so uma categoria de um fornecedor (folha salarial x adiantamento).
+    - "lancs": os lancamentos de todos os meses, para o clique numa celula: [mes, fornecedor, item da lista (-1 = nenhum), id, data, categoria, descricao, valor]."""
+    pos = {m: i for i, m in enumerate(ordem)}
+    x = d[d["_ym"].isin(pos)].copy()
+    x["F"] = x["Fornecedor"].map(lambda v: texto(v, "(sem fornecedor)"))
+    x["_c"] = x["_ym"].map(pos)
+    x["_l"] = casar_lista(x, lista_cfg) if lista_cfg else -1
+    n = len(ordem)
+
+    def linha(nome: str, g: pd.DataFrame, **extra) -> dict:
+        vals, qtds = [0.0] * n, [0] * n
+        for c, gg in g.groupby("_c"):
+            vals[int(c)], qtds[int(c)] = float(gg["Bruto"].sum()), int(len(gg))
+        cats = g.groupby("Despesa")["Bruto"].sum().sort_values(ascending=False)
+        return {"nome": nome, "valores": vals, "qtds": qtds, "total": float(sum(vals)), "meses": int(sum(1 for v in vals if v > 0)),
+                "categorias": [str(c) for c in cats.index[:3]], **extra}
+
+    todos = sorted((linha(str(nome), g) for nome, g in x.groupby("F")), key=lambda r: -r["total"])
+    indice_forn = {r["nome"]: i for i, r in enumerate(todos)}
+    lista = []
+    for i, item in enumerate(lista_cfg):
+        g = x[x["_l"] == i]
+        lista.append(linha(item["nome"], g, achou=bool(len(g)), fornecedores=sorted(set(g["F"]))) if len(g) else
+                     {"nome": item["nome"], "valores": [0.0] * n, "qtds": [0] * n, "total": 0.0, "meses": 0, "categorias": [], "achou": False, "fornecedores": []})
+    lancs = [[int(r["_c"]), indice_forn[r["F"]], int(r["_l"]), None if pd.isna(r["ID"]) else int(r["ID"]), r["Competência"].strftime("%Y-%m-%d") if pd.notna(r["Competência"]) else "",
+              str(r["Despesa"]), texto(r["Descrição"])[:MAX_DESC], float(r["Bruto"])]
+             for _, r in x.sort_values(["_c", "Bruto"], ascending=[True, False]).iterrows()]
+    return {"yms": ordem, "todos": todos, "lista": lista, "lancs": lancs}
+
+
 # ---------------------------------------------------------------- previsao
 def prever(tab: pd.DataFrame, recor: pd.Series, ym_hoje: str, inicio: str) -> dict:
     """Quanto cada mes (o atual e os que vem) deve chegar a ter, a partir do que ja esta lancado.
@@ -607,6 +674,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
             extras["evolucao"] = hist
             tab_o = tab.assign(_t=tab.sum(axis=1)).sort_values("_t", ascending=False)
             extras["matriz"] = [{"nome": str(n), "valores": [float(r[ym]) for ym in ordem], "total": float(r["_t"]), "recorrente": bool(recor[n])} for n, r in tab_o.iterrows()]
+            extras["forn_mes"] = fornecedor_por_mes(d, ordem, defn.get("fornecedores_acompanhados", []))
             realizado = [m for ym, m in meses.items() if inicio <= ym <= ym_hoje]
             soma = sum(m["total"] for m in realizado)
             extras["acumulado"] = {"desde": pc.rotulo_mes(inicio), "total": soma, "meses": len(realizado), "media": soma / len(realizado) if realizado else None}
