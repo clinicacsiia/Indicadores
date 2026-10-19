@@ -131,18 +131,43 @@ function evolucaoHtml() {
 // ====================== ANALISE ======================
 function categoriasGraf(m) {
   const temRef = m.n_ref > 0;
+  const temDemaisCat = n => !/^Demais \(/.test(n), temDemaisForn = temDemaisCat;
   const mk = lista => lista.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 0), marca: temRef && i.media != null ? i.media : undefined,
-    tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)})\n${num(i.qtd)} lançamento(s)` + (temRef && i.media != null ? `\nMédia dos outros meses fechados: ${brl(i.media)}` : '') }));
+    clique: temDemaisCat(i.nome) ? 'cat:' + i.nome : '',
+    tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)})\n${num(i.qtd)} lançamento(s)` + (temRef && i.media != null ? `\nMédia dos outros meses fechados: ${brl(i.media)}` : '') + (temDemaisCat(i.nome) ? '\nClique para ver os fornecedores e lançamentos' : '') }));
   return `<section class="grid2">
-    <div><h2>Para onde vai o dinheiro</h2><p class="nota">Despesas de ${esc(m.rotulo)} por categoria${m.categorias.length > 10 ? ' (as dez maiores; o resto está em “Demais”)' : ''}.${temRef ? ' A <b>marca vertical</b> é a média mensal dos outros meses fechados: barra além da marca = gastou mais que o normal.' : ''}</p>
+    <div><h2>Para onde vai o dinheiro</h2><p class="nota">Despesas de ${esc(m.rotulo)} por categoria${m.categorias.length > 10 ? ' (as dez maiores; o resto está em “Demais”)' : ''}. Clique numa categoria para ver os fornecedores e os lançamentos dela.${temRef ? ' A <b>marca vertical</b> é a média mensal dos outros meses fechados: barra além da marca = gastou mais que o normal.' : ''}</p>
       ${barras(mk(m.categorias), 'Nenhuma despesa lançada neste mês.', '44%')}</div>
-    <div><h2>Quem recebe</h2><p class="nota">Despesas de ${esc(m.rotulo)} por fornecedor.</p>
-      ${barras(m.fornecedores.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 0), tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)})\n${num(i.qtd)} lançamento(s)` })), 'Nenhuma despesa lançada neste mês.', '44%')}</div></section>`;
+    <div><h2>Quem recebe</h2><p class="nota">Despesas de ${esc(m.rotulo)} por fornecedor. Clique num fornecedor para ver as categorias e os lançamentos dele.</p>
+      ${barras(m.fornecedores.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 0),
+        clique: temDemaisForn(i.nome) ? 'forn:' + i.nome : '',
+        tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)})\n${num(i.qtd)} lançamento(s)` + (temDemaisForn(i.nome) ? '\nClique para ver as categorias e lançamentos' : '') })), 'Nenhuma despesa lançada neste mês.', '44%')}</div></section>`;
 }
 
-function mudancaItens(lista, m, anteriorRot) {
-  return lista.map(t => ({ rotulo: t.nome, valor: Math.abs(t.dif), texto: sinal(t.dif), extra: t.nova ? 'novo' : t.sumiu ? 'zerou' : pct(t.pct, 0),
-    tip: `${t.nome}\n${anteriorRot}: ${brl(t.anterior)}\n${m.rotulo}: ${brl(t.valor)}\nDiferença: ${sinal(t.dif)}` }));
+// drill-down: clique numa categoria mostra os fornecedores e lancamentos dela; clique num fornecedor mostra as categorias e lancamentos dele
+function drillHtml(outroRotulo, outroItens, lancs) {
+  const outro = outroItens.length ? `<h3 style="margin:0 0 4px;font-size:14px">${esc(outroRotulo)}</h3>${barras(outroItens.map(i => ({ rotulo: i.nome, valor: i.valor, texto: brlc(i.valor), extra: pct(i.pct, 0), tip: `${i.nome}\n${brl(i.valor)} (${pct(i.pct)})\n${num(i.qtd)} lançamento(s)` })), '', '44%', { porPagina: 8 })}` : '';
+  const tab = lancs.length ? `<h3 style="margin:16px 0 4px;font-size:14px">Lançamentos (${num(lancs.length)})</h3>${listaLancamentos(lancs.slice(0, 200))}${lancs.length > 200 ? `<p class="nota">Mostrando os 200 maiores de ${num(lancs.length)}.</p>` : ''}` : '<p class="vazio">Nenhum lançamento.</p>';
+  return outro + tab;
+}
+document.addEventListener('barra-clique', e => {
+  const c = e.detail.clique; if (!c || !M_ATUAL) return;
+  const [tipo, ...resto] = c.split(':'); const nome = resto.join(':');
+  if (tipo === 'cat') {
+    const det = M_ATUAL.detalhe_categoria && M_ATUAL.detalhe_categoria[nome]; if (!det) return;
+    modal(nome, drillHtml('Fornecedores', det.fornecedores, det.lancamentos));
+  } else if (tipo === 'forn') {
+    const det = M_ATUAL.detalhe_fornecedor && M_ATUAL.detalhe_fornecedor[nome]; if (!det) return;
+    modal(nome, drillHtml('Categorias', det.categorias, det.lancamentos));
+  }
+});
+
+function mudancaItens(lista, m, anteriorRot, hist) {
+  return lista.map(t => {
+    const dif = hist ? t.hist_dif : t.dif, pctv = hist ? t.hist_pct : t.pct, refRot = hist ? (t.hist_rotulo || anteriorRot) : anteriorRot, refVal = hist ? t.hist_valor : t.anterior;
+    return { rotulo: t.nome, valor: Math.abs(dif), texto: sinal(dif), extra: t.nova ? 'novo' : t.sumiu ? 'zerou' : pct(pctv, 0),
+      tip: `${t.nome}\n${refRot}: ${brl(refVal)}\n${m.rotulo}: ${brl(t.valor)}\nDiferença: ${sinal(dif)}` };
+  });
 }
 function mudancasGraf(m) {
   if (m.situacao === 'previsto') return `<section><h2>O que mudou</h2><p class="vazio">Mês futuro: só há o que já foi lançado, então não comparo com o mês anterior.</p></section>`;
@@ -152,14 +177,14 @@ function mudancasGraf(m) {
   const caiu = `<div><h2>O que mais caiu</h2>${aberto
     ? '<p class="nota">Não aponto quedas em mês em andamento: o que parece queda pode ser lançamento que ainda não entrou.</p>'
     : `<p class="nota">Diferença por categoria entre ${esc(ant)} e ${esc(m.rotulo)}.</p>${barras(mudancaItens(md.cairam, m, ant), 'Nenhuma categoria caiu.', '44%')}`}</div>`;
-  const novos = mf.novos.map(t => ({ rotulo: t.nome, valor: t.valor, texto: brlc(t.valor), extra: 'novo', tip: `${t.nome}\nNão tinha despesa em ${ant}\n${m.rotulo}: ${brl(t.valor)}` }));
+  const novos = mf.novos.map(t => ({ rotulo: t.nome, valor: t.valor, texto: brlc(t.valor), extra: 'novo', tip: `${t.nome}\nSem despesa desde ${esc(D.inicio_confiavel)}\n${m.rotulo}: ${brl(t.valor)}` }));
   return `<section class="grid2">
-    <div><h2>O que mais subiu</h2><p class="nota">Diferença por categoria entre ${esc(ant)} e ${esc(m.rotulo)}.${aberto ? ' O mês ainda recebe lançamentos: o aumento pode ser maior.' : ''}</p>
-      ${barras(mudancaItens(md.subiram, m, ant), 'Nenhuma categoria subiu.', '44%')}</div>${caiu}</section>
+    <div><h2>O que mais subiu</h2><p class="nota">Diferença de cada categoria contra o <b>último mês em que ela teve lançamento</b> (não precisa ser ${esc(ant)}: um fornecedor pago a cada 2 meses, por exemplo, não aparece como "novo" só porque pulou um mês).${aberto ? ' O mês ainda recebe lançamentos: o aumento pode ser maior.' : ''}</p>
+      ${barras(mudancaItens(md.subiram, m, ant, true), 'Nenhuma categoria subiu.', '44%')}</div>${caiu}</section>
     <section class="grid2">
-    <div><h2>Fornecedores que mais subiram</h2><p class="nota">Diferença por fornecedor entre ${esc(ant)} e ${esc(m.rotulo)}.</p>
-      ${barras(mudancaItens(mf.subiram, m, ant), 'Nenhum fornecedor subiu.', '44%')}</div>
-    <div><h2>Fornecedores novos no mês</h2><p class="nota">Sem nenhuma despesa em ${esc(ant)}. ${aberto ? '' : (mf.sumiram.length ? `E ${mf.sumiram.length} fornecedor(es) que tinham despesa e zeraram.` : '')}</p>
+    <div><h2>Fornecedores que mais subiram</h2><p class="nota">Diferença de cada fornecedor contra o último mês em que ele teve lançamento.</p>
+      ${barras(mudancaItens(mf.subiram, m, ant, true), 'Nenhum fornecedor subiu.', '44%')}</div>
+    <div><h2>Fornecedores novos no mês</h2><p class="nota">Sem nenhuma despesa desde ${esc(D.inicio_confiavel)}. ${aberto ? '' : (mf.sumiram.length ? `E ${mf.sumiram.length} fornecedor(es) que tinham despesa em ${esc(ant)} e zeraram.` : '')}</p>
       ${barras(novos, 'Nenhum fornecedor novo.', '44%')}</div></section>`;
 }
 
@@ -377,18 +402,20 @@ function repCobertura() {
 
 // "e se o repasse fosse X% da producao?": so uma conta, para o gestor ter ordem de grandeza enquanto o repasse nao esta lancado
 function simuladorHtml() {
-  const meses = R.evolucao.filter(x => x.producao != null);
+  const meses = R.evolucao.filter(x => x.producao_medico != null);
   if (!meses.length) return '';
-  return `<section><h2>Simulador</h2><p class="nota">Digite um percentual de repasse sobre a produção para ver quanto seria em cada mês e como ficariam as despesas. É só uma conta: o painel não sabe qual é o percentual combinado com cada médico.</p>
+  const semMedico = soma(meses, x => (x.producao || 0) - (x.producao_medico || 0));
+  const nota = semMedico > 0.005 ? ` A produção sem médico informado (RM/RX/TC e equipamentos, ${brlc(semMedico)} no período) fica fora da conta: não há a quem repassar.` : '';
+  return `<section><h2>Simulador</h2><p class="nota">Digite um percentual de repasse sobre a produção <b>com médico identificado</b> para ver quanto seria em cada mês e como ficariam as despesas. É só uma conta: o painel não sabe qual é o percentual combinado com cada médico.${nota}</p>
     <label class="mes-pick">Repasse sobre a produção (%) <input type="number" id="sim-taxa" min="0" max="100" step="0.5" placeholder="ex.: 40" style="width:90px"></label>
     <div id="sim-saida" style="margin-top:12px"></div></section>`;
 }
 function simuladorSaida() {
   const el = $('sim-taxa'), saida = $('sim-saida'); if (!el || !saida) return;
-  const t = parseFloat(String(el.value).replace(',', '.')); const meses = R.evolucao.filter(x => x.producao != null);
+  const t = parseFloat(String(el.value).replace(',', '.')); const meses = R.evolucao.filter(x => x.producao_medico != null);
   if (!(t >= 0)) { saida.innerHTML = '<p class="vazio">Informe um percentual.</p>'; return; }
-  saida.innerHTML = tabela([{ t: 'Mês' }, { t: 'Produzido', n: 1 }, { t: `Repasse a ${num(t, 1)}%`, n: 1 }, { t: 'Repasse lançado', n: 1 }, { t: 'Despesas lançadas', n: 1 }, { t: 'Despesas com o repasse estimado', n: 1 }],
-    meses.map(x => { const est = x.producao * t / 100, fal = Math.max(est - x.bruto, 0); return [esc(x.rotulo), brl(x.producao), `<b>${brl(est)}</b>`, x.bruto ? brl(x.bruto) : VAZIO, brl(x.despesas), brl(x.despesas + fal)]; }));
+  saida.innerHTML = tabela([{ t: 'Mês' }, { t: 'Produzido (com médico)', n: 1 }, { t: `Repasse a ${num(t, 1)}%`, n: 1 }, { t: 'Repasse lançado', n: 1 }, { t: 'Despesas lançadas', n: 1 }, { t: 'Despesas com o repasse estimado', n: 1 }],
+    meses.map(x => { const est = x.producao_medico * t / 100, fal = Math.max(est - x.bruto, 0); return [esc(x.rotulo), brl(x.producao_medico), `<b>${brl(est)}</b>`, x.bruto ? brl(x.bruto) : VAZIO, brl(x.despesas), brl(x.despesas + fal)]; }));
 }
 document.addEventListener('input', e => { if (e.target && e.target.id === 'sim-taxa') simuladorSaida(); });
 
@@ -450,8 +477,10 @@ function detalhes(m) {
   return it.join('') || '<p class="vazio">Nenhum lançamento neste mês.</p>';
 }
 
+let M_ATUAL = null;   // mes (ou periodo) em exibicao, para o clique de categoria/fornecedor abrir o detalhe certo
 function render(ym) {
   const m = D.meses[ym], prev = anteriorDe(D, CHAVES, ym);
+  M_ATUAL = m;
   if (R && pmRep(ym)) repMes = ym;   // o detalhe do repasse acompanha o periodo do alto, quando ha repasse ou producao nele
   const alertas = [...(D.atencao || []), ...m.alertas].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
   $('conteudo').innerHTML =

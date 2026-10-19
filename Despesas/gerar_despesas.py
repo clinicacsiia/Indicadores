@@ -148,15 +148,34 @@ def agrupar(x: pd.DataFrame, campo: str, top: int | None = None, ref: dict | Non
     return itens
 
 
-def mudancas(atual: list[dict], anterior: list[dict]) -> dict:
-    """O que mudou por categoria/fornecedor contra o mes anterior (todos os nomes dos dois meses)."""
+def ultimo_valor(tab_x: pd.DataFrame, ordem: list[str], ym: str, inicio: str) -> dict[str, tuple[float, str]]:
+    """Nome (indice de tab_x) -> (valor, rotulo do mes) do ultimo mes confiavel ANTES de 'ym' em que o nome teve lancamento (>0).
+    Fica de fora quem nunca apareceu num mes confiavel anterior a 'ym'."""
+    anteriores = [m for m in ordem if inicio <= m < ym and m in tab_x.columns]
+    saida = {}
+    for nome in tab_x.index:
+        for m in reversed(anteriores):
+            v = float(tab_x.loc[nome, m])
+            if v > 0:
+                saida[str(nome)] = (v, pc.rotulo_mes(m))
+                break
+    return saida
+
+
+def mudancas(atual: list[dict], anterior: list[dict], hist: dict[str, tuple[float, str]] | None = None) -> dict:
+    """O que mudou por categoria/fornecedor. 'Caiu'/'sumiu' contra o mes imediatamente anterior (todos os nomes dos dois meses).
+    'Subiu'/'novo' contra o ULTIMO mes confiavel em que o nome teve lancamento ('hist'), para nao marcar como "novo" ou "subiu"
+    algo que so pulou um mes sem lancamento (ex.: fornecedor pago a cada 2 meses)."""
+    hist = hist or {}
     ant = {i["nome"]: i["valor"] for i in anterior}
     nomes = {i["nome"]: i["valor"] for i in atual}
     todas = []
-    for nome in nomes.keys() | ant.keys():
+    for nome in nomes.keys() | ant.keys() | hist.keys():
         a, b = nomes.get(nome, 0.0), ant.get(nome, 0.0)
-        todas.append({"nome": nome, "valor": a, "anterior": b, "dif": a - b, "pct": (a - b) / b * 100 if b else None, "nova": b == 0 and a > 0, "sumiu": a == 0 and b > 0})
-    subiram = sorted((t for t in todas if t["dif"] > 0), key=lambda t: -t["dif"])
+        hv, hrot = hist.get(nome, (0.0, None))
+        todas.append({"nome": nome, "valor": a, "anterior": b, "dif": a - b, "pct": (a - b) / b * 100 if b else None, "sumiu": a == 0 and b > 0,
+                      "hist_valor": hv, "hist_rotulo": hrot, "hist_dif": a - hv, "hist_pct": (a - hv) / hv * 100 if hv else None, "nova": hrot is None and a > 0})
+    subiram = sorted((t for t in todas if t["hist_dif"] > 0), key=lambda t: -t["hist_dif"])
     cairam = sorted((t for t in todas if t["dif"] < 0), key=lambda t: t["dif"])
     return {"subiram": subiram[:8], "cairam": cairam[:8], "novos": [t for t in subiram if t["nova"]][:8], "sumiram": [t for t in cairam if t["sumiu"]][:8]}
 
@@ -368,9 +387,10 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
         bruto, liq = float(hh["Bruto"].sum()), float(hh["Líquido"].sum())
         desp = meses[ym]["total"] if ym in meses else 0.0
         producao = float(pp["Valor"].sum()) if pp is not None else None
+        producao_medico = float(pp.loc[pp["M"] != SEM_MEDICO, "Valor"].sum()) if pp is not None else None
         evolucao.append({"ym": ym, "rotulo": pc.rotulo_mes(ym), "situacao": "fechado" if ym < ym_hoje else "em_curso", "parcial": ym < inicio, "bruto": bruto, "liquido": liq,
                          "retido": bruto - liq, "n_medicos": int(hh["M"].nunique()), "qtd": int(len(hh)), "despesas": desp, "pct_despesas": bruto / desp * 100 if desp else None,
-                         "producao": producao, "taxa": bruto / producao * 100 if (producao and bruto) else None, "tem_producao": pp is not None})
+                         "producao": producao, "producao_medico": producao_medico, "taxa": bruto / producao * 100 if (producao and bruto) else None, "tem_producao": pp is not None})
         if not len(hh) and pp is None:
             continue
         rep = bloco_repasse(hh, pp) if len(hh) else None
@@ -468,13 +488,17 @@ def alertas_do_mes(rotulo: str, sit: str, parcial: bool, x: pd.DataFrame, mud: d
                         "texto": f"<b>{len(sem_forn)}</b> despesa(s) de {rotulo}, somando <b>{brl(float(sem_forn['Bruto'].sum()))}</b>, não têm fornecedor. Sem ele não dá para saber para quem a clínica paga."})
     if mud and sit != "previsto" and not parcial and prev_rotulo:
         # o mes anterior ja fechou; no mes em andamento so a ALTA vale (a queda pode ser lancamento que ainda nao entrou)
-        sobem = [t for t in mud["subiram"] if t["dif"] >= SUBIDA_MIN_VALOR and (t["nova"] or t["pct"] >= SUBIDA_MIN_PCT)]
+        sobem = [t for t in mud["subiram"] if t["hist_dif"] >= SUBIDA_MIN_VALOR and (t["nova"] or (t["hist_pct"] is not None and t["hist_pct"] >= SUBIDA_MIN_PCT))]
         if sobem:
-            lista = "; ".join(f"<b>{html.escape(t['nome'])}</b> {brl(t['dif'])} a mais ({'nova no mês' if t['nova'] else '+' + fmt_pct(t['pct'])})" for t in sobem[:4])
+            def desc(t):
+                if t["nova"]:
+                    return f"<b>{html.escape(t['nome'])}</b> {brl(t['hist_dif'])} (nova no mês)"
+                return f"<b>{html.escape(t['nome'])}</b> {brl(t['hist_dif'])} a mais desde {html.escape(t['hist_rotulo'])} (+{fmt_pct(t['hist_pct'])})"
+            lista = "; ".join(desc(t) for t in sobem[:4])
             resto = f" e mais {len(sobem) - 4}" if len(sobem) > 4 else ""
             aberto = " O mês ainda recebe lançamentos, então esses valores podem crescer." if sit == "em_curso" else ""
-            alertas.append({"nivel": "info", "titulo": "Categorias que gastaram bem mais que no mês anterior",
-                            "texto": f"Contra {prev_rotulo}, em {rotulo}: {lista}{resto}.{aberto} Ver “O que mudou” na Análise."})
+            alertas.append({"nivel": "info", "titulo": "Categorias que gastaram bem mais que no último mês em que apareceram",
+                            "texto": f"Em {rotulo}: {lista}{resto}.{aberto} Ver “O que mudou” na Análise."})
     if falta and sit == "em_curso":
         grandes = [f for f in falta if f["falta"] >= FALTA_MIN_VALOR]
         if grandes:
@@ -503,8 +527,18 @@ def montar_mes(ym: str, d: pd.DataFrame, ctx: dict, prev: dict | None, per: pc.P
     forn_x = x.assign(F=x["Fornecedor"].map(lambda v: texto(v, "(sem fornecedor)")))
     forn_todos = agrupar(forn_x, "F")
     comparavel = prev is not None and not prev["parcial"] and not parcial
-    mud = mudancas(cats_todas, prev["_cats"]) if comparavel else None
-    mud_forn = mudancas(forn_todos, prev["_forn"]) if comparavel else None
+    ym_hist = per.ini if per else ym   # limite do historico: antes do periodo/mes, nunca dentro dele
+    hist_cat = ultimo_valor(tab, ctx["ordem"], ym_hist, ctx["inicio"])
+    hist_forn = ultimo_valor(ctx["tab_forn"], ctx["ordem"], ym_hist, ctx["inicio"])
+    mud = mudancas(cats_todas, prev["_cats"], hist_cat) if comparavel else None
+    mud_forn = mudancas(forn_todos, prev["_forn"], hist_forn) if comparavel else None
+    # ---- cruzamento para o clique nos graficos: categoria -> fornecedores e lancamentos dela; fornecedor -> categorias e lancamentos dele
+    detalhe_categoria = {str(nome): {"fornecedores": agrupar(g.assign(F=g["Fornecedor"].map(lambda v: texto(v, "(sem fornecedor)"))), "F"),
+                                      "lancamentos": [linha_lancamento(r) for _, r in g.sort_values("Bruto", ascending=False).iterrows()]}
+                          for nome, g in x.groupby("Despesa")}
+    detalhe_fornecedor = {str(nome): {"categorias": agrupar(g, "Despesa"),
+                                       "lancamentos": [linha_lancamento(r) for _, r in g.sort_values("Bruto", ascending=False).iterrows()]}
+                           for nome, g in forn_x.groupby("F")}
     alertas = alertas_do_mes(rotulo, sit, parcial, x, mud, prev["rotulo"] if comparavel else None, ctx["previsao"].get("faltas") if sit == "em_curso" else None)
     gp.anotar("despesas", alertas, per.chave if per else ym)
     bruto, liq = float(x["Bruto"].sum()), float(x["Líquido"].sum())
@@ -524,6 +558,7 @@ def montar_mes(ym: str, d: pd.DataFrame, ctx: dict, prev: dict | None, per: pc.P
         "recorrente": {"valor": rec, "avulso": bruto - rec, "avulsas": avulsas[:6]}, "top5_pct": top5,
         "mudancas": mud, "mudancas_forn": mud_forn, "mes_anterior": prev["rotulo"] if comparavel else None,
         "anterior_parcial": bool(prev and prev["parcial"] and not parcial),
+        "detalhe_categoria": detalhe_categoria, "detalhe_fornecedor": detalhe_fornecedor,
         "maiores": [linha_lancamento(r) for _, r in x.sort_values("Bruto", ascending=False).head(15).iterrows()],
         "lancamentos": [linha_lancamento(r) for _, r in x.sort_values(["Bruto", "Despesa"], ascending=[False, True]).head(MAX_LINHAS_MES).iterrows()], "lancamentos_total": int(len(x)),
         "alertas": alertas, "_cats": cats_todas, "_forn": forn_todos,
@@ -547,10 +582,12 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         if len(d):
             ordem = k.meses_entre(defn["primeiro_mes"], max(ym_hoje, d["_ym"].max()))
             tab = d[d["_ym"].isin(ordem)].pivot_table(index="Despesa", columns="_ym", values="Bruto", aggfunc="sum", fill_value=0.0).reindex(columns=ordem, fill_value=0.0)
+            d_forn = d.assign(F=d["Fornecedor"].map(lambda v: texto(v, "(sem fornecedor)")))
+            tab_forn = d_forn[d_forn["_ym"].isin(ordem)].pivot_table(index="F", columns="_ym", values="Bruto", aggfunc="sum", fill_value=0.0).reindex(columns=ordem, fill_value=0.0)
             recor = (tab > 0).sum(axis=1) >= 2          # categoria lancada em 2+ meses = recorrente; em 1 so = avulsa
             fechados = [m for m in ordem if inicio <= m < ym_hoje]
             previsao = prever(tab, recor, ym_hoje, inicio)
-            ctx = {"hoje": ym_hoje, "inicio": inicio, "tab": tab, "recor": recor.to_dict(), "fechados": fechados, "previsao": previsao}
+            ctx = {"hoje": ym_hoje, "inicio": inicio, "tab": tab, "tab_forn": tab_forn, "ordem": ordem, "recor": recor.to_dict(), "fechados": fechados, "previsao": previsao}
             prev = None
             for ym in ordem:
                 meses[ym] = montar_mes(ym, d, ctx, prev)

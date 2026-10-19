@@ -259,7 +259,7 @@ function barras(itens, vazio = 'Sem dados neste mês.', larguraRotulo = '34%', o
   const pos = v => `calc((100% - ${reserva}px) * ${(Math.min(Math.max(v, 0) / max, 1)).toFixed(4)})`;
   const pp = opts.porPagina || 10, paginas = Math.ceil(itens.length / pp);
   const corpo = `<div class="barras" style="--rot:${larguraRotulo}">` + itens.map((i, n) =>
-    `<div class="barra${opts.destaque === n ? ' destaque' : ''}" data-p="${Math.floor(n / pp)}"${n >= pp ? ' hidden' : ''} tabindex="0" data-tip="${esc(i.tip || i.rotulo + '\n' + i.texto)}"${i.cor && !COR_DECORATIVA.has(i.cor) ? ` style="--cor:${i.cor}"` : ''}>` +
+    `<div class="barra${opts.destaque === n ? ' destaque' : ''}${i.clique ? ' barra-clicavel' : ''}" data-p="${Math.floor(n / pp)}"${n >= pp ? ' hidden' : ''} tabindex="0" data-tip="${esc(i.tip || i.rotulo + '\n' + i.texto)}"${i.clique ? ` data-clique="${esc(i.clique)}" role="button"` : ''}${i.cor && !COR_DECORATIVA.has(i.cor) ? ` style="--cor:${i.cor}"` : ''}>` +
     `<div class="barra-rot" title="${esc(i.rotulo)}">${esc(i.rotulo)}</div>` +
     `<div class="barra-area"><div class="barra-fill" style="width:max(${pos(i.valor)}, 2px)"></div>` +
     `<span class="barra-val"${i.marca != null && i.marca > i.valor ? ` style="margin-left:calc(${pos(i.marca)} - ${pos(i.valor)} + 2px)"` : ''}>${esc(i.texto)}${i.extra ? `<small>${esc(i.extra)}</small>` : ''}</span>` +
@@ -282,6 +282,31 @@ document.addEventListener('click', e => {
   const w = b.closest('.barras-pag'); if (w) atualizarPag(w, +w.dataset.pag + +b.dataset.pagIr);
 });
 new MutationObserver(() => { document.querySelectorAll('.barras-pag:not([data-ok])').forEach(w => { w.dataset.ok = '1'; atualizarPag(w, 0); }); }).observe(document.documentElement, { childList: true, subtree: true });
+
+// barra clicavel (data-clique, de barras() com {clique: "..."}): dispara um evento para o script do painel decidir o que abrir
+function naClique(e) {
+  const b = e.target.closest && e.target.closest('[data-clique]'); if (!b) return;
+  document.dispatchEvent(new CustomEvent('barra-clique', { detail: { clique: b.dataset.clique, el: b } }));
+}
+document.addEventListener('click', naClique);
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('[data-clique]')) { e.preventDefault(); naClique(e); } });
+
+// ---- modal generico (drill-down, detalhes): modal(titulo, corpoHtml) abre; um so <dialog> reaproveitado pela pagina
+function modal(titulo, corpoHtml) {
+  let dlg = document.getElementById('modal-painel');
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'modal-painel';
+    dlg.className = 'modal-painel';
+    dlg.innerHTML = '<div class="modal-cab"><h2 id="modal-tit"></h2><button type="button" class="btn-mini modal-x" aria-label="Fechar">✕</button></div><div class="modal-corpo" id="modal-corpo"></div>';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+    dlg.querySelector('.modal-x').addEventListener('click', () => dlg.close());
+  }
+  dlg.querySelector('#modal-tit').textContent = titulo;
+  dlg.querySelector('#modal-corpo').innerHTML = corpoHtml;
+  if (!dlg.open) dlg.showModal();
+}
 
 // ---- cartao de numero-chave: rotulo, numero grande e a comparacao logo abaixo (vs mes anterior, vs meta...)
 // o: {comp, sub, destaque, titulo, classe, fin (e dinheiro: some sem "Dados financeiros")}
