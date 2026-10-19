@@ -38,6 +38,7 @@ DEPENDENCIAS = {
     "suprimentos": ["faturamento", "atendimento"],
     "atendimento": ["metas"],
     "tempo": ["atendimento"],   # le as abas Atendimentos e Fluxo na Recepcao do Atendimento (nao tem relatorio proprio)
+    "despesas": ["financeiro"], # a aba Planilha cruza os Lancamentos do Financeiro (#798: empresa e vencimento) com os fornecedores das Despesas
 }
 PAINEL_METAS, ABA_METAS = "metas", "Dados"
 
@@ -338,6 +339,12 @@ def previsto_s(painel: str, usuario: str, padrao: int) -> int:
         return padrao
     duracoes = sorted(float(r["duracao_segundos"]) for r in (res or []) if r.get("duracao_segundos"))
     return max(int(round(duracoes[len(duracoes) // 2])), 5) if duracoes else padrao
+
+
+def ler_tabela(nome: str, ordem: str) -> list[dict]:
+    """Todas as linhas de uma tabela de apoio (despesa_item, despesa_de_para...). `ordem` precisa ser total (ex.: "grupo.asc,item.asc"),
+    senao a paginacao repete e pula linhas."""
+    return _paginado(f"/rest/v1/{nome}", {"select": "*", "order": ordem}, 1000)
 
 
 def custos_informados() -> dict[str, float]:

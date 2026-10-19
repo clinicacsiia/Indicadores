@@ -1,0 +1,1810 @@
+{
+ "origem": "d3fc3b5a-FORNECEDORES_-_09.2026.xlsx",
+ "meses": [
+  "2025-10",
+  "2025-11",
+  "2025-12",
+  "2026-01",
+  "2026-02",
+  "2026-03",
+  "2026-04",
+  "2026-05",
+  "2026-06",
+  "2026-07",
+  "2026-08"
+ ],
+ "grupos": [
+  {
+   "grupo": "IMPOSTOS",
+   "itens": [
+    {
+     "item": "IRPJ + CSLL",
+     "valores": {
+      "2025-10": 44979.47,
+      "2026-01": 61146.08,
+      "2026-04": 60783.03,
+      "2026-07": 68429.82
+     }
+    },
+    {
+     "item": "ISS",
+     "valores": {
+      "2025-10": 21372.84,
+      "2025-11": 28693.19,
+      "2025-12": 22601.44,
+      "2026-01": 30641.24,
+      "2026-02": 26814.07,
+      "2026-03": 26591.86,
+      "2026-04": 28267.22,
+      "2026-05": 30617.52,
+      "2026-06": 28631.69,
+      "2026-07": 32783.07,
+      "2026-08": 33630.91
+     }
+    },
+    {
+     "item": "PIS E COFINS - UNIFICADO",
+     "valores": {
+      "2025-10": 14022.68,
+      "2025-11": 17107.06,
+      "2025-12": 15344.47,
+      "2026-01": 23395.66,
+      "2026-02": 11613.33,
+      "2026-03": 18718.92,
+      "2026-04": 19251.36,
+      "2026-05": 17614.12,
+      "2026-06": 19677.44,
+      "2026-07": 16124.12,
+      "2026-08": 24027.04
+     }
+    },
+    {
+     "item": "SIMPLES NACIONAL",
+     "valores": {
+      "2025-10": 15170.6,
+      "2025-11": 15350.07,
+      "2025-12": 23249.56,
+      "2026-01": 27493.93,
+      "2026-02": 17239.94,
+      "2026-03": 17336.49,
+      "2026-04": 18827.63,
+      "2026-05": 18982.5,
+      "2026-06": 19128.16,
+      "2026-07": 19261.92,
+      "2026-08": 19385.17
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "PESSOAL",
+   "itens": [
+    {
+     "item": "1ª PARCELA DÉCIMO TERCEIRO",
+     "valores": {
+      "2025-11": 38857.01,
+      "2026-03": 2408.21
+     }
+    },
+    {
+     "item": "2º PARCELA DÉCIMO TERCEIRO",
+     "valores": {
+      "2025-12": 35837.85
+     }
+    },
+    {
+     "item": "FARDAMENTOS",
+     "valores": {
+      "2025-10": 1044.38,
+      "2025-11": 151.34,
+      "2025-12": 517.99,
+      "2026-01": 179.7,
+      "2026-02": 400.48,
+      "2026-03": 76.18,
+      "2026-04": 607.5,
+      "2026-05": 548.87,
+      "2026-06": 589.39,
+      "2026-07": 296.39,
+      "2026-08": 101.7
+     }
+    },
+    {
+     "item": "FÉRIAS",
+     "valores": {
+      "2025-10": 11219.51,
+      "2025-11": 1726.62,
+      "2025-12": 12494.23,
+      "2026-01": 2048.78,
+      "2026-02": 13507.75,
+      "2026-03": 2635.6,
+      "2026-04": 2086.99,
+      "2026-05": 13190.17,
+      "2026-06": 11295.79,
+      "2026-07": 9201.85,
+      "2026-08": 2031.45
+     }
+    },
+    {
+     "item": "FGTS",
+     "valores": {
+      "2025-10": 6831.84,
+      "2025-11": 9428.75,
+      "2025-12": 12176.47,
+      "2026-01": 11755.53,
+      "2026-02": 9100.65,
+      "2026-03": 10869.53,
+      "2026-04": 8847.92,
+      "2026-05": 5745.23,
+      "2026-06": 11020.73,
+      "2026-07": 10585.7,
+      "2026-08": 11148.94
+     }
+    },
+    {
+     "item": "CONSIGNADO",
+     "valores": {
+      "2025-10": 4716.5,
+      "2025-11": 4291.43,
+      "2025-12": 3893.36,
+      "2026-01": 4862.58,
+      "2026-02": 4632.64,
+      "2026-03": 4929.2,
+      "2026-04": 5728.74,
+      "2026-05": 8051.02,
+      "2026-06": 8057.47,
+      "2026-07": 8126.72,
+      "2026-08": 8309.33
+     }
+    },
+    {
+     "item": "FOLHA QUINZENAL",
+     "valores": {
+      "2025-10": 21279.63,
+      "2025-11": 22540.9,
+      "2025-12": 22288.14,
+      "2026-01": 23843.62,
+      "2026-02": 22306.18,
+      "2026-03": 24405.82,
+      "2026-04": 23025.8,
+      "2026-05": 23777.17,
+      "2026-06": 24427.32,
+      "2026-07": 25240.95,
+      "2026-08": 24605.61
+     }
+    },
+    {
+     "item": "FOLHA SALARIAL",
+     "valores": {
+      "2025-10": 65423.48,
+      "2025-11": 65196.1,
+      "2025-12": 62025.75,
+      "2026-01": 61495.9,
+      "2026-02": 65128.89,
+      "2026-03": 61848.76,
+      "2026-04": 63049.07,
+      "2026-05": 64254.96,
+      "2026-06": 66375.26,
+      "2026-07": 76476.29,
+      "2026-08": 72294.63
+     }
+    },
+    {
+     "item": "HONORÁRIO TÉCNICO - RM E TC",
+     "valores": {
+      "2025-10": 13096.0,
+      "2025-11": 13803.15,
+      "2025-12": 13223.2,
+      "2026-01": 12631.0,
+      "2026-02": 12660.0,
+      "2026-03": 15914.21,
+      "2026-04": 12392.65,
+      "2026-05": 12018.59,
+      "2026-06": 14387.19,
+      "2026-07": 13200.3,
+      "2026-08": 14760.75
+     }
+    },
+    {
+     "item": "HORA EXTRA",
+     "valores": {
+      "2025-11": 896.17
+     }
+    },
+    {
+     "item": "INSS",
+     "valores": {
+      "2025-10": 20620.37,
+      "2025-11": 25236.59,
+      "2025-12": 31399.79,
+      "2026-01": 32496.03,
+      "2026-02": 26865.92,
+      "2026-03": 25162.51,
+      "2026-04": 27331.24,
+      "2026-05": 27768.51,
+      "2026-06": 28880.9,
+      "2026-07": 25858.2,
+      "2026-08": 35039.81
+     }
+    },
+    {
+     "item": "PCMSO, PRG E LTCAT",
+     "valores": {
+      "2026-01": 600.0,
+      "2026-08": 700.0
+     }
+    },
+    {
+     "item": "PONTO DIGITAL.",
+     "valores": {
+      "2025-10": 382.53,
+      "2025-11": 382.53,
+      "2025-12": 382.53,
+      "2026-01": 382.53,
+      "2026-02": 541.64,
+      "2026-03": 560.26,
+      "2026-04": 560.26,
+      "2026-05": 560.26,
+      "2026-06": 560.26,
+      "2026-07": 560.26,
+      "2026-08": 560.26
+     }
+    },
+    {
+     "item": "RESCISÃO",
+     "valores": {
+      "2025-10": 6893.7,
+      "2025-11": 2230.81,
+      "2026-01": 5186.17,
+      "2026-02": 505.17,
+      "2026-03": 6744.27,
+      "2026-04": 7882.82,
+      "2026-05": 4985.57,
+      "2026-07": 5807.3,
+      "2026-08": 10511.69
+     }
+    },
+    {
+     "item": "SALÁRIOS E OUTROS PROVENTOS",
+     "valores": {
+      "2025-10": 2469.6,
+      "2025-11": 3605.2,
+      "2025-12": 8902.0,
+      "2026-01": 11430.11,
+      "2026-02": 7182.53,
+      "2026-03": 3643.6,
+      "2026-04": 3833.7,
+      "2026-05": 4279.4,
+      "2026-06": 6539.99,
+      "2026-07": 5938.13,
+      "2026-08": 3074.6
+     }
+    },
+    {
+     "item": "VALE ALIMENTAÇÃO",
+     "valores": {
+      "2025-10": 12909.33,
+      "2025-11": 10836.0,
+      "2025-12": 10766.0,
+      "2026-01": 11802.0,
+      "2026-02": 11536.0,
+      "2026-03": 11998.0,
+      "2026-04": 13804.0,
+      "2026-05": 14182.0,
+      "2026-06": 13062.0,
+      "2026-07": 17804.0,
+      "2026-08": 15075.0
+     }
+    },
+    {
+     "item": "VALE TRANSPORTE",
+     "valores": {
+      "2025-10": 13533.7,
+      "2025-11": 12734.4,
+      "2025-12": 12846.4,
+      "2026-01": 14903.4,
+      "2026-02": 12354.6,
+      "2026-03": 14089.2,
+      "2026-04": 14738.2,
+      "2026-05": 15328.2,
+      "2026-06": 16319.4,
+      "2026-07": 16331.2,
+      "2026-08": 15682.2
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "itens": [
+    {
+     "item": "ÁGUA E ESGOTO",
+     "valores": {
+      "2025-10": 3774.66,
+      "2025-11": 2665.83,
+      "2025-12": 3091.56,
+      "2026-01": 2942.95,
+      "2026-02": 4519.23,
+      "2026-03": 4259.4,
+      "2026-04": 4563.73,
+      "2026-05": 2420.72,
+      "2026-06": 4137.26,
+      "2026-07": 3620.51,
+      "2026-08": 2990.55
+     }
+    },
+    {
+     "item": "COLETA DE RESÍDUOS INFECTANTES",
+     "valores": {
+      "2025-10": 712.5,
+      "2025-11": 712.5,
+      "2025-12": 646.0,
+      "2026-01": 1187.5,
+      "2026-02": 1216.0,
+      "2026-03": 902.5,
+      "2026-05": 361.0,
+      "2026-06": 902.5,
+      "2026-07": 772.0,
+      "2026-08": 902.5
+     }
+    },
+    {
+     "item": "DESPESAS ADMINISTRATIVAS",
+     "valores": {
+      "2025-10": 30082.84,
+      "2025-11": 31996.67,
+      "2025-12": 34221.75,
+      "2026-01": 31469.43,
+      "2026-02": 34879.0,
+      "2026-03": 65563.67,
+      "2026-04": 44012.04,
+      "2026-05": 37960.9,
+      "2026-06": 46879.75,
+      "2026-07": 40922.02,
+      "2026-08": 42920.35
+     }
+    },
+    {
+     "item": "ENERGIA ELÉTRICA",
+     "valores": {
+      "2025-10": 32871.97,
+      "2025-11": 33583.58,
+      "2025-12": 30071.8,
+      "2026-01": 29860.66,
+      "2026-02": 30329.22,
+      "2026-03": 30550.58,
+      "2026-04": 30496.49,
+      "2026-05": 17913.05,
+      "2026-06": 18223.97,
+      "2026-07": 17860.45,
+      "2026-08": 17189.25
+     }
+    },
+    {
+     "item": "HISTEROSCOPIA - GABRIELA MENEZ",
+     "valores": {
+      "2025-10": 1950.0,
+      "2025-11": 3199.0,
+      "2025-12": 1194.0,
+      "2026-02": 1039.63,
+      "2026-04": 681.34,
+      "2026-05": 1537.46,
+      "2026-07": 1111.18
+     }
+    },
+    {
+     "item": "HONORÁRIO MÉDICO",
+     "valores": {
+      "2025-10": 415500.89,
+      "2025-11": 294880.53,
+      "2025-12": 496675.48,
+      "2026-01": 421342.89,
+      "2026-02": 343344.71,
+      "2026-03": 363124.67,
+      "2026-04": 427648.37,
+      "2026-05": 413713.11,
+      "2026-06": 400487.91,
+      "2026-07": 409611.3,
+      "2026-08": 367702.77
+     }
+    },
+    {
+     "item": "HONORÁRIOS ADVOCATÍCIOS",
+     "valores": {
+      "2025-10": 1300.78,
+      "2025-11": 1300.78,
+      "2025-12": 1300.78,
+      "2026-01": 1300.78,
+      "2026-02": 1300.78,
+      "2026-03": 1300.78,
+      "2026-04": 1300.78,
+      "2026-05": 2122.55,
+      "2026-06": 2121.0,
+      "2026-07": 3839.71,
+      "2026-08": 2511.35
+     }
+    },
+    {
+     "item": "HONORÁRIOS CONTÁBEIS",
+     "valores": {
+      "2025-10": 1855.0,
+      "2025-11": 1855.0,
+      "2025-12": 1855.0,
+      "2026-01": 1858.8,
+      "2026-02": 1981.0,
+      "2026-03": 1981.0,
+      "2026-04": 1981.0,
+      "2026-05": 1981.0,
+      "2026-06": 1981.0,
+      "2026-07": 1981.0,
+      "2026-08": 1981.0
+     }
+    },
+    {
+     "item": "LABORATÓRIO",
+     "valores": {
+      "2025-10": 1132.11,
+      "2025-11": 1140.67,
+      "2025-12": 1039.85,
+      "2026-01": 2645.75,
+      "2026-02": 1160.98,
+      "2026-03": 2089.53,
+      "2026-04": 323.22,
+      "2026-05": 295.52,
+      "2026-07": 927.57,
+      "2026-08": 844.9
+     }
+    },
+    {
+     "item": "LICENÇA DE SOFTWARE",
+     "valores": {
+      "2025-10": 643.78,
+      "2025-11": 643.78,
+      "2025-12": 643.78,
+      "2026-01": 702.49,
+      "2026-02": 702.49,
+      "2026-03": 5116.93,
+      "2026-04": 2894.71,
+      "2026-05": 3452.71,
+      "2026-06": 4086.59,
+      "2026-07": 4112.77,
+      "2026-08": 4086.58
+     }
+    },
+    {
+     "item": "LOCAÇÃO DE EQ. DE IMPRESSÃO",
+     "valores": {
+      "2025-10": 8505.8,
+      "2025-11": 8145.0,
+      "2025-12": 8750.2,
+      "2026-01": 7741.8,
+      "2026-02": 9886.56,
+      "2026-03": 9112.32,
+      "2026-05": 3818.44,
+      "2026-06": 6070.04,
+      "2026-08": 12050.68
+     }
+    },
+    {
+     "item": "LOCAÇÃO DE EQ. DE INFORMÁTICA",
+     "valores": {
+      "2025-10": 704.0,
+      "2025-11": 704.0,
+      "2025-12": 1579.0,
+      "2026-01": 1597.37,
+      "2026-02": 1579.0,
+      "2026-03": 1579.0,
+      "2026-04": 2283.0,
+      "2026-05": 1579.0,
+      "2026-06": 1579.0,
+      "2026-07": 1579.0,
+      "2026-08": 1615.0
+     }
+    },
+    {
+     "item": "MANUT. DE MÁQUINAS E EQUIP.",
+     "valores": {
+      "2025-10": 3343.31,
+      "2025-11": 759.57,
+      "2025-12": 594.21,
+      "2026-01": 4790.65,
+      "2026-02": 10123.39,
+      "2026-03": 24067.79,
+      "2026-04": 28111.7,
+      "2026-05": 27497.68,
+      "2026-06": 44453.42,
+      "2026-07": 27735.18,
+      "2026-08": 31432.8
+     }
+    },
+    {
+     "item": "MANUTENÇÃO PREDIAL",
+     "valores": {
+      "2026-02": 950.0,
+      "2026-04": 587.22,
+      "2026-05": 587.22
+     }
+    },
+    {
+     "item": "MARKETING E PUBLICIDADE",
+     "valores": {
+      "2025-10": 3208.83,
+      "2025-11": 3208.83,
+      "2025-12": 3208.83,
+      "2026-01": 4043.13,
+      "2026-02": 4043.13,
+      "2026-03": 4043.13,
+      "2026-04": 4593.13,
+      "2026-05": 4043.13,
+      "2026-06": 4043.13,
+      "2026-07": 5543.13,
+      "2026-08": 5043.13
+     }
+    },
+    {
+     "item": "OUTROS SERVIÇOS DE TERCEIROS",
+     "valores": {
+      "2025-10": 3400.0,
+      "2026-01": 3320.0,
+      "2026-02": 320.0,
+      "2026-04": 10550.0,
+      "2026-07": 1000.0,
+      "2026-08": 4704.12
+     }
+    },
+    {
+     "item": "REMOÇÃO DE PACIENTES",
+     "valores": {
+      "2026-06": 833.34,
+      "2026-07": 850.8,
+      "2026-08": 833.33
+     }
+    },
+    {
+     "item": "SERVIÇO DE DEDETIZAÇÃO",
+     "valores": {
+      "2025-10": 840.0,
+      "2025-11": 530.0,
+      "2026-02": 850.0,
+      "2026-04": 305.0,
+      "2026-06": 620.0
+     }
+    },
+    {
+     "item": "SERVIÇO DE RADIOLOGIA",
+     "valores": {
+      "2025-10": 150.67,
+      "2025-12": 308.0,
+      "2026-01": 157.57,
+      "2026-02": 154.0,
+      "2026-03": 154.0,
+      "2026-04": 869.14,
+      "2026-05": 876.89,
+      "2026-06": 877.14,
+      "2026-07": 3161.89,
+      "2026-08": 154.0
+     }
+    },
+    {
+     "item": "SERVIÇO DE TELEFONIA",
+     "valores": {
+      "2025-10": 560.0,
+      "2025-11": 560.0,
+      "2025-12": 560.0,
+      "2026-01": 560.0,
+      "2026-02": 560.0,
+      "2026-03": 560.0,
+      "2026-04": 560.0,
+      "2026-05": 561.11,
+      "2026-06": 560.0,
+      "2026-07": 560.0,
+      "2026-08": 560.0
+     }
+    },
+    {
+     "item": "SERVIÇOS DE ESTERILIZAÇÃO",
+     "valores": {
+      "2025-10": 965.25,
+      "2025-11": 160.74,
+      "2025-12": 95.84,
+      "2026-01": 143.13,
+      "2026-02": 446.02,
+      "2026-03": 271.74,
+      "2026-04": 296.43,
+      "2026-05": 230.11,
+      "2026-06": 157.17,
+      "2026-07": 80.42,
+      "2026-08": 407.56
+     }
+    },
+    {
+     "item": "SERVIÇOS DE REFRIGERAÇÃO",
+     "valores": {
+      "2025-10": 3100.0,
+      "2025-11": 1000.0,
+      "2025-12": 2000.0,
+      "2026-01": 300.0,
+      "2026-02": 3750.0,
+      "2026-03": 2000.0,
+      "2026-04": 2400.0,
+      "2026-05": 2350.0,
+      "2026-06": 2000.0,
+      "2026-07": 3143.0,
+      "2026-08": 2750.0
+     }
+    },
+    {
+     "item": "SERVIÇOS T.I - TELEFONIA",
+     "valores": {
+      "2025-10": 6586.33,
+      "2025-11": 6082.33,
+      "2025-12": 6082.33,
+      "2026-01": 6082.33,
+      "2026-02": 5768.23,
+      "2026-03": 5768.23,
+      "2026-04": 5768.23,
+      "2026-05": 5768.23,
+      "2026-06": 5768.23,
+      "2026-07": 5768.23,
+      "2026-08": 5768.23
+     }
+    },
+    {
+     "item": "SISTEMA DE SEG. ELETRÔNICA",
+     "valores": {
+      "2025-10": 1753.34,
+      "2025-11": 1753.34,
+      "2025-12": 1753.34,
+      "2026-01": 1753.34,
+      "2026-02": 1753.34,
+      "2026-03": 1753.34,
+      "2026-04": 1753.34,
+      "2026-05": 1789.87,
+      "2026-06": 1789.87,
+      "2026-07": 1789.87,
+      "2026-08": 1776.44
+     }
+    },
+    {
+     "item": "SISTEMA DE TELEMEDICINA",
+     "valores": {
+      "2025-10": 2122.46,
+      "2025-11": 2119.86,
+      "2025-12": 2117.48,
+      "2026-01": 2117.69,
+      "2026-02": 2115.53,
+      "2026-03": 2114.23,
+      "2026-04": 2113.79,
+      "2026-05": 2113.79,
+      "2026-06": 2114.01,
+      "2026-07": 2112.71,
+      "2026-08": 2110.98
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "DESPESAS OPERACIONAIS",
+   "itens": [
+    {
+     "item": "ALUGUEL DE IMÓVEL",
+     "valores": {
+      "2025-10": 18000.0,
+      "2025-11": 28000.0,
+      "2025-12": 28000.0,
+      "2026-01": 28000.0,
+      "2026-02": 28000.0,
+      "2026-03": 28000.0,
+      "2026-04": 28000.0,
+      "2026-05": 28000.0,
+      "2026-06": 8000.0,
+      "2026-07": 48000.0,
+      "2026-08": 28000.0
+     }
+    },
+    {
+     "item": "AQUISIÇÃO DE EQUIPAMENTOS",
+     "valores": {
+      "2025-10": 12000.0
+     }
+    },
+    {
+     "item": "BRINDES INSTITUCIONAIS",
+     "valores": {
+      "2025-12": 7660.16
+     }
+    },
+    {
+     "item": "DESPESAS GERAIS",
+     "valores": {
+      "2025-10": 1408.99,
+      "2026-04": 1274.7,
+      "2026-05": 1274.7,
+      "2026-06": 1804.7,
+      "2026-07": 1804.7,
+      "2026-08": 1274.7
+     }
+    },
+    {
+     "item": "ESTORNO",
+     "valores": {
+      "2025-11": 1100.0,
+      "2025-12": 82.2,
+      "2026-01": 380.0,
+      "2026-02": 360.0,
+      "2026-03": 820.0,
+      "2026-04": 1534.5,
+      "2026-05": 620.0,
+      "2026-06": 1252.45,
+      "2026-07": 2280.0,
+      "2026-08": 640.0
+     }
+    },
+    {
+     "item": "EVENTOS E FESTIVIDADES",
+     "valores": {
+      "2025-12": 10953.05,
+      "2026-02": 1789.0,
+      "2026-03": 1740.73,
+      "2026-04": 1891.6,
+      "2026-05": 733.15,
+      "2026-06": 4999.86,
+      "2026-07": 650.0
+     }
+    },
+    {
+     "item": "FINANCIAMENTO MAQUINAS",
+     "valores": {
+      "2025-10": 98713.41,
+      "2026-01": 97175.85,
+      "2026-04": 91043.23,
+      "2026-05": 68576.2,
+      "2026-06": 69815.11,
+      "2026-07": 68519.19,
+      "2026-08": 70735.41
+     }
+    },
+    {
+     "item": "INSUMO OPERACIONAL",
+     "valores": {
+      "2025-11": 799.05,
+      "2025-12": 126.9,
+      "2026-01": 264.72,
+      "2026-02": 50.0,
+      "2026-06": 92.0,
+      "2026-07": 92.0,
+      "2026-08": 92.0
+     }
+    },
+    {
+     "item": "MATERIAL DE CONSTRUÇÃO",
+     "valores": {
+      "2025-10": 1962.33,
+      "2025-11": 802.3,
+      "2025-12": 250.76,
+      "2026-01": 2755.02,
+      "2026-02": 478.75,
+      "2026-03": 1083.24,
+      "2026-04": 1290.4,
+      "2026-05": 2006.41,
+      "2026-06": 682.17,
+      "2026-07": 682.17,
+      "2026-08": 736.77
+     }
+    },
+    {
+     "item": "MATERIAL DE CONSUMO",
+     "valores": {
+      "2025-10": 378.75,
+      "2026-01": 8.97,
+      "2026-02": 483.85,
+      "2026-03": 409.93,
+      "2026-04": 982.69,
+      "2026-05": 770.71,
+      "2026-06": 1614.93,
+      "2026-07": 198.0,
+      "2026-08": 1828.44
+     }
+    },
+    {
+     "item": "MATERIAL DE ESCRITÓRIO",
+     "valores": {
+      "2025-10": 1737.86,
+      "2025-11": 1261.47,
+      "2025-12": 2128.97,
+      "2026-01": 1665.52,
+      "2026-02": 3168.04,
+      "2026-03": 3296.66,
+      "2026-04": 3464.16,
+      "2026-05": 3336.89,
+      "2026-06": 2660.23,
+      "2026-07": 572.81,
+      "2026-08": 1199.0
+     }
+    },
+    {
+     "item": "MATERIAL DE LIMPEZA",
+     "valores": {
+      "2025-10": 1853.03,
+      "2025-11": 4108.02,
+      "2025-12": 1793.31,
+      "2026-01": 2132.73,
+      "2026-02": 2472.59,
+      "2026-03": 2138.2,
+      "2026-04": 2936.59,
+      "2026-05": 2881.72,
+      "2026-06": 5277.74,
+      "2026-07": 1830.05,
+      "2026-08": 3398.37
+     }
+    },
+    {
+     "item": "MATERIAL ELÉTRICO",
+     "valores": {
+      "2025-10": 1700.0
+     }
+    },
+    {
+     "item": "MATERIAL GRÁFICO",
+     "valores": {
+      "2025-10": 3668.6,
+      "2025-11": 3817.14,
+      "2025-12": 5751.85,
+      "2026-01": 4064.0,
+      "2026-02": 3837.38,
+      "2026-03": 3775.0,
+      "2026-04": 4253.0,
+      "2026-06": 355.0
+     }
+    },
+    {
+     "item": "SEGURANÇA",
+     "valores": {
+      "2025-10": 381.4
+     }
+    },
+    {
+     "item": "SEGUROS DE IMÓVEIS",
+     "valores": {
+      "2025-10": 4183.11,
+      "2026-05": 3585.09,
+      "2026-06": 3585.09,
+      "2026-07": 3590.1,
+      "2026-08": 3585.1
+     }
+    },
+    {
+     "item": "VIAGENS",
+     "valores": {
+      "2025-11": 13.94,
+      "2025-12": 82.38,
+      "2026-01": 91.39,
+      "2026-03": 105.69,
+      "2026-04": 14.35,
+      "2026-05": 80.42,
+      "2026-06": 302.63,
+      "2026-07": 6.01,
+      "2026-08": 89.51
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "BENS PATRIMONIAIS",
+   "itens": [
+    {
+     "item": "EQUIPAMENTOS DE INFORMÁTICA",
+     "valores": {
+      "2025-10": 2128.97,
+      "2025-11": 2664.76,
+      "2025-12": 2993.97,
+      "2026-01": 2899.77,
+      "2026-02": 1251.3,
+      "2026-03": 1370.93,
+      "2026-04": 831.58,
+      "2026-05": 1121.63,
+      "2026-06": 911.64,
+      "2026-07": 858.09,
+      "2026-08": 778.04
+     }
+    },
+    {
+     "item": "MÁQUINAS E EQUIPAMENTOS",
+     "valores": {
+      "2025-10": 2620.0,
+      "2025-11": 1907.13,
+      "2025-12": 1512.71,
+      "2026-01": 18320.89,
+      "2026-02": 20499.3,
+      "2026-03": 19902.65,
+      "2026-04": 18521.44,
+      "2026-05": 18337.04,
+      "2026-06": 19514.43,
+      "2026-07": 1471.78,
+      "2026-08": 2995.37
+     }
+    },
+    {
+     "item": "MÓVEIS E UTENSÍLIOS",
+     "valores": {
+      "2025-11": 169.53,
+      "2025-12": 819.61,
+      "2026-01": 881.0,
+      "2026-02": 490.47,
+      "2026-03": 496.13,
+      "2026-04": 746.64,
+      "2026-05": 753.6,
+      "2026-06": 807.33,
+      "2026-07": 1218.51,
+      "2026-08": 1172.5
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "DESPESAS FINANCEIRAS",
+   "itens": [
+    {
+     "item": "OUTRAS DESP. FINANCEIRAS",
+     "valores": {
+      "2025-10": 6892.32,
+      "2025-11": 3682.53,
+      "2025-12": 3542.53,
+      "2026-01": 3542.53,
+      "2026-02": 3542.53,
+      "2026-03": 3402.53,
+      "2026-04": 3402.53,
+      "2026-05": 3402.53,
+      "2026-06": 3834.8,
+      "2026-07": 3914.06,
+      "2026-08": 3834.8
+     }
+    },
+    {
+     "item": "TAXAS BANCARIAS",
+     "valores": {
+      "2025-10": 1077.57,
+      "2025-11": 1019.71,
+      "2025-12": 1069.69,
+      "2026-01": 1056.89,
+      "2026-02": 892.71,
+      "2026-03": 1101.41,
+      "2026-04": 1043.92,
+      "2026-05": 834.73,
+      "2026-06": 984.61,
+      "2026-07": 415.58,
+      "2026-08": 284.0
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "OUTROS IMP. CONTR. E TAXA",
+   "itens": [
+    {
+     "item": "DARF",
+     "valores": {
+      "2025-12": 360.0,
+      "2026-07": 661.38
+     }
+    },
+    {
+     "item": "IPTU",
+     "valores": {
+      "2025-10": 2286.49,
+      "2025-11": 2286.49,
+      "2025-12": 2286.49,
+      "2026-02": 3410.12,
+      "2026-03": 2277.81,
+      "2026-04": 2277.81,
+      "2026-05": 2277.81,
+      "2026-06": 2277.81,
+      "2026-07": 2277.81,
+      "2026-08": 2277.81
+     }
+    },
+    {
+     "item": "OUTROS IMP.CONTRIB. E TAXAS",
+     "valores": {
+      "2026-01": 691.21,
+      "2026-06": 2959.7
+     }
+    },
+    {
+     "item": "TAXA - TRIBUTOS",
+     "valores": {
+      "2025-11": 43.9,
+      "2026-01": 2238.0
+     }
+    },
+    {
+     "item": "TFF",
+     "valores": {
+      "2025-10": 4664.41,
+      "2025-11": 3510.35,
+      "2025-12": 3510.35,
+      "2026-06": 4048.68,
+      "2026-07": 3666.9,
+      "2026-08": 4473.92
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "EMPREST.E FINANC. AMORTIZ",
+   "itens": [
+    {
+     "item": "EMPRESTIMO",
+     "valores": {
+      "2025-10": 12565.33,
+      "2025-11": 12565.33,
+      "2025-12": 12565.33,
+      "2026-01": 12565.33,
+      "2026-02": 12565.33,
+      "2026-03": 12565.33,
+      "2026-04": 12565.33,
+      "2026-05": 12565.33,
+      "2026-06": 12565.33,
+      "2026-07": 12565.33,
+      "2026-08": 12565.33
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "MATERIAS E MEDICAMENTOS",
+   "itens": [
+    {
+     "item": "MATERIAL MÉDICO/HOSPITALAR",
+     "valores": {
+      "2025-10": 32229.21,
+      "2025-11": 32084.37,
+      "2025-12": 23995.0,
+      "2026-01": 24800.88,
+      "2026-02": 20106.69,
+      "2026-03": 11119.24,
+      "2026-04": 12513.7,
+      "2026-05": 13423.64,
+      "2026-06": 24564.36,
+      "2026-07": 16804.93,
+      "2026-08": 17801.83
+     }
+    },
+    {
+     "item": "MEDICAMENTOS",
+     "valores": {
+      "2025-10": 28417.07,
+      "2025-11": 18403.69,
+      "2025-12": 15688.4,
+      "2026-01": 15800.57,
+      "2026-02": 17411.12,
+      "2026-03": 12649.77,
+      "2026-04": 17335.56,
+      "2026-05": 11106.25,
+      "2026-06": 19385.56,
+      "2026-07": 24327.29,
+      "2026-08": 20459.35
+     }
+    },
+    {
+     "item": "VACINA",
+     "valores": {
+      "2025-12": 1306.45,
+      "2026-01": 1306.45,
+      "2026-02": 1306.84
+     }
+    }
+   ]
+  },
+  {
+   "grupo": "FUNDO FIXO",
+   "itens": [
+    {
+     "item": "FUNDO FIXO",
+     "valores": {
+      "2025-10": 168.1,
+      "2025-11": 106.95,
+      "2025-12": 283.15,
+      "2026-01": 390.72,
+      "2026-02": 155.01,
+      "2026-03": 437.9,
+      "2026-04": 127.0,
+      "2026-05": 595.2
+     }
+    }
+   ]
+  }
+ ],
+ "de_para": [
+  {
+   "categoria": "Iss - Declarado",
+   "grupo": "IMPOSTOS",
+   "item": "ISS",
+   "confirmado": false,
+   "observacao": "Planilha de mapeamento: existem duas categorias de ISS no Klingo; confirmar"
+  },
+  {
+   "categoria": "Iss - Substituto Tributário",
+   "grupo": "IMPOSTOS",
+   "item": "ISS",
+   "confirmado": false,
+   "observacao": "Idem"
+  },
+  {
+   "categoria": "SIMPLES NACIONAL",
+   "grupo": "IMPOSTOS",
+   "item": "SIMPLES NACIONAL",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "13º Salário",
+   "grupo": "PESSOAL",
+   "item": "1ª PARCELA DÉCIMO TERCEIRO",
+   "confirmado": false,
+   "observacao": "O Klingo tem uma só categoria para o 13º: a 2ª parcela (dezembro) precisa ser movida para '2º PARCELA DÉCIMO TERCEIRO' aqui"
+  },
+  {
+   "categoria": "Fardamento",
+   "grupo": "PESSOAL",
+   "item": "FARDAMENTOS",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  },
+  {
+   "categoria": "Férias",
+   "grupo": "PESSOAL",
+   "item": "FÉRIAS",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "FGTS",
+   "grupo": "PESSOAL",
+   "item": "FGTS",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "FGTS - Consignado",
+   "grupo": "PESSOAL",
+   "item": "CONSIGNADO",
+   "confirmado": false,
+   "observacao": "Possível correspondência; confirmar com a chefia"
+  },
+  {
+   "categoria": "FGTS - Rescisório",
+   "grupo": "PESSOAL",
+   "item": "FGTS",
+   "confirmado": false,
+   "observacao": "Categoria que existe nos lançamentos mas não está na planilha de mapeamento; por ora somada ao FGTS"
+  },
+  {
+   "categoria": "Folha Salarial",
+   "grupo": "PESSOAL",
+   "item": "FOLHA SALARIAL",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Adiantamento Salarial",
+   "grupo": "PESSOAL",
+   "item": "FOLHA QUINZENAL",
+   "confirmado": false,
+   "observacao": "A planilha de mapeamento sugere 'Adiantamento Salarial' para a Folha Quinzenal"
+  },
+  {
+   "categoria": "Hora Extra - DSR - Adicional Noturno",
+   "grupo": "PESSOAL",
+   "item": "HORA EXTRA",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  },
+  {
+   "categoria": "INSS",
+   "grupo": "PESSOAL",
+   "item": "INSS",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "IRRF",
+   "grupo": "PESSOAL",
+   "item": "INSS",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento. Por ora somado ao INSS (a lista de fornecedores paga 'INSS + IRRF' junto); mude para DARF se preferirem"
+  },
+  {
+   "categoria": "Licença de Software - Relógio Ponto",
+   "grupo": "PESSOAL",
+   "item": "PONTO DIGITAL.",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  },
+  {
+   "categoria": "Rescisão de Contrato de Trabalho",
+   "grupo": "PESSOAL",
+   "item": "RESCISÃO",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  },
+  {
+   "categoria": "Salários e Outros Proventos",
+   "grupo": "PESSOAL",
+   "item": "SALÁRIOS E OUTROS PROVENTOS",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Vale Alimentação",
+   "grupo": "PESSOAL",
+   "item": "VALE ALIMENTAÇÃO",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Vale Transporte",
+   "grupo": "PESSOAL",
+   "item": "VALE TRANSPORTE",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Água e Esgoto",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "ÁGUA E ESGOTO",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Gestão de Resíduos",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "COLETA DE RESÍDUOS INFECTANTES",
+   "confirmado": false,
+   "observacao": "Possível correspondência (ago/26 bate: R$ 902,50 nos dois)"
+  },
+  {
+   "categoria": "Energia Elétrica",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "ENERGIA ELÉTRICA",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Assessoria Jurídica",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "HONORÁRIOS ADVOCATÍCIOS",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Assessoria Contábil",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "HONORÁRIOS CONTÁBEIS",
+   "confirmado": false,
+   "observacao": "Possível correspondência (R$ 1.981,00 bate com a planilha)"
+  },
+  {
+   "categoria": "Serviços Laboratoriais",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "LABORATÓRIO",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  },
+  {
+   "categoria": "Softwares e Assinaturas",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "LICENÇA DE SOFTWARE",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Locação de Equipamentos",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "LOCAÇÃO DE EQ. DE IMPRESSÃO",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento. Impressoras e nobreaks caem aqui; se quiser separar informática de impressão, crie categorias no Klingo"
+  },
+  {
+   "categoria": "Locação de Equipamentos Médicos",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "OUTROS SERVIÇOS DE TERCEIROS",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento; a planilha não tem item de locação médica"
+  },
+  {
+   "categoria": "Manutenção de Equipamentos Médicos",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "MANUT. DE MÁQUINAS E EQUIP.",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento"
+  },
+  {
+   "categoria": "Manutenção de Infraestrutura",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "MANUTENÇÃO PREDIAL",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Assessoria de Marketing e Agência",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "MARKETING E PUBLICIDADE",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Serviço de Dedetização",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "SERVIÇO DE DEDETIZAÇÃO",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Esterilização de Materiais Hospitalares",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "SERVIÇOS DE ESTERILIZAÇÃO",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  },
+  {
+   "categoria": "Segurança e Monitoramento",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "SISTEMA DE SEG. ELETRÔNICA",
+   "confirmado": true,
+   "observacao": "Correspondência próxima (o item SEGURANÇA, que só teve valor em out/25, fica sem destino)"
+  },
+  {
+   "categoria": "Telefonia Móvel",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "SERVIÇO DE TELEFONIA",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento (o Klingo tem 'Telefonia e Internet' e 'Telefonia Móvel')"
+  },
+  {
+   "categoria": "Telefonia e Internet",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "SERVIÇO DE TELEFONIA",
+   "confirmado": false,
+   "observacao": "Idem"
+  },
+  {
+   "categoria": "Prestação de Serviço Terceirizado",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "OUTROS SERVIÇOS DE TERCEIROS",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento"
+  },
+  {
+   "categoria": "Terceirização de Mão de Obra",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "OUTROS SERVIÇOS DE TERCEIROS",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento"
+  },
+  {
+   "categoria": "Honorário Médico",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "HONORÁRIO MÉDICO",
+   "confirmado": true,
+   "observacao": "Mesmo nome nos lançamentos do Klingo (a planilha de mapeamento não achou no cadastro de categorias)"
+  },
+  {
+   "categoria": "Gestão Administrativa",
+   "grupo": "SERVIÇOS DE TERCEIROS",
+   "item": "DESPESAS ADMINISTRATIVAS",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento"
+  },
+  {
+   "categoria": "Aluguel de Imóvel",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "ALUGUEL DE IMÓVEL",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Confraternizações e Eventos Internos",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "EVENTOS E FESTIVIDADES",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Financiamento",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "FINANCIAMENTO MAQUINAS",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Material de Construção",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "MATERIAL DE CONSTRUÇÃO",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Material para Máquinas e Equipamentos",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "MATERIAL DE CONSUMO",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento"
+  },
+  {
+   "categoria": "Escritório e Papelaria",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "MATERIAL DE ESCRITÓRIO",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Limpeza e Higiene",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "MATERIAL DE LIMPEZA",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Seguro Predial",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "SEGUROS DE IMÓVEIS",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Benefícios dos Sócios / Plano de Saúde dos Sócios",
+   "grupo": "DESPESAS OPERACIONAIS",
+   "item": "DESPESAS GERAIS",
+   "confirmado": false,
+   "observacao": "Não está na planilha de mapeamento; a planilha não tem item para benefícios dos sócios"
+  },
+  {
+   "categoria": "Tecnologia e Infraestrutura de TI",
+   "grupo": "BENS PATRIMONIAIS",
+   "item": "EQUIPAMENTOS DE INFORMÁTICA",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Material para Móveis e Utensílios",
+   "grupo": "BENS PATRIMONIAIS",
+   "item": "MÓVEIS E UTENSÍLIOS",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  },
+  {
+   "categoria": "Tarifas Bancárias",
+   "grupo": "DESPESAS FINANCEIRAS",
+   "item": "TAXAS BANCARIAS",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "IPTU",
+   "grupo": "OUTROS IMP. CONTR. E TAXA",
+   "item": "IPTU",
+   "confirmado": true,
+   "observacao": "Correspondência exata"
+  },
+  {
+   "categoria": "Taxas Municipais",
+   "grupo": "OUTROS IMP. CONTR. E TAXA",
+   "item": "TAXA - TRIBUTOS",
+   "confirmado": false,
+   "observacao": "Possível correspondência"
+  },
+  {
+   "categoria": "Materiais de Consumo Técnico",
+   "grupo": "MATERIAS E MEDICAMENTOS",
+   "item": "MATERIAL MÉDICO/HOSPITALAR",
+   "confirmado": false,
+   "observacao": "Correspondência a nível de grupo; especificar subcategoria"
+  },
+  {
+   "categoria": "Materiais de Diagnóstico",
+   "grupo": "MATERIAS E MEDICAMENTOS",
+   "item": "MATERIAL MÉDICO/HOSPITALAR",
+   "confirmado": false,
+   "observacao": "Idem"
+  },
+  {
+   "categoria": "Medicamentos de Uso Geral",
+   "grupo": "MATERIAS E MEDICAMENTOS",
+   "item": "MEDICAMENTOS",
+   "confirmado": false,
+   "observacao": "Existem duas subcategorias de medicamentos"
+  },
+  {
+   "categoria": "Medicamentos Controlados",
+   "grupo": "MATERIAS E MEDICAMENTOS",
+   "item": "MEDICAMENTOS",
+   "confirmado": false,
+   "observacao": "Idem"
+  },
+  {
+   "categoria": "Vacinas",
+   "grupo": "MATERIAS E MEDICAMENTOS",
+   "item": "VACINA",
+   "confirmado": true,
+   "observacao": "Correspondência próxima"
+  }
+ ],
+ "fornecedores": [
+  {
+   "ordem": 1,
+   "nome": "ADVOGADO",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "ALAN LUIS SOUZA DOS SANTOS SOCIEDADE INDIVIDUAL DE ADVOCACIA",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 2,
+   "nome": "AGEMARK - SITE CLINICA",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 3,
+   "nome": "ANUIDADE CARTÃO CRÉDITO",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 4,
+   "nome": "CONTABILIDADE - SERGIO CATALÁ",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "SC CONTABILIDADE",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 5,
+   "nome": "CURATIVOS",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 6,
+   "nome": "EMAIS TECNOLOGIA E SUPRIMENTOS DE INFORMATICA",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "E MAIS TECNOLOGIA",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 7,
+   "nome": "FOCUS TECNOLOGIA EM SISTEMAS",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 8,
+   "nome": "JJ - SETOR PESSOAL",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 9,
+   "nome": "JOANDERSON AZEVEDO DOS SANTOS - REFRIGER",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 10,
+   "nome": "JRL - ADMINISTRAÇÃO",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 11,
+   "nome": "JRL - FGTS",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "FGTS (FUNDO DE GARANTIA DO TEMPO DE SERVIÇO",
+     "categoria": null
+    },
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "FGTS"
+    },
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "FGTS - Consignado"
+    },
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "FGTS - Rescisório"
+    }
+   ]
+  },
+  {
+   "ordem": 12,
+   "nome": "JRL - FOLHA ADIANTAMENTO",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "Adiantamento Salarial"
+    }
+   ]
+  },
+  {
+   "ordem": 13,
+   "nome": "JRL - FOLHA SALARIAL",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "Folha Salarial"
+    }
+   ]
+  },
+  {
+   "ordem": 14,
+   "nome": "JRL - INSS + IRRF",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "INSS"
+    },
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "IRRF"
+    },
+    {
+     "fornecedor": "INSS (INSTITUTO NACIONAL DO SEGURO SOCIAL)",
+     "categoria": null
+    },
+    {
+     "fornecedor": "IRRF (IMPOSTO DE RENDA RETIDO NA FONTE)",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 15,
+   "nome": "JRL - LUZIA CONCIERGE",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "LUZIA MARIA MOTA",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 16,
+   "nome": "JRL - PLUXEE - ALIMENTAÇÃO",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "PLUXEE BENEFÍCIOS BRASIL S.A",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 17,
+   "nome": "JRL - PONTO DIGITAL",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "ACESSO PONTO TECH",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 18,
+   "nome": "JRL - TRANSPORTE",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "DEPARTAMENTO PESSOAL",
+     "categoria": "Vale Transporte"
+    }
+   ]
+  },
+  {
+   "ordem": 19,
+   "nome": "KLINGO",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "YOTECH CONSULTORIA EM SISTEMAS",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 20,
+   "nome": "MAISSSELBA",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "MAISSELBA SEGURANÇA ELETRONICA",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 21,
+   "nome": "MEZZOW",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "MEZZOW HEALTH TECH",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 22,
+   "nome": "RETEC",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "RETEC RESIDUOS",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 23,
+   "nome": "SECURE",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 24,
+   "nome": "SERVIÇO DE ESTERILIZAÇÃO",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "STERI NORTE SERVIÇO DE ESTERILIZAÇÃO",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 25,
+   "nome": "TARIFA BANCÁRIA BRADESCO",
+   "pct_csi": 50,
+   "regras": []
+  },
+  {
+   "ordem": 26,
+   "nome": "UDOK",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "UDOK SERVICOS ONLINE E SOFTWARE",
+     "categoria": null
+    }
+   ]
+  },
+  {
+   "ordem": 27,
+   "nome": "WELLON DIGITAL LTDA",
+   "pct_csi": 50,
+   "regras": [
+    {
+     "fornecedor": "WELLON DIGITAL",
+     "categoria": null
+    }
+   ]
+  }
+ ]
+}

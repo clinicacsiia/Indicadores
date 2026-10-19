@@ -10,6 +10,11 @@ __CSS__
 .multiplos .graf-tit { margin: 10px 0 0; }
 .calor { display: block; padding: 2px 6px; margin: -2px -6px; border-radius: 4px; }
 .pre td.n b, .linha-hist td { white-space: nowrap; }
+.plan td:first-child, .plan th:first-child { position: sticky; left: 0; background: var(--surface, #fff); z-index: 1; white-space: nowrap; }
+.plan tr.grp td { font-weight: 650; background: var(--surface-2, #f4f4f4); text-transform: uppercase; font-size: 12px; letter-spacing: .02em; }
+.plan tr.tot td { font-weight: 650; border-top: 1px solid var(--base, #999); background: var(--surface-2, #f4f4f4); }
+.plan tr.geral td { font-weight: 700; border-top: 2px solid var(--base, #999); }
+.plan td.hist { color: var(--ink2); }
 .tag-parcial { font-size: 11px; color: var(--muted); border: 1px solid var(--line, #ddd); border-radius: 10px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
 </style>
 </head>
@@ -238,6 +243,60 @@ function historicoHtml() {
     <section>${acordeao('Mês a mês: bruto, líquido, retenções e variação', `<p class="nota">A variação compara com o mês anterior só quando os dois estão fechados e depois do início confiável (${esc(D.inicio_confiavel)}). Verde = gastou menos.</p>` + tabMes, { aberto: true, dica: `${ev.length} meses` })}
     ${acordeao('Categoria por mês', `<p class="nota">Competência de cada mês, do mais claro (menor) ao mais escuro (maior valor da tabela; a escala é suavizada para os valores pequenos também aparecerem). * Mês futuro: só o que já foi lançado. Categorias da maior para a menor soma.</p>` + tabMx, { dica: `${mx.length} categorias · ${ev.length} meses` })}</section>`;
 }
+
+// ====================== PLANILHA ======================
+// A planilha mensal de despesas (grupos > itens > meses) e a lista de fornecedores com a divisão CSI / CSI 2, montadas do Klingo (antes do Klingo, da planilha antiga).
+let planForn = null;   // mes de vencimento escolhido na lista de fornecedores
+function planilhaMatriz() {
+  const P = D.planilha && D.planilha.matriz;
+  if (!P) return '<section><p class="vazio">A aba Planilha ainda não foi gerada. Clique em <b>Atualizar agora</b>.</p></section>';
+  if (!P.ok) return `<section><h2>Despesas por grupo e mês</h2><p class="vazio">${esc(P.motivo || 'Não foi possível montar a planilha.')}</p></section>`;
+  const cab = [{ t: 'Despesa' }, ...P.meses.map(m => ({ t: curto(m.rotulo, m.ym) + (m.situacao === 'em_curso' ? '*' : ''), n: 1 })), { t: 'Valor total', n: 1 }];
+  const cel = v => v ? brl(v) : VAZIO;
+  const linhas = [];
+  P.grupos.forEach(g => {
+    linhas.push(`<tr class="grp"><td colspan="${cab.length}">${esc(g.grupo)}</td></tr>`);
+    g.itens.forEach(i => {
+      const tags = (i.sem_klingo ? '<span class="tag-parcial" data-tip="Não há categoria do Klingo ligada a este item: só tem valor nos meses da planilha antiga. Para o Klingo alimentá-lo, crie a categoria lá e ligue em despesa_de_para.">só histórico</span>' : '') +
+        (i.a_confirmar ? `<span class="tag-parcial" data-tip="${esc('Ligação ainda a confirmar com: ' + i.categorias.join(', '))}">a confirmar</span>` : '');
+      linhas.push(`<tr><td>${esc(i.item)}${tags}</td>${i.valores.map((v, k) => `<td class="n${P.meses[k].fonte === 'planilha' ? ' hist' : ''}">${cel(v)}</td>`).join('')}<td class="n"><b>${cel(i.total)}</b></td></tr>`);
+    });
+    linhas.push(`<tr class="tot"><td>Total ${esc(g.grupo.toLowerCase())}</td>${g.totais.map(v => `<td class="n">${cel(v)}</td>`).join('')}<td class="n">${cel(g.total)}</td></tr>`);
+  });
+  linhas.push(`<tr class="geral"><td>Total das despesas</td>${P.geral.map(v => `<td class="n">${cel(v)}</td>`).join('')}<td class="n">${cel(P.total)}</td></tr>`);
+  const tabela_ = `<div class="tab-wrap"><table class="plan"><thead><tr>${cab.map(c => `<th class="${c.n ? 'n' : ''}">${esc(c.t)}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+  const notas = [
+    `Até ${esc(P.meses.filter(m => m.fonte === 'planilha').slice(-1)[0]?.rotulo || '')}, os valores são os da planilha antiga (em cinza). De ${esc(P.inicio_klingo)} em diante vêm do Klingo, pela competência, somando o bruto das categorias ligadas a cada item (despesa_de_para). * Mês em andamento.`,
+  ];
+  if (P.sem_destino.length) notas.push(`<b>${P.sem_destino.length} categoria(s) do Klingo ainda não têm item na planilha</b> e estão no grupo SEM CLASSIFICAÇÃO (${esc(P.sem_destino.slice(0, 5).map(c => `${c.categoria}: ${brl(c.valor)}`).join('; '))}${P.sem_destino.length > 5 ? '…' : ''}). Ligue cada uma ao item certo na tabela despesa_de_para.`);
+  if (P.itens_sem_klingo.length) notas.push(`<b>${P.itens_sem_klingo.length} item(ns) da planilha não têm categoria no Klingo</b> e só mostram os meses antigos: ${esc(P.itens_sem_klingo.join(', '))}. Para eles voltarem a aparecer, é preciso criar a categoria no Klingo (ou ligar uma já existente).`);
+  if (P.categorias_a_confirmar.length) notas.push(`${P.categorias_a_confirmar.length} ligação(ões) categoria → item ainda a confirmar (marcadas “a confirmar”): ${esc(P.categorias_a_confirmar.join(', '))}.`);
+  return `<section><h2>Despesas por grupo e mês</h2>${notas.map(n => `<p class="nota">${n}</p>`).join('')}${tabela_}</section>`;
+}
+function planilhaFornecedores() {
+  const F = D.planilha && D.planilha.fornecedores;
+  if (!F) return '';
+  if (!F.ok) return `<section><h2>Fornecedores do mês</h2><p class="vazio">${esc(F.motivo || 'Não foi possível montar a lista de fornecedores.')}</p></section>`;
+  const yms = Object.keys(F.meses);
+  if (!yms.length) return '<section><h2>Fornecedores do mês</h2><p class="vazio">Sem vencimentos lançados.</p></section>';
+  if (!planForn || !F.meses[planForn]) planForn = F.meses[(D.hoje || '').slice(0, 7)] ? (D.hoje || '').slice(0, 7) : yms[yms.length - 1];
+  const opcoes = yms.map(y => `<option value="${y}"${y === planForn ? ' selected' : ''}>${esc(F.meses[y].rotulo)}</option>`).join('');
+  return `<section><h2>Fornecedores do mês</h2>
+    <p class="nota">O que <b>vence</b> no mês na empresa CSI, por fornecedor, com o nome da planilha antiga, dividido entre CSI e CSI 2 (o percentual de cada linha está em despesa_fornecedor). Junta o Financeiro (empresa e vencimento) com as Despesas Detalhadas (fornecedor) pelo ID do lançamento. Linhas sem valor no mês aparecem vazias, como na planilha.</p>
+    <label class="mes-pick">Mês de vencimento <select id="mes-forn">${opcoes}</select></label><div id="forn-corpo">${fornecedoresMes(planForn)}</div></section>`;
+}
+function fornecedoresMes(ym) {
+  const m = D.planilha.fornecedores.meses[ym];
+  const linhas = m.lista.map(l => [esc(l.nome) + (l.ligado ? '' : '<span class="tag-parcial" data-tip="Sem fornecedor do Klingo ligado a este nome (despesa_fornecedor).">sem origem</span>'),
+    l.total ? brl(l.total) : VAZIO, l.total ? brl(l.csi) : VAZIO, pct(l.pct_csi, 0), l.total ? brl(l.csi2) : VAZIO, pct(100 - l.pct_csi, 0)]);
+  const tab = tabela([{ t: 'Fornecedor' }, { t: 'Total', n: 1 }, { t: 'CSI', n: 1 }, { t: '%', n: 1 }, { t: 'CSI 2', n: 1 }, { t: '%', n: 1 }], linhas,
+    ['Total', `<b>${brl(m.total)}</b>`, `<b>${brl(m.csi)}</b>`, '', `<b>${brl(m.csi2)}</b>`, '']);
+  const aviso = m.sem_fornecedor ? `<p class="nota">${num(m.sem_fornecedor)} lançamento(s) de ${esc(m.rotulo)} ainda não têm fornecedor nas Despesas Detalhadas (aparecem como “${esc('(fornecedor não identificado)')}”).</p>` : '';
+  const outros = m.outros.length ? acordeao(`Outros fornecedores que vencem em ${esc(m.rotulo)} (fora da lista)`, tabela([{ t: 'Fornecedor' }, { t: 'Lançamentos', n: 1 }, { t: 'Total', n: 1 }],
+    m.outros.map(o => [esc(o.nome), num(o.qtd), brl(o.total)]), ['Total', '', `<b>${brl(m.total_outros)}</b>`]), { dica: `${m.outros.length} fornecedores · ${brlc(m.total_outros)}` }) : '';
+  return `${aviso}${tab}${outros}`;
+}
+document.addEventListener('change', e => { if (e.target && e.target.id === 'mes-forn') { planForn = e.target.value; $('forn-corpo').innerHTML = fornecedoresMes(planForn); } });
 
 // ====================== PREVISAO ======================
 function previsaoHtml() {
@@ -488,6 +547,7 @@ function render(ym) {
       kpisHtml(ym, m, prev) + evolucaoHtml() + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente, para o mês escolhido.</p>${alertasTopo(alertas, ym)}</section>`) +
     tier('Análise', `Comparações de ${m.rotulo}`, categoriasGraf(m) + mudancasGraf(m) + composicaoGraf(m)) +
     tier('Histórico', 'O que já se passou, mês a mês e categoria a categoria', historicoHtml()) +
+    tier('Planilha', 'A planilha mensal de despesas e os fornecedores do mês, como a equipe consulta', planilhaMatriz() + planilhaFornecedores()) +
     tier('Previsão', 'O que deve acontecer nos próximos meses', previsaoHtml()) +
     repasseTier() +
     tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);

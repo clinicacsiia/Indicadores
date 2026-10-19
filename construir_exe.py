@@ -45,6 +45,7 @@ ARQUIVOS = {   # caminho relativo -> categoria
     f"{FAT}/gerar_faturamento.py": CODIGO, f"{FAT}/dashboard_modelo.html": CODIGO, f"{FAT}/relatorios.json": CODIGO,
     f"{FIN}/gerar_financeiro.py": CODIGO, f"{FIN}/dashboard_modelo.html": CODIGO, f"{FIN}/relatorios.json": CODIGO,
     f"{DESP}/gerar_despesas.py": CODIGO, f"{DESP}/dashboard_modelo.html": CODIGO, f"{DESP}/relatorios.json": CODIGO,
+    f"{DESP}/planilha_despesas.py": CODIGO, f"{DESP}/planilha_base.json": CODIGO,
     f"{IND}/gerar_indicadores.py": CODIGO, f"{IND}/dashboard_modelo.html": CODIGO, f"{IND}/relatorios.json": CODIGO,
     f"{CESTA}/gerar_cesta.py": CODIGO, f"{CESTA}/dashboard_modelo.html": CODIGO, f"{CESTA}/relatorios.json": CODIGO,
     f"{CESTA}/equivalencias.py": SEMENTE,
