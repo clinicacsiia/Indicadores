@@ -247,7 +247,7 @@ new MutationObserver(ms => {
 
 // barras horizontais (ranking): itens = [{rotulo, valor, texto, extra, tip, cor, marca}]
 // O numero fica colado na ponta da barra. Cor neutra por padrao: so passe "cor" quando a cor tiver significado (alerta).
-// opts: {max} escala fixa (ex.: 100 para percentuais); {destaque} indice da barra em azul; i.marca = valor de referencia (ex.: esperado ate hoje).
+// opts: {max} escala fixa (ex.: 100 para percentuais); {destaque} indice da barra em azul; {sel} indice da barra clicada/selecionada (fundo marcado); i.marca = valor de referencia (ex.: esperado ate hoje).
 // Paginacao: passou de opts.porPagina (padrao 10) itens, aparecem botoes Anterior/Proxima; a escala e a reserva do texto valem para todas as paginas.
 const COR_DECORATIVA = new Set(['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--accent)']);   // cor so enfeita: vira cinza neutro
 function barras(itens, vazio = 'Sem dados neste mês.', larguraRotulo = '34%', opts = {}) {
@@ -259,7 +259,7 @@ function barras(itens, vazio = 'Sem dados neste mês.', larguraRotulo = '34%', o
   const pos = v => `calc((100% - ${reserva}px) * ${(Math.min(Math.max(v, 0) / max, 1)).toFixed(4)})`;
   const pp = opts.porPagina || 10, paginas = Math.ceil(itens.length / pp);
   const corpo = `<div class="barras" style="--rot:${larguraRotulo}">` + itens.map((i, n) =>
-    `<div class="barra${opts.destaque === n ? ' destaque' : ''}${i.clique ? ' barra-clicavel' : ''}" data-p="${Math.floor(n / pp)}"${n >= pp ? ' hidden' : ''} tabindex="0" data-tip="${esc(i.tip || i.rotulo + '\n' + i.texto)}"${i.clique ? ` data-clique="${esc(i.clique)}" role="button"` : ''}${i.cor && !COR_DECORATIVA.has(i.cor) ? ` style="--cor:${i.cor}"` : ''}>` +
+    `<div class="barra${opts.destaque === n ? ' destaque' : ''}${opts.sel === n ? ' barra-sel' : ''}${i.clique ? ' barra-clicavel' : ''}" data-p="${Math.floor(n / pp)}"${n >= pp ? ' hidden' : ''} tabindex="0" data-tip="${esc(i.tip || i.rotulo + '\n' + i.texto)}"${i.clique ? ` data-clique="${esc(i.clique)}" role="button"` : ''}${i.cor && !COR_DECORATIVA.has(i.cor) ? ` style="--cor:${i.cor}"` : ''}>` +
     `<div class="barra-rot" title="${esc(i.rotulo)}">${esc(i.rotulo)}</div>` +
     `<div class="barra-area"><div class="barra-fill" style="width:max(${pos(i.valor)}, 2px)"></div>` +
     `<span class="barra-val"${i.marca != null && i.marca > i.valor ? ` style="margin-left:calc(${pos(i.marca)} - ${pos(i.valor)} + 2px)"` : ''}>${esc(i.texto)}${i.extra ? `<small>${esc(i.extra)}</small>` : ''}</span>` +

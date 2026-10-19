@@ -177,6 +177,7 @@
   .barra:hover .barra-fill, .barra:focus-visible .barra-fill { filter: brightness(1.12); }
   .barra-clicavel { cursor: pointer; border-radius: 6px; }
   .barra-clicavel:hover, .barra-clicavel:focus-visible { background: var(--surface-2); outline: none; }
+  .barra-sel { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
   .barra-clicavel:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
 
   /* modal generico (drill-down de categoria/fornecedor etc.) */
