@@ -156,8 +156,8 @@ def aplicar_vencimento(d: pd.DataFrame, lanc: pd.DataFrame | None, inicio: str, 
 
     O vencimento vem do Financeiro (#798, pelo ID do lancamento, que o #13509 traz). Sem vencimento (relatorio do Financeiro ainda nao baixado,
     ou lancamento emitido antes do periodo baixado dele) a linha fica no mes da competencia e entra na contagem 'sem_vencimento' (avisada no painel).
-    Colunas novas: Vencimento (data usada pelo painel; a da competencia quando falta), _ym (mes dela) e _comp_ym (mes da competencia, so para o
-    repasse medico, que se compara com a producao do mes). Linhas que vencem depois do ultimo mes baixado ficam de fora: o que tem competencia
+    Colunas novas: Vencimento (data usada pelo painel em TUDO, inclusive no repasse medico; a da competencia so quando falta) e _ym (mes dela);
+    _comp_ym guarda o mes da competencia so para contar o que mudou de mes. Linhas que vencem depois do ultimo mes baixado ficam de fora: o que tem competencia
     ainda mais a frente nao foi baixado, entao esses meses estariam incompletos."""
     d = d.copy()
     d["_comp_ym"] = d["_ym"]
@@ -228,7 +228,7 @@ def mudancas(atual: list[dict], anterior: list[dict], hist: dict[str, tuple[floa
 
 
 def linha_lancamento(r) -> dict:
-    return {"id": None if pd.isna(r["ID"]) else int(r["ID"]), "vencimento": r["Vencimento"], "competencia": r["Competência"], "categoria": r["Despesa"], "fornecedor": r["Fornecedor"],
+    return {"id": None if pd.isna(r["ID"]) else int(r["ID"]), "vencimento": r["Vencimento"], "categoria": r["Despesa"], "fornecedor": r["Fornecedor"],
             "descricao": r["Descrição"], "valor": float(r["Bruto"]), "liquido": float(r["Líquido"])}
 
 
@@ -398,7 +398,6 @@ def bloco_producao(pp: pd.DataFrame, pagos: dict[str, float] | None) -> dict:
 def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_hoje: str, inicio: str, per: pc.Periodo | None = None) -> dict:
     """Tudo sobre o repasse médico: o Honorário Médico lançado nas despesas (por mês, médico e empresa) e a produção de cada médico (#26) para comparar."""
     h = d[d["Despesa"] == HONORARIO].copy()
-    h["_ym"] = h["_comp_ym"]   # o repasse se compara com a producao do mes (data do atendimento), entao continua pela competencia
     tem_prod = prod is not None and len(prod) > 0 and set(COLUNAS_PROD) <= set(prod.columns)
     p = None
     if tem_prod:
@@ -433,7 +432,7 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
         if pp is not None and not len(pp):
             pp = None
         bruto, liq = float(hh["Bruto"].sum()), float(hh["Líquido"].sum())
-        desp = float(d.loc[d["_comp_ym"] == ym, "Bruto"].sum())   # total do mes pela competencia, como o repasse e a producao
+        desp = meses[ym]["total"] if ym in meses else 0.0
         producao = float(pp["Valor"].sum()) if pp is not None else None
         producao_medico = float(pp.loc[pp["M"] != SEM_MEDICO, "Valor"].sum()) if pp is not None else None
         evolucao.append({"ym": ym, "rotulo": pc.rotulo_mes(ym), "situacao": "fechado" if ym < ym_hoje else "em_curso", "parcial": ym < inicio, "bruto": bruto, "liquido": liq,
@@ -455,7 +454,7 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
     # ---- o periodo escolhido no filtro De/Ate (varios meses juntos), com a mesma conta de um mes; fica fora de por_mes (que soma meses)
     por_periodo = {}
     if per and not per.unico and any(y in rep_meses for y in per.yms):
-        hh = h[per.dentro(h["Competência"])] if per.exato else h[h["_ym"].isin(per.yms)]
+        hh = h[per.dentro(h["Vencimento"])] if per.exato else h[h["_ym"].isin(per.yms)]
         yp = [y for y in per.yms if prod_ini is not None and y >= prod_ini]
         if p is not None and yp:
             pp = p[per.dentro(p["Data"]) & p["_ym"].isin(yp)] if per.exato else p[p["_ym"].isin(yp)]
@@ -465,7 +464,7 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
             pp = None
         if len(hh) or pp is not None:
             bruto, liq = float(hh["Bruto"].sum()), float(hh["Líquido"].sum())
-            desp = float(d.loc[per.dentro(d["Competência"]), "Bruto"].sum()) if per.exato else float(d.loc[d["_comp_ym"].isin(per.yms), "Bruto"].sum())
+            desp = float(d.loc[per.dentro(d["Vencimento"]), "Bruto"].sum()) if per.exato else sum(meses[y]["total"] for y in per.yms if y in meses)
             producao = float(pp["Valor"].sum()) if pp is not None else None
             rep = bloco_repasse(hh, pp) if len(hh) else None
             pagos = {m["nome"]: m["bruto"] for m in rep["medicos"]} if rep else None
@@ -683,7 +682,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
                 sr, ult = repasse["sem_repasse"], repasse["ultimo_repasse"]
                 lista = ", ".join(f"<b>{e['rotulo']}</b> ({brl(e['producao'])})" for e in sr)
                 atencao.append({"nivel": "atencao", "titulo": "Produção médica sem Honorário Médico lançado",
-                                "texto": f"Há produção em {lista}, mas nenhum lançamento de <b>Honorário Médico</b> nessas competências"
+                                "texto": f"Há produção em {lista}, mas nenhum <b>Honorário Médico</b> com vencimento nesses meses"
                                          + (f"; o último repasse lançado é de <b>{ult['rotulo']}</b> ({brl(ult['bruto'])})." if ult else ".")
                                          + " Ou o repasse ainda não foi lançado, ou é pago fora do Klingo, ou está em outra categoria: enquanto isso, o total de despesas desses meses não inclui o repasse. Ver “Repasse médico”."})
 

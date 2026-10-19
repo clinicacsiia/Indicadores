@@ -348,11 +348,18 @@ class MesDeVencimentoTest(unittest.TestCase):
         self.assertEqual(len(aviso), 1)
         self.assertIn("R$ 50,00", aviso[0]["texto"])
 
-    def test_lancamentos_do_mes_trazem_vencimento_e_competencia(self):
+    def test_lancamentos_do_mes_trazem_o_vencimento(self):
         d = self.pagina([(1, "INSS", "2026-09-01", 100.0, "2026-10-20", "2026-09"), (3, "Luz", "2026-10-01", 1.0, "2026-10-02", "2026-10")])
         l = next(x for x in d["meses"]["2026-10"]["lancamentos"] if x["categoria"] == "INSS")
         self.assertTrue(l["vencimento"].startswith("2026-10-20"))
-        self.assertTrue(l["competencia"].startswith("2026-09-01"))
+        self.assertNotIn("competencia", l)
+
+    def test_repasse_medico_tambem_conta_pelo_vencimento(self):
+        d = self.pagina([(1, "Honorário Médico", "2026-09-01", 900.0, "2026-10-10", "2026-09"), (2, "Honorário Médico", "2026-08-01", 400.0, "2026-09-10", "2026-08"),
+                         (3, "Luz", "2026-10-01", 1.0, "2026-10-02", "2026-10")])
+        pm = d["repasse"]["por_mes"]
+        self.assertEqual(pm["2026-09"]["repasse"]["bruto"], 400.0)
+        self.assertEqual(pm["2026-10"]["repasse"]["bruto"], 900.0)
 
 
 if __name__ == "__main__":

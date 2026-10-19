@@ -322,8 +322,9 @@ que agrupa por mês (KPIs, evolução, categorias, fornecedores, previsão, matr
 - Lançamento sem vencimento no Financeiro (emitido antes do período que o #798 baixa, ou Financeiro ainda não atualizado) fica no mês da competência e vira o aviso "Despesas sem
   data de vencimento" no alto do painel.
 - Os relatórios continuam baixados por competência (6 meses à frente). O que vence depois do último mês baixado fica de fora, para o último mês não aparecer incompleto.
-- **Repasse médico** é a exceção: continua por competência (e o total de despesas dele também), porque se compara com a produção do mês (data do atendimento).
-- As tabelas de lançamentos mostram as duas datas (Vencimento e Competência). Testes: `MesDeVencimentoTest` em `tests/test_planilha_despesas.py`.
+- **Vale para tudo, inclusive o Repasse médico:** o que conta é o mês em que o dinheiro sai. A produção médica (#26) continua pela data do atendimento, então o repasse de um mês costuma
+  pagar a produção de meses anteriores (a proporção repasse/produção de um mês isolado varia).
+- As tabelas de lançamentos mostram só o Vencimento. Testes: `MesDeVencimentoTest` em `tests/test_planilha_despesas.py`.
 
 ## Aba Planilha (Despesas)
 

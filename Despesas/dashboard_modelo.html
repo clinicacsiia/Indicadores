@@ -44,7 +44,7 @@ __CSS__
     <div class="corpo">
       <ul>
         <li><b>Fontes:</b> três relatórios do Klingo. O de <b>Evolução das Despesas por Categoria e Mês</b> (nº 13505) dá o valor <b>bruto</b>; o de <b>Despesas Detalhadas por Lançamento (Valor Líquido)</b> (nº 13509) dá o <b>líquido</b> e o número do lançamento. O painel cruza os dois linha a linha. O terceiro, de <b>Receita Produzida</b> (nº 26, o mesmo do painel Faturamento), só alimenta o bloco de Repasse médico.</li>
-        <li><b>Mês de vencimento:</b> os números do mês somam o que <b>vence</b> naquele mês, não o que tem competência nele (o vencimento vem do Financeiro, pelo ID do lançamento). Um boleto de competência setembro que vence em outubro entra em outubro. A competência continua nas tabelas de lançamentos. A exceção é o Repasse médico, que segue a competência para poder ser comparado com a produção do mês.</li>
+        <li><b>Mês de vencimento:</b> os números do mês somam o que <b>vence</b> naquele mês, não o que tem competência nele (o vencimento vem do Financeiro, pelo ID do lançamento). Um boleto de competência setembro que vence em outubro entra em outubro. Vale para tudo, inclusive o Repasse médico: o que conta é o mês em que o dinheiro sai.</li>
         <li><b>Bruto e líquido:</b> o líquido é o bruto menos as retenções (imposto retido do prestador). A diferença aparece como <b>retenções</b>. Se o Klingo não tiver o desconto lançado, líquido e bruto saem iguais.</li>
         <li><b>Só despesas:</b> o relatório também traz os créditos (receitas); eles ficam de fora<span id="txt-creditos"></span>.</li>
         <li><b>Compras de estoque:</b> as compras feitas pelo módulo de Suprimentos (descrição “Compra de Estoque: …”) entram aqui<span id="txt-estoque"></span>. O painel Financeiro não as enxerga.</li>
@@ -399,7 +399,7 @@ function repKpis(ym) {
   const historico = pm.parcial ? '<br><i>Mês de antes do Klingo: pode estar incompleto.</i>' : '';
   const k1 = kpi(`Repasse de ${esc(pm.rotulo)}`, rep ? brlc(rep.bruto) : VAZIO, { destaque: 1, titulo: rep ? brl(rep.bruto) : '', comp: comparacao,
     sub: rep ? `<b>${num(rep.n_medicos)}</b> médico(s) em <b>${num(rep.qtd)}</b> lançamento(s) · média de <b>${brlc(rep.ticket)}</b> por médico${historico}`
-      : `Nenhum lançamento de <b>Honorário Médico</b> com competência neste mês.${pro ? ` A produção do mês foi de <b>${brlc(pro.total)}</b>.` : ''}` });
+      : `Nenhum <b>Honorário Médico</b> com vencimento neste mês.${pro ? ` A produção do mês foi de <b>${brlc(pro.total)}</b>.` : ''}` });
   const k2 = kpi('Líquido (após retenções)', rep && temLiq ? brlc(rep.liquido) : VAZIO, { titulo: rep && temLiq ? brl(rep.liquido) : '',
     sub: !rep ? 'Sem repasse neste mês.' : !temLiq ? 'O relatório de líquido ainda não foi baixado.' : rep.retido > 0.005 ? `Retenções de <b>${brlc(rep.retido)}</b> (${pct(rep.retido_pct, 1)} do bruto)` : 'Sem retenção registrada: líquido igual ao bruto.' });
   const k3 = kpi('Repasse sobre as despesas', rep && ev.pct_despesas != null ? pct(ev.pct_despesas, 0) : VAZIO,
@@ -427,10 +427,10 @@ function repEvolucaoHtml() {
   const g = linhas({ W: c ? 400 : e.length > 9 ? 980 : 760, H: c ? 190 : 230, mr: c ? 50 : 118, ml: c ? 50 : 38, fmt: brlc, rotulosEm: e.length <= 12 ? 'todos' : undefined, aria: 'Repasse médico por mês', tipX,
     xRot: e.map((x, i) => ({ x: i, t: curto(x.rotulo, x.ym) })).filter((t, i) => !c || e.length <= 6 || i % 2 === 0), series });
   const comProd = e.filter(x => x.tem_producao);
-  const pxr = comProd.length ? barras(comProd.map(x => ({ rotulo: x.rotulo, valor: x.producao, texto: brlc(x.producao), extra: x.bruto ? `repasse ${brlc(x.bruto)} · ${pct(x.taxa, 0)}` : 'sem repasse lançado',
+  const pxr = comProd.length ? barras(comProd.map(x => ({ rotulo: x.rotulo, valor: x.producao, texto: brlc(x.producao), extra: x.bruto ? `repasse ${brlc(x.bruto)} · ${pct(x.taxa, 0)}` : 'sem repasse a vencer',
     tip: `${x.rotulo}\nProduzido: ${brl(x.producao)}\nRepasse lançado: ${brl(x.bruto)}${x.taxa != null ? ' (' + pct(x.taxa, 1) + ' da produção)' : ''}` })), '', '24%') : '<p class="vazio">Sem produção para comparar.</p>';
-  return `<section><h2>Repasse pago por mês</h2><p class="nota">Honorário Médico (bruto) por mês de competência. Os meses sem repasse aparecem em zero: nada foi lançado nessa categoria.${hist.length ? ' A linha cinza é o que veio antes do Klingo (pode estar incompleto); a azul, os meses com o Klingo.' : ''}</p>${g}</section>
-    <section><h2>Produzido × repasse lançado</h2><p class="nota">Produção de cada mês (receita produzida, o que foi faturado, não necessariamente recebido) e quanto de repasse foi lançado nele.</p>${pxr}</section>`;
+  return `<section><h2>Repasse pago por mês</h2><p class="nota">Honorário Médico (bruto) por mês de vencimento, o mês em que o repasse sai da conta. Os meses sem repasse aparecem em zero: nada vence nessa categoria.${hist.length ? ' A linha cinza é o que veio antes do Klingo (pode estar incompleto); a azul, os meses com o Klingo.' : ''}</p>${g}</section>
+    <section><h2>Produzido × repasse lançado</h2><p class="nota">Produção de cada mês (receita produzida, o que foi faturado, não necessariamente recebido) e quanto de repasse sai da conta nele (costuma pagar a produção de meses anteriores, então a proporção de um mês isolado varia).</p>${pxr}</section>`;
 }
 
 function repMedicos(pm) {
@@ -548,7 +548,7 @@ function repasseTier() {
   const uma = (m, pm) => { const nota = !pm.repasse ? ' · sem repasse lançado' : !pm.producao ? '' : ''; return `<option value="${m}"${m === repMes ? ' selected' : ''}>${esc(pm.rotulo)}${pm.periodo ? ' (período)' : ''}${nota}</option>`; };
   const opcoes = Object.entries(R.por_periodo || {}).map(([m, pm]) => uma(m, pm)).join('') + [...R.meses].reverse().map(m => uma(m, R.por_mes[m])).join('');
   return tier('Repasse médico', sub,
-    `<section><p class="nota">O <b>repasse</b> aqui é a categoria <b>Honorário Médico</b> das despesas. A <b>produção</b> vem da receita produzida por médico (a mesma do painel Faturamento). O detalhe abaixo acompanha o período escolhido no alto (quando há repasse ou produção nele); dá para ver outro mês no seletor dele.</p></section>` +
+    `<section><p class="nota">O <b>repasse</b> aqui é a categoria <b>Honorário Médico</b> das despesas. O repasse vale pelo <b>vencimento</b> (o mês em que sai da conta). A <b>produção</b> vem da receita produzida por médico (a mesma do painel Faturamento), pela data do atendimento: por isso o repasse de um mês costuma pagar a produção dos meses anteriores. O detalhe abaixo acompanha o período escolhido no alto (quando há repasse ou produção nele); dá para ver outro mês no seletor dele.</p></section>` +
     repEvolucaoHtml() + repAtencao() + repCobertura() + simuladorHtml() +
     `<section><h2>Um mês em detalhe</h2><label class="mes-pick">Mês do repasse <select id="mes-rep">${opcoes}</select></label></section><div id="rep-corpo">${repasseMes(repMes)}</div>`);
 }
@@ -557,8 +557,8 @@ document.addEventListener('change', e => { if (e.target && e.target.id === 'mes-
 // ====================== DETALHES ======================
 function listaLancamentos(lista) {
   const temLiq = D.conferencia && D.conferencia.liquido;
-  return tabela([{ t: 'Lanç.' }, { t: 'Vencimento' }, { t: 'Competência' }, { t: 'Categoria' }, { t: 'Fornecedor' }, { t: 'Descrição', txt: 1 }, { t: 'Bruto', n: 1 }, ...(temLiq ? [{ t: 'Líquido', n: 1 }] : [])],
-    lista.map(l => [l.id == null ? '—' : String(l.id), dataBR(l.vencimento), dataBR(l.competencia), esc(l.categoria), esc(l.fornecedor || '—'), esc(l.descricao || '—'), brl(l.valor), ...(temLiq ? [brl(l.liquido)] : [])]));
+  return tabela([{ t: 'Lanç.' }, { t: 'Vencimento' }, { t: 'Categoria' }, { t: 'Fornecedor' }, { t: 'Descrição', txt: 1 }, { t: 'Bruto', n: 1 }, ...(temLiq ? [{ t: 'Líquido', n: 1 }] : [])],
+    lista.map(l => [l.id == null ? '—' : String(l.id), dataBR(l.vencimento), esc(l.categoria), esc(l.fornecedor || '—'), esc(l.descricao || '—'), brl(l.valor), ...(temLiq ? [brl(l.liquido)] : [])]));
 }
 function detalhes(m) {
   const it = [];
