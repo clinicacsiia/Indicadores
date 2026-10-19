@@ -303,5 +303,64 @@ class NoNavegadorTest(unittest.TestCase):
         self.assertLessEqual(int(escrito), int(janela))
 
 
+class MesDeVencimentoTest(unittest.TestCase):
+    """O painel conta cada despesa no mes em que ela VENCE (vindo do Financeiro #798 pelo ID), nao no da competencia."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, str(RAIZ / "Financeiro"))
+
+    def pagina(self, linhas):
+        import gerar_despesas as gd
+        brutos, liqs, lancs = [], [], []
+        for i, cat, comp, v, venc, mes_filtro in linhas:   # venc None = o Financeiro nao tem o lancamento
+            brutos.append({"Categoria": "Debito", "Despesa": cat, "Competência": pd.Timestamp(comp), "Valor": v, "Descrição": cat, "Fornecedor": "FORN " + cat, "Mês (filtro)": mes_filtro})
+            liqs.append({"ID do Lançamento": float(i), "Despesa": cat, "Competência": pd.Timestamp(comp), "Descrição": cat, "Fornecedor": "FORN " + cat, "Valor Líquido": v, "Mês (filtro)": mes_filtro})
+            if venc:
+                lancs.append({"Lançamento": float(i), "Empresa": pl.EMPRESA_RATEIO, "Vencimento": pd.Timestamp(venc), "Categoria": cat, "Valor": v, "Tipo": "DESPESAS", "Mês (filtro)": mes_filtro})
+        desp, fin = {"Despesas": pd.DataFrame(brutos), "Líquido": pd.DataFrame(liqs)}, {"Lançamentos": pd.DataFrame(lancs)}
+        with mock.patch.dict(os.environ, {"PORTAL_ARMAZENAMENTO": "arquivos", "VERCEL": ""}), \
+                mock.patch.object(gd.k, "carregar", lambda p: fin if Path(p).name == "Financeiro" else desp):
+            return dados_da_pagina(gd.gerar(devolver_html=True))
+
+    def test_boleto_de_setembro_que_vence_em_outubro_entra_em_outubro(self):
+        d = self.pagina([(1, "INSS", "2026-08-01", 100.0, "2026-09-18", "2026-08"),    # competencia agosto, vence em setembro: conta em setembro
+                         (2, "INSS", "2026-09-01", 200.0, "2026-10-20", "2026-09"),    # competencia setembro, vence em outubro: conta em outubro
+                         (3, "INSS", "2026-10-01", 7.0, "2026-10-05", "2026-10"),
+                         (4, "Aluguel", "2026-10-01", 9.0, "2026-11-18", "2026-10")])  # vence depois do ultimo mes baixado (outubro): fica de fora
+        m = d["meses"]
+        self.assertEqual(m["2026-09"]["total"], 100.0)
+        self.assertEqual(m["2026-10"]["total"], 207.0)
+        self.assertNotIn("2026-11", m)
+        self.assertEqual(d["vencimento"]["mudaram_de_mes"], 3)
+        self.assertEqual(d["vencimento"]["alem_do_baixado"], 1)
+        self.assertEqual(d["vencimento"]["sem_vencimento"], 0)
+        self.assertFalse([a for a in d["atencao"] if "sem data de vencimento" in a["titulo"]])
+        self.assertEqual([x["total"] for x in d["evolucao"] if x["ym"] in ("2026-09", "2026-10")], [100.0, 207.0])
+
+    def test_sem_vencimento_no_financeiro_fica_na_competencia_e_avisa(self):
+        d = self.pagina([(1, "INSS", "2026-09-01", 100.0, "2026-10-20", "2026-09"), (2, "Aluguel", "2026-09-01", 50.0, None, "2026-09"),
+                         (3, "Luz", "2026-10-01", 1.0, "2026-10-02", "2026-10")])   # o mes de outubro foi baixado: o vencimento de 20/10 cabe
+        self.assertEqual(d["meses"]["2026-09"]["total"], 50.0)
+        self.assertEqual(d["meses"]["2026-10"]["total"], 101.0)
+        self.assertEqual(d["vencimento"]["sem_vencimento"], 1)
+        aviso = [a for a in d["atencao"] if "sem data de vencimento" in a["titulo"]]
+        self.assertEqual(len(aviso), 1)
+        self.assertIn("R$ 50,00", aviso[0]["texto"])
+
+    def test_lancamentos_do_mes_trazem_o_vencimento(self):
+        d = self.pagina([(1, "INSS", "2026-09-01", 100.0, "2026-10-20", "2026-09"), (3, "Luz", "2026-10-01", 1.0, "2026-10-02", "2026-10")])
+        l = next(x for x in d["meses"]["2026-10"]["lancamentos"] if x["categoria"] == "INSS")
+        self.assertTrue(l["vencimento"].startswith("2026-10-20"))
+        self.assertNotIn("competencia", l)
+
+    def test_repasse_medico_tambem_conta_pelo_vencimento(self):
+        d = self.pagina([(1, "Honorário Médico", "2026-09-01", 900.0, "2026-10-10", "2026-09"), (2, "Honorário Médico", "2026-08-01", 400.0, "2026-09-10", "2026-08"),
+                         (3, "Luz", "2026-10-01", 1.0, "2026-10-02", "2026-10")])
+        pm = d["repasse"]["por_mes"]
+        self.assertEqual(pm["2026-09"]["repasse"]["bruto"], 400.0)
+        self.assertEqual(pm["2026-10"]["repasse"]["bruto"], 900.0)
+
+
 if __name__ == "__main__":
     unittest.main()
