@@ -9,13 +9,14 @@ import { PAINEIS, PERMISSAO_FINANCEIRA } from "@/lib/paineis";
 import { NovoUsuarioForm } from "./NovoUsuarioForm";
 import { SolicitacaoForm } from "./SolicitacaoForm";
 import { UsuarioForm } from "./UsuarioForm";
+import { ExtrairForm } from "./ExtrairForm";
 
 export const metadata: Metadata = { title: "Configurações" };
 
 type Props = { searchParams: Promise<{ aba?: string }> };
 
-type Aba = "pedidos" | "usuarios" | "novo";
-const ehAba = (a: string | undefined): a is Aba => a === "pedidos" || a === "usuarios" || a === "novo";
+type Aba = "pedidos" | "usuarios" | "novo" | "extrair";
+const ehAba = (a: string | undefined): a is Aba => a === "pedidos" || a === "usuarios" || a === "novo" || a === "extrair";
 const hrefAba = (aba: Aba) => `/configuracoes?aba=${aba}`;
 
 export default async function ConfiguracoesPage({ searchParams }: Props) {
@@ -58,6 +59,7 @@ export default async function ConfiguracoesPage({ searchParams }: Props) {
     { id: "pedidos", rotulo: "Pedidos de acesso", n: pendentes.length, alerta: pendentes.length > 0 },
     { id: "usuarios", rotulo: "Usuários", n: usuarios.length },
     { id: "novo", rotulo: "Novo usuário" },
+    { id: "extrair", rotulo: "Extrair" },
   ];
 
   return (
@@ -187,6 +189,20 @@ export default async function ConfiguracoesPage({ searchParams }: Props) {
             </div>
           </div>
           <NovoUsuarioForm />
+        </section>
+      )}
+
+      {aba === "extrair" && (
+        <section className="panel" aria-labelledby="titulo-extrair">
+          <div className="panel-head" style={{ paddingBottom: 12 }}>
+            <div>
+              <h2 className="panel-title" id="titulo-extrair">Extrair relatórios em PDF</h2>
+              <p className="panel-sub">
+                Escolha todos os relatórios (um único PDF) ou só um. Abre uma página de impressão: no navegador, escolha “Salvar como PDF”. Sai com os dados da última atualização de cada painel.
+              </p>
+            </div>
+          </div>
+          <ExtrairForm paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome, descricao: p.descricao }))} />
         </section>
       )}
     </>

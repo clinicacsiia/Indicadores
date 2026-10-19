@@ -2723,3 +2723,15 @@ select {
   gap: 10px;
   padding: 4px 20px 20px;
 }
+
+/* Página /extrair: relatórios empilhados, um por folha, para salvar em PDF */
+.extrair-pagina { padding: 16px; background: #fff; color: #000; }
+.extrair-barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.extrair-folha iframe { display: block; width: 100%; height: 600px; border: 0; }
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  .extrair-pagina { padding: 0; }
+  .extrair-barra { display: none; }
+  .extrair-folha { break-after: page; }
+  .extrair-folha:last-child { break-after: auto; }
+}
