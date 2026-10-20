@@ -271,9 +271,10 @@ def nps_de_mentira() -> pd.DataFrame:
                 else:
                     nota, classe = rnd.choice([9, 10, 10, 10]), "Promotor"
                 quando = d.replace(hour=hora, minute=rnd.choice([0, 10, 30, 40]))
-                linhas.append({"Data Agendado Para": quando, "Id da Marcação": f"M{n:05d}", "NPS - Nota": nota, "NPS - Classificação": classe, "NPS - Data de Resposta": d,
+                resposta = d + timedelta(days=1) if n % 5 == 0 else d      # parte responde no dia seguinte: o mes do dado e o da RESPOSTA (e o que o Klingo filtra), nao o do agendamento
+                linhas.append({"Data Agendado Para": quando, "Id da Marcação": f"M{n:05d}", "NPS - Nota": nota, "NPS - Classificação": classe, "NPS - Data de Resposta": resposta,
                                "NPS - Comentário": rnd.choice(COMENTARIOS_NPS[classe]), "Profissional": rnd.choice(profs), "Procedimento": rnd.choice(procs), "Unidade": unidade,
-                               "Mês (filtro)": d.strftime("%Y-%m"), "Atualizado em": datetime(2026, 10, 20, 8, 0)})
+                               "Mês (filtro)": resposta.strftime("%Y-%m"), "Atualizado em": datetime(2026, 10, 20, 8, 0)})
         d += timedelta(days=1)
     return pd.DataFrame(linhas)
 

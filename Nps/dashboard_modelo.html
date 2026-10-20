@@ -78,7 +78,7 @@ __CSS__
     <summary>Como ler este painel</summary>
     <div class="corpo">
       <ul>
-        <li><b>Fonte do NPS:</b> o relatório <b>NPS - Notas por Marcação (#13697)</b> do Klingo: uma linha por marcação que respondeu, com nota de 0 a 10, comentário, profissional, procedimento e unidade (sem o nome do paciente). O mês é o do <b>agendamento</b>. O Klingo só começou em setembro/2026 e o que vem de antes não entra.</li>
+        <li><b>Fonte do NPS:</b> o relatório <b>NPS - Notas por Marcação (#13697)</b> do Klingo: uma linha por marcação que respondeu, com nota de 0 a 10, comentário, profissional, procedimento e unidade (sem o nome do paciente). O mês é o da <b>resposta</b> (é assim que o Klingo filtra o relatório); a hora e o dia da semana analisados são os do <b>agendamento</b>. O Klingo só começou em setembro/2026 e o que vem de antes não entra.</li>
         <li><b>Como se calcula o NPS:</b> % de <b>promotores</b> (notas 9 e 10) menos % de <b>detratores</b> (0 a 6). Os <b>neutros</b> (7 e 8) não entram na conta, mas contam no total. Vai de −100 a +100. Acima de 50 é considerado muito bom e acima de 75, excelente; a meta desta clínica é <span data-par="meta_nps"></span> (ajustável em <b>Nps\parametros.json</b>).</li>
         <li><b>Margem de erro (±):</b> o NPS é calculado sobre quem respondeu, não sobre todos os pacientes. Com poucas respostas ele balança por acaso: 30 respostas podem dar um NPS de 60 que, na verdade, é 40 ou 80. O painel diz “dentro da margem de erro” quando uma diferença pode ser só acaso (confiança de 95%). Grupos com menos de <span data-par="minimo_grupo"></span> respostas aparecem em cinza e ficam fora dos rankings.</li>
         <li><b>Contribuição ao NPS:</b> (promotores − detratores) do grupo ÷ todas as respostas × 100. A soma de todos os grupos é exatamente o NPS geral, então mostra quem sustenta e quem puxa o NPS para baixo.</li>
@@ -265,7 +265,7 @@ function ondeAgir(m) {
 
 function aoDiaADia(m) {
   if (!m.dias || m.dias.length < 3) return '';
-  return `<section><h2>Dia a dia</h2><p class="nota">Pelo dia do agendamento. Um dia sozinho tem poucas respostas: olhe a tendência, não cada ponto.</p>
+  return `<section><h2>Dia a dia</h2><p class="nota">Pelo dia em que o paciente respondeu. Um dia sozinho tem poucas respostas: olhe a tendência, não cada ponto.</p>
     <div class="grid2"><div>${miniLinha('Respostas por dia', m.dias, 'n', { cor: 'var(--neutro)' })}</div><div>${miniLinha('Detratores por dia', m.dias, 'det', { cor: COR.det })}</div></div></section>`;
 }
 

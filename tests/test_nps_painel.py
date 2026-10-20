@@ -110,6 +110,14 @@ class PaginaTest(unittest.TestCase):
         self.assertEqual(sum(x["n"] for x in m["dias"]), len(d))
         self.assertAlmostEqual(sum(g["contribuicao"] for g in m["unidades"]), k["nps"], delta=0.3)   # as unidades somam o NPS geral
 
+    def test_o_mes_e_o_da_resposta_nao_o_do_agendamento(self):
+        d = self.nps
+        virou = d[(d["Data Agendado Para"].dt.strftime("%Y-%m") == "2026-09") & (d["NPS - Data de Resposta"].dt.strftime("%Y-%m") == "2026-10")]
+        self.assertGreater(len(virou), 0)                                    # os dados inventados tem respostas de outubro a consultas de setembro
+        por_resposta = d["NPS - Data de Resposta"].dt.strftime("%Y-%m").value_counts()
+        self.assertEqual(self.D["meses"]["2026-09"]["kpis"]["n"], por_resposta["2026-09"])
+        self.assertEqual(self.D["meses"]["2026-10"]["kpis"]["n"], por_resposta["2026-10"])
+
     def test_unidades_chegam_com_nome_curto(self):
         nomes = {u["nome"] for u in self.D["meses"]["2026-10"]["unidades"]}
         self.assertEqual(nomes, {"CSI", "RM/TC", "DESENVOAR"})
@@ -192,14 +200,14 @@ class PaginaTest(unittest.TestCase):
         self.assertEqual(p["google"]["nota"], 4.5)
         exato = dados_da_pagina(pagina(de="2026-10-02", ate="2026-10-09"))
         e = exato["meses"]["2026-10-02..2026-10-09"]
-        d = self.nps[(self.nps["Data Agendado Para"] >= "2026-10-02") & (self.nps["Data Agendado Para"] < "2026-10-10")]
+        d = self.nps[(self.nps["NPS - Data de Resposta"] >= "2026-10-02") & (self.nps["NPS - Data de Resposta"] < "2026-10-10")]   # o periodo e o da resposta
         self.assertEqual(e["kpis"]["n"], len(d))
         self.assertIn(e["chave_anterior"], exato["meses"])
         self.assertTrue(exato["meses"][e["chave_anterior"]]["kpis"]["n"] > 0)
 
     def test_periodo_sem_respostas_nao_quebra(self):
-        d = dados_da_pagina(pagina(de="2026-10-20", ate="2026-10-25"))
-        self.assertIsNone(d["meses"]["2026-10-20..2026-10-25"]["kpis"])
+        d = dados_da_pagina(pagina(de="2026-10-21", ate="2026-10-25"))
+        self.assertIsNone(d["meses"]["2026-10-21..2026-10-25"]["kpis"])
 
     def test_unidades_que_o_google_cobre_mudam_so_o_comparavel(self):
         import gerar_nps as gn

@@ -62,8 +62,8 @@ def atualizar(forcar: bool = False, historico: bool = False) -> dict:
 
 # ---------------------------------------------------------------- utilidades
 def recorte(d: pd.DataFrame, per: "pc.Periodo") -> pd.DataFrame:
-    """As respostas do período: pelo dia do agendamento (a hora é ignorada); sem data de agendamento, pelo mês em que foram baixadas."""
-    return d[per.dentro(d["agendado"]) | (d["agendado"].isna() & d["ym"].isin(per.yms))]
+    """As respostas do período: pelo dia da resposta (como o Klingo filtra o relatório); sem data de resposta, pelo mês que a base lhes deu."""
+    return d[per.dentro(d["resposta"]) | (d["resposta"].isna() & d["ym"].isin(per.yms))]
 
 
 def linha_de_comentario(r) -> dict:
@@ -196,7 +196,7 @@ def br(v, casas: int = 0) -> str:
 def montar_fatia(rotulo: str, d: pd.DataFrame, p: dict, temas: dict, G: dict, dia_ini: date, dia_fim: date, mensal: bool, prev: dict | None = None) -> dict:
     minimo = p["minimo_grupo"]
     kp = mn.resumo(d)
-    kp["dias"] = int(d["agendado"].dt.normalize().nunique())      # dias com resposta: um mes em andamento nao pode ser comparado com um mes inteiro pelo total
+    kp["dias"] = int(d["resposta"].dt.normalize().nunique())      # dias com resposta: um mes em andamento nao pode ser comparado com um mes inteiro pelo total
     kp["por_dia"] = round(kp["n"] / kp["dias"], 1) if kp["dias"] else None
     no_google = d[d["unidade"].isin(p["unidades_no_google"])] if p.get("unidades_no_google") else d
     detratores = d[(d["classe"] == "Detrator")].sort_values("agendado", ascending=False)

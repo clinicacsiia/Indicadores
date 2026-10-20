@@ -104,7 +104,8 @@ def por_hora(df: pd.DataFrame, minimo: int) -> list[dict]:
 
 
 def por_dia(df: pd.DataFrame) -> list[dict]:
-    d = df[df["agendado"].notna()].assign(dia=lambda x: x["agendado"].dt.normalize())
+    """Um ponto por dia de RESPOSTA."""
+    d = df[df["resposta"].notna()].assign(dia=lambda x: x["resposta"].dt.normalize())
     return [{"d": dia.strftime("%Y-%m-%d"), **{c: v for c, v in resumo(g).items() if c in ("n", "prom", "det", "nps", "media")}}
             for dia, g in d.groupby("dia")]
 
@@ -215,8 +216,9 @@ def preparar(df: pd.DataFrame, temas: dict) -> pd.DataFrame:
         "unidade": col("Unidade"), "mes_filtro": col("Mês (filtro)")})
     d = d[d["nota"].between(0, 10)].copy()
     d["classe"] = d["nota"].apply(classe)
-    # o mês é o do agendamento (o que o Klingo filtrou); sem data de agendamento, vale o mês em que o dado foi baixado
-    d["ym"] = d["agendado"].dt.strftime("%Y-%m").where(d["agendado"].notna(), d["mes_filtro"])
+    # o mes e o da RESPOSTA: e o que o Klingo filtra no relatorio (cada periodo baixado traz as respostas dadas naquele mes, mesmo de consultas do mes anterior) e quando a
+    # satisfacao foi medida. Sem data de resposta, vale a do agendamento e, por fim, o mes em que o dado foi baixado.
+    d["ym"] = d["resposta"].dt.strftime("%Y-%m").where(d["resposta"].notna(), d["agendado"].dt.strftime("%Y-%m")).where(lambda x: x.notna(), d["mes_filtro"])
     d["comentario"] = d["comentario"].where(d["comentario"].notna(), "").astype(str).str.replace(r"\s*\r?\n\s*", " ", regex=True).str.strip()
     d["comentario"] = d["comentario"].where(~d["comentario"].str.fullmatch(r"\W*\d{1,2}\W*"), "")   # "10", "8": a pessoa só repetiu a nota
     d["temas"] = d["comentario"].apply(lambda t: temas_do_texto(t, temas))

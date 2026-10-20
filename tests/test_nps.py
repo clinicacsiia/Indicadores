@@ -93,7 +93,7 @@ class GruposTest(unittest.TestCase):
         h = {x["h"]: x for x in mn.por_hora(d, 2)}
         self.assertEqual((h[9]["n"], h[9]["pct_det"], h[15]["pct_det"]), (2, 50.0, 50.0))
         self.assertEqual([x["d"] for x in mn.por_dia_da_semana(d, 2)], [0, 1])
-        self.assertEqual([x["d"] for x in mn.por_dia(d)], ["2026-10-05", "2026-10-06"])
+
 
 
 class TemasTest(unittest.TestCase):
@@ -183,18 +183,24 @@ class GoogleEquivalenteTest(unittest.TestCase):
 
 
 class PrepararTest(unittest.TestCase):
-    def test_descarta_nota_invalida_limpa_comentario_e_acha_o_mes(self):
-        bruto = pd.DataFrame({"Id da Marcação": ["1", "2", "3", "4"], "Data Agendado Para": pd.to_datetime(["2026-09-30 23:50", "2026-10-01 08:00", None, "2026-10-02 09:00"]),
-                              "NPS - Nota": [10, None, 4, 15], "NPS - Data de Resposta": pd.to_datetime(["2026-10-01"] * 4),
-                              "NPS - Comentário": ["Ótimo\r\n atendimento", "x", "10", None], "Profissional": ["A"] * 4, "Procedimento": ["P"] * 4, "Unidade": ["U"] * 4,
-                              "Mês (filtro)": ["2026-09", "2026-10", "2026-10", "2026-10"]})
+    def test_descarta_nota_invalida_limpa_comentario_e_acha_o_mes_da_resposta(self):
+        bruto = pd.DataFrame({"Id da Marcação": ["1", "2", "3", "4", "5"],
+                              "Data Agendado Para": pd.to_datetime(["2026-09-30 23:50", "2026-10-01 08:00", None, "2026-10-02 09:00", "2026-09-15 10:00"]),
+                              "NPS - Nota": [10, None, 4, 15, 8], "NPS - Data de Resposta": pd.to_datetime(["2026-10-01", "2026-10-01", None, "2026-10-02", None]),
+                              "NPS - Comentário": ["Ótimo\r\n atendimento", "x", "10", None, ""], "Profissional": ["A"] * 5, "Procedimento": ["P"] * 5, "Unidade": ["U"] * 5,
+                              "Mês (filtro)": ["2026-10", "2026-10", "2026-10", "2026-10", "2026-10"]})
         d = mn.preparar(bruto, TemasTest.TEMAS)
-        self.assertEqual(list(d["id"]), ["1", "3"])                       # sem nota (2) e nota 15 (4) saem
-        self.assertEqual(list(d["ym"]), ["2026-09", "2026-10"])           # o mes e o do agendamento; sem data, o do filtro
+        self.assertEqual(list(d["id"]), ["1", "3", "5"])                  # sem nota (2) e nota 15 (4) saem
+        # o mes e o da RESPOSTA (agendada em 30/09 e respondida em 01/10 e outubro); sem resposta, o do agendamento; sem nenhuma das duas, o do filtro
+        self.assertEqual(list(d["ym"]), ["2026-10", "2026-10", "2026-09"])
         self.assertEqual(d["comentario"].iloc[0], "Ótimo atendimento")     # quebra de linha vira espaco
         self.assertEqual(d["comentario"].iloc[1], "")                      # "10": so repetiu a nota
-        self.assertEqual(list(d["classe"]), ["Promotor", "Detrator"])
+        self.assertEqual(list(d["classe"]), ["Promotor", "Detrator", "Neutro"])
         self.assertEqual(len(mn.preparar(pd.DataFrame(), {})), 0)
+
+    def test_dia_a_dia_e_pelo_dia_da_resposta(self):
+        d = base([10, 3, 9], resposta=pd.to_datetime(["2026-10-05 09:00", "2026-10-05 18:00", "2026-10-06 00:00"]))
+        self.assertEqual([(x["d"], x["n"]) for x in mn.por_dia(d)], [("2026-10-05", 2), ("2026-10-06", 1)])
 
 
 class GoogleMapsTest(unittest.TestCase):
