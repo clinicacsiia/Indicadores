@@ -453,6 +453,8 @@ function deltaHtml(v, sufixo, inverso) {   // inverso = true quando menos e melh
 const tip = document.createElement('div'); tip.id = 'tip'; document.body.appendChild(tip);
 function mostrarTip(el, x, y) {
   if (!el.dataset.tip) { tip.style.display = 'none'; return; }
+  const dono = document.querySelector('dialog[open]') || document.body;   // um <dialog> aberto fica acima de tudo: o balao precisa estar dentro dele para aparecer
+  if (tip.parentNode !== dono) dono.appendChild(tip);
   tip.textContent = el.dataset.tip; tip.style.display = 'block';
   const w = tip.offsetWidth, h = tip.offsetHeight;
   tip.style.left = Math.max(8, Math.min(x + 14, innerWidth - w - 8)) + 'px';
