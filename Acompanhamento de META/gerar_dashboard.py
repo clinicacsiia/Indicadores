@@ -234,8 +234,9 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     avisos: list[str] = []
     meses = {}
     ym_linha = df["Data do Atendimento"].dt.strftime("%Y-%m")
+    primeiro = max(cfg.get("primeiro_mes", "0000-00"), pc.INICIO_KLINGO)   # nunca antes do uso do Klingo, mesmo que o metas.json peca
     for ym, df_mes in df.groupby(ym_linha):
-        if ym >= cfg.get("primeiro_mes", "0000-00"):
+        if ym >= primeiro:
             meses[ym] = montar_mes(df_mes, ym, cfg, agora, avisos)
     per, info = pc.periodo_pedido(de, ate, meses)
     if per and not per.unico:

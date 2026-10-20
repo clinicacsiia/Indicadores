@@ -619,7 +619,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     bruto, liq = abas[ABA_BRUTO], abas.get(ABA_LIQ)
     hoje = date.today()
     ym_hoje = hoje.strftime("%Y-%m")
-    inicio = defn.get("inicio_confiavel", defn["primeiro_mes"])
+    inicio = pc.INICIO_KLINGO   # antes dele e historico da planilha antiga ("parcial"): aparece, mas nao entra em media, comparacao nem previsao
 
     meses, extras, atencao = {}, {}, []
     per, info = None, None
@@ -642,7 +642,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
                 prev = meses[ym]
             for m in meses.values():
                 m.pop("_cats"), m.pop("_forn")
-            per, info = pc.periodo_pedido(de, ate, meses)
+            per, info = pc.periodo_pedido(de, ate, meses, permitir_antes=True)
 
             # ---- historico mes a mes, matriz categoria x mes e totais do periodo
             hist, anterior = [], None
@@ -707,7 +707,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
                 def anterior_de(q: pc.Periodo):
                     a = q.anterior
                     return montar_mes(a.fim, d, ctx, None, per=a) if any(y in tab.columns for y in a.yms) else None
-                pc.acrescentar_periodo(meses, per, lambda q: montar_mes(q.fim, d, ctx, anterior_de(q), per=q))
+                pc.acrescentar_periodo(meses, per, lambda q: montar_mes(q.fim, d, ctx, anterior_de(q), per=q), permitir_antes=True)
                 for m in meses.values():
                     m.pop("_cats", None), m.pop("_forn", None)
 
@@ -716,6 +716,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     payload = {
         "gerado_em": datetime.now().strftime("%d/%m/%Y %H:%M"), "dados_em": dados_em.strftime("%d/%m/%Y %H:%M"),
         "versao": int(dados_em.timestamp()), "hoje": hoje.isoformat(), "inicio_confiavel": pc.rotulo_mes(inicio),
+        "historico_antes_klingo": True,
         "mes_padrao": per.chave if per else (ym_hoje if ym_hoje in meses else (max(meses) if meses else None)), "periodo": info,
         "meses": meses, "atencao": atencao, **extras,
     }

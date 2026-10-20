@@ -7,6 +7,7 @@ export function FiltroPeriodo({
   min,
   max,
   nome = "Período",
+  dica,
 }: {
   basePath: string;
   rotuloMeses?: string; // sem uso: mantidos para não mexer nas telas que chamam o componente
@@ -18,6 +19,7 @@ export function FiltroPeriodo({
   max: string;
   hoje?: string;
   nome?: string;
+  dica?: string; // uma linha de explicação sob as datas (ex.: desde quando há dados confiáveis)
 }) {
   return (
     <section className="toolbar" aria-label={nome}>
@@ -38,6 +40,7 @@ export function FiltroPeriodo({
           Aplicar
         </button>
       </form>
+      {dica && <p className="filtro-dica">{dica}</p>}
     </section>
   );
 }

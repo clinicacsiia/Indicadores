@@ -352,7 +352,7 @@ def montar_mes(ym: str, hoje: date, m: pd.DataFrame, s: pd.DataFrame, exames: di
 
 # ---------------------------------------------------------------- evolucao, conferencia e qualidade
 def montar_evolucao(m: pd.DataFrame, s: pd.DataFrame) -> list[dict]:
-    meses = sorted((set(s["_ym"]) if len(s) else set()) | (set(m["_ym"]) if len(m) else set()))
+    meses = pc.a_partir_do_klingo((set(s["_ym"]) if len(s) else set()) | (set(m["_ym"]) if len(m) else set()))   # antes do Klingo e teste: nao e historico
     out = []
     for ym in meses:
         sm = s[s["_ym"] == ym] if len(s) else s
@@ -405,7 +405,8 @@ def conferir(m: pd.DataFrame, s: pd.DataFrame, valor: dict, consumo: dict, prime
         antes_s = int((s["_ym"] < primeiro_mes).sum()) if len(s) else 0
         if antes + antes_s:
             add("info", "Registros anteriores ao uso do sistema",
-                f"Há <b>{n_br(antes)}</b> movimentações e <b>{n_br(antes_s)}</b> itens de solicitação de antes de {pc.rotulo_mes(primeiro_mes)} (testes ou implantação). Entram no saldo e nas pendências, mas não nos meses do painel.")
+                f"Há <b>{n_br(antes)}</b> movimentações e <b>{n_br(antes_s)}</b> itens de solicitação de antes de {pc.rotulo_mes(primeiro_mes)} (testes ou implantação). "
+                "As movimentações entram só no saldo do estoque (ele depende de todo o histórico); nenhuma das duas entra nos meses, no consumo, nas pendências nem no ritmo de pedidos do painel.")
     if len(s):
         pend = int(s["_pend"].sum())
         soma = int((s["_status"] == ATENDIDA).sum()) + int((s["_status"] == ENCERRADA).sum()) + pend
@@ -621,7 +622,7 @@ def montar_itens(m: pd.DataFrame, s: pd.DataFrame, hoje: date, informados: dict[
                 x["consumo"], x["baixas"], x["baixas_zero"] = float(cg[M_SAI].sum()), int(len(cg)), int((cg[M_SAI] == 0).sum())
                 x["primeira_baixa"], x["ultima_baixa"] = cg[M_DATA].min(), cg[M_DATA].max()
                 x["por_setor"] = sorted(({"nome": n, "qtd": float(h[M_SAI].sum()), "baixas": int(len(h))} for n, h in cg.groupby("_cc")), key=lambda r: -r["qtd"])
-                x["por_mes"] = [{"ym": ym, "qtd": float(h[M_SAI].sum()), "baixas": int(len(h))} for ym, h in cg.groupby("_ym")]
+                x["por_mes"] = [{"ym": ym, "qtd": float(h[M_SAI].sum()), "baixas": int(len(h))} for ym, h in cg.groupby("_ym") if not pc.antes_do_klingo(ym)]
             x["tipos"] = sorted(({"nome": f"{t} ({'entrada' if es == 'E' else 'saída'})", "qtd": float(h[M_ENT].sum() + h[M_SAI].sum()), "linhas": int(len(h))}
                                  for (t, es), h in g.groupby([M_TIPO, M_ES]) if t != TRANSFERENCIA), key=lambda r: -r["linhas"])
             x["compras"] = [{"data": r[M_DATA], "tipo": r[M_TIPO], "fornecedor": None if pd.isna(r[M_FORN]) else r[M_FORN], "qtd": float(r[M_ENT]),
@@ -753,7 +754,10 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     hoje = date.today()
     ym_hoje = hoje.strftime("%Y-%m")
     primeiro = defn["primeiro_mes"]
-    m, s = preparar_mov(abas[ABA_MOV]), preparar_sol(abas[ABA_SOL], hoje)
+    m, s_todas = preparar_mov(abas[ABA_MOV]), preparar_sol(abas[ABA_SOL], hoje)
+    # Pedidos de antes do Klingo sao de teste: nao viram pendencia, ritmo de pedidos nem historico. As movimentacoes de antes ficam porque o saldo
+    # do estoque depende de todas (e so o saldo: consumo, valor e historico abaixo olham apenas o Klingo).
+    s = s_todas[s_todas["_ym"] >= pc.INICIO_KLINGO] if len(s_todas) else s_todas
     exames = exames_por_dia()
 
     meses, atencao, extras = {}, [], {}
@@ -765,7 +769,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         if per and not per.unico:
             pc.acrescentar_periodo(meses, per, lambda p: montar_mes(p.fim, hoje, m, s, exames, per=p))
         est, valor, pend = montar_estoque(m, s, hoje), montar_valor(m), montar_pendentes(s, hoje)
-        cons = m[m[M_TIPO] == CONSUMO] if len(m) else m
+        cons = m[(m[M_TIPO] == CONSUMO) & (m["_ym"] >= pc.INICIO_KLINGO)] if len(m) else m
         consumo = {"ultima": None, "linhas": int(len(cons)), "dias_com_baixa": 0, "dia_pico": None, "pico_linhas": 0, "pico_pct": 0.0,
                    "zero_linhas": 0, "zero_itens": []}
         if len(cons):
@@ -778,7 +782,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         gravar_modelo_custos(itens["lista"])
         atencao = alertas_gerais(hoje, m, s, pend, est, valor, consumo, exames, itens)
         extras = {"pendentes": pend, "estoque": est, "valor": valor, "consumo": consumo, "evolucao": montar_evolucao(m, s),
-                  "conferencia": gp.anotar("suprimentos", conferir(m, s, valor, consumo, primeiro)), "tem_exames": bool(exames),
+                  "conferencia": gp.anotar("suprimentos", conferir(m, s_todas, valor, consumo, primeiro)), "tem_exames": bool(exames),
                   "itens": itens, "exame": montar_exame(m, itens, primeiro)}
 
     arq = arquivo_dados()

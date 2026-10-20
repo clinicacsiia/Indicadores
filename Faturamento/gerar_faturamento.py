@@ -139,6 +139,13 @@ def preparar_faturas(fat: pd.DataFrame) -> pd.DataFrame:
     return f
 
 
+def faturas_do_klingo(f: pd.DataFrame) -> pd.DataFrame:
+    """So as faturas emitidas a partir do inicio do Klingo (sem data de emissao tambem ficam: nao da para dizer que sao de antes)."""
+    if not len(f):
+        return f
+    return f[~(f["Fatura - Data de Emissão"] < pd.Timestamp(pc.INICIO_KLINGO_DIA))]
+
+
 def acompanhado_mes_a_mes(op) -> bool:
     """O convenio tem a analise mes a mes (SUS)? Casa com o nome exato ou que comece com ele ("SUS CURSO")."""
     nome = norm(op)
@@ -659,13 +666,17 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     defn = k.ler_definicao(PASTA)
     abas = k.carregar(PASTA)
     prod, ctrl, ab = abas[ABA_PROD], abas[ABA_CTRL], abas[ABA_ABERTO]
-    fat = preparar_faturas(abas[ABA_FAT])
+    fat_todas = preparar_faturas(abas[ABA_FAT])
+    # Fatura emitida antes do Klingo e de teste (ou do sistema anterior): nao entra em prazo aprendido, cancelamento, SUS mes a mes nem funil.
+    # A conferencia com as Faturas em Aberto olha tudo, para nao acusar diferenca que so existe por causa do recorte.
+    fat = faturas_do_klingo(fat_todas)
     hoje = date.today()
     aberto = montar_aberto(ab, hoje) if len(ab) else {"total": 0, "qtd": 0, "sem_valor": 0, "vencido_valor": 0, "vencido_qtd": 0,
                                                       "maior_atraso": 0, "faixas": [], "por_convenio": [], "lista_vencidas": [],
                                                       "sem_valor_itens": gp.tabela([], []), "vencidas_itens": gp.tabela([], [])}
     fg = montar_faturas(fat, hoje)
-    conf = conferir_abertas(fat, ab)
+    fg["fora_klingo"] = int(len(fat_todas) - len(fat))
+    conf = conferir_abertas(fat_todas, ab)
     meses = {}
     existentes = sorted({m for m in prod.get(k.COL_MES, pd.Series(dtype=str)).dropna().unique() if m >= defn["primeiro_mes"]})
     for ym in existentes:

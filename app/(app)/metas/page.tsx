@@ -4,6 +4,7 @@ import { getCurrentProfile } from "@/lib/supabase/profile";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
 import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
 import { metasConfig } from "@/lib/metas/config";
+import { INICIO_KLINGO, primeiroMesValido } from "@/lib/inicio-klingo";
 import { ComparacaoPagante } from "./ComparacaoPagante";
 import {
   agoraSaoPaulo,
@@ -165,7 +166,8 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
 
   const agora = agoraSaoPaulo();
   const mesAtual = agora.hoje.slice(0, 7);
-  const primeiroMes = metasConfig.primeiro_mes > mesAtual ? mesAtual : metasConfig.primeiro_mes;
+  const primeiroMesMetas = primeiroMesValido(metasConfig.primeiro_mes); // nunca antes do uso do Klingo, mesmo que o metas.json peça
+  const primeiroMes = primeiroMesMetas > mesAtual ? mesAtual : primeiroMesMetas;
   const meses = mesesDisponiveis(primeiroMes, mesAtual);
 
   const { mes: mesPedido, de: dePedido, ate: atePedido } = await searchParams;
@@ -269,6 +271,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
         min={minimo}
         max={maximo}
         hoje={agora.hoje}
+        dica={`Os dados começam em ${rotuloMes(INICIO_KLINGO)}, quando o Klingo passou a ser usado; o que vem de antes é de teste ou do sistema anterior e não entra.`}
       />
 
       {error && (

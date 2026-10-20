@@ -584,6 +584,12 @@ select {
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
+.filtro-dica {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
 .seg {
   display: inline-flex;
   flex-wrap: wrap;

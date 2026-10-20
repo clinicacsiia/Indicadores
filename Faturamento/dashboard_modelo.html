@@ -166,7 +166,7 @@ function prazosGraf() {
     tip: `${bonito(o.nome)}\nVence ${num(o.mediana, 0)} dias após o envio (mediana)\nVariação: ${o.minimo} a ${o.maximo} dias\n${o.qtd} fatura(s) · ${brl(o.valor)}` });
   const barrasOp = barras(p.por_operadora.map(mkOp), '', '36%');
   return `<section><h2>Prazos: quanto tempo o dinheiro demora</h2>
-    <p class="nota">Calculado com as ${num(p.qtd)} faturas já enviadas. O vencimento é a data combinada na fatura, não o dia em que o convênio de fato pagou.</p>
+    <p class="nota">Calculado com as ${num(p.qtd)} faturas já enviadas. O vencimento é a data combinada na fatura, não o dia em que o convênio de fato pagou.${fg.fora_klingo ? ` Ficam de fora ${num(fg.fora_klingo)} fatura(s) emitida(s) antes de ${esc(rotuloMes(D.inicio_klingo))}, quando o Klingo passou a ser usado (teste ou sistema anterior).` : ''}</p>
     ${etapas}<h3 style="margin-top:24px">Prazo de pagamento por convênio</h3><p class="nota">Dias entre o envio e o vencimento, do mais lento ao mais rápido.</p>${barrasOp}</section>`;
 }
 function susGraf() {

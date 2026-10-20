@@ -2,7 +2,7 @@
 fornecedores com a divisão CSI / CSI 2, agora montadas sozinhas a partir do Klingo.
 
 - Matriz (antiga "Planilha2"): cada lançamento do #13505 vai para um ITEM da planilha pelo de-para categoria do Klingo -> item (tabela
-  despesa_de_para). Antes do início confiável (`inicio_confiavel`, o começo do uso do Klingo) valem os valores da própria planilha,
+  despesa_de_para). Antes do início do Klingo (`inicio_klingo` do `modulos.json`) valem os valores da própria planilha,
   guardados em despesa_historico; do início em diante, só o Klingo. O que o Klingo traz e o de-para não conhece aparece no grupo
   "SEM CLASSIFICAÇÃO" (o total nunca perde dinheiro).
 - Fornecedores (antiga "Planilha1"): o que vence no mês, na empresa CSI, somado por fornecedor com o nome da planilha e dividido entre

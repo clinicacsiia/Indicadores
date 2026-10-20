@@ -21,6 +21,31 @@ def rotulo_mes(ym: str) -> str:
     return f"{MESES[int(ym[5:]) - 1]}/{ym[:4]}"
 
 
+def _inicio_klingo() -> str:
+    """Mes (AAAA-MM) em que o Klingo passou a ser usado (`inicio_klingo` do modulos.json). O que vem de antes e de teste ou do sistema
+    anterior (Clinical): nenhum historico, media, comparacao ou previsao pode se apoiar nisso."""
+    try:
+        return str(json.loads((RAIZ / "modulos.json").read_text(encoding="utf-8-sig")).get("inicio_klingo") or "")[:7] or "2026-09"
+    except (OSError, ValueError):
+        return "2026-09"
+
+
+INICIO_KLINGO = _inicio_klingo()
+INICIO_KLINGO_DIA = f"{INICIO_KLINGO}-01"
+AVISO_KLINGO = (f"O Klingo só passou a ser usado em {MESES[int(INICIO_KLINGO[5:]) - 1].lower()}/{INICIO_KLINGO[:4]}: o que vem de antes é de teste ou do "
+                "sistema anterior (Clinical) e não entra em históricos, médias, comparações nem previsões.")
+
+
+def antes_do_klingo(ym) -> bool:
+    """O mes (AAAA-MM, ou AAAA-MM-DD) e anterior ao inicio do Klingo?"""
+    return str(ym)[:7] < INICIO_KLINGO
+
+
+def a_partir_do_klingo(meses, *, permitir_antes: bool = False) -> list[str]:
+    """Os meses (AAAA-MM) que valem para historico e comparacao: so os do Klingo em diante."""
+    return sorted(m for m in meses if permitir_antes or not antes_do_klingo(m))
+
+
 PADRAO_YM = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 PADRAO_CHAVE_MES = PADRAO_YM   # chave de um mes simples; a de um periodo tem ".." ("2026-09..2026-10")
 
@@ -145,18 +170,21 @@ def periodo_da_consulta(de, ate) -> "tuple[str, str] | None":
     return (per.dia_ini.isoformat(), per.dia_fim.isoformat()) if per.exato else (per.ini, per.fim)
 
 
-def periodo_pedido(de, ate, existentes) -> "tuple[Periodo | None, dict | None]":
+def periodo_pedido(de, ate, existentes, permitir_antes: bool = False) -> "tuple[Periodo | None, dict | None]":
     """(periodo, info) do que o usuario pediu (?de=AAAA-MM&ate=AAAA-MM, ou com dias: AAAA-MM-DD). `existentes` = meses que o painel tem.
     Sem pedido valido: (None, None). O periodo pedido e recortado ao que o painel tem; sem nenhum mes dentro dele, `info["vazio"]` = True.
+    Meses de antes do inicio do Klingo (teste ou sistema anterior) nunca entram no periodo, a menos que o painel diga `permitir_antes`;
+    quando o pedido os inclui, `info["antes_klingo"]` e True e a pagina explica o recorte.
     `info` e o que vai no payload["periodo"] para a pagina mostrar o filtro e o texto 'de ... a ...'."""
     de, ate = str(de or "").strip(), str(ate or "").strip()
     if not (_valido(de) and _valido(ate)):
         return None, None
     pedido = Periodo(de, ate)
-    tem = sorted(m for m in existentes if PADRAO_YM.match(str(m)))
+    tem = a_partir_do_klingo((m for m in existentes if PADRAO_YM.match(str(m))), permitir_antes=permitir_antes)
     dentro = [m for m in tem if pedido.ini <= m <= pedido.fim]
     info = {"de": pedido.ini, "ate": pedido.fim, "dia_de": pedido.dia_ini.isoformat(), "dia_ate": pedido.dia_fim.isoformat(),
-            "exato": pedido.exato, "vazio": not dentro, "recortado": False, "chave": None}
+            "exato": pedido.exato, "vazio": not dentro, "recortado": False, "chave": None,
+            "antes_klingo": (not permitir_antes) and pedido.dia_ini < date.fromisoformat(INICIO_KLINGO_DIA)}
     if not dentro:
         return None, info
     # recorta ao que o painel tem: o primeiro e o ultimo mes com dados dentro do pedido (e, num recorte de dias, nao passa das pontas do pedido)
@@ -169,11 +197,12 @@ def periodo_pedido(de, ate, existentes) -> "tuple[Periodo | None, dict | None]":
     return per, info
 
 
-def acrescentar_periodo(meses: dict, per: "Periodo", montar) -> None:
+def acrescentar_periodo(meses: dict, per: "Periodo", montar, permitir_antes: bool = False) -> None:
     """Poe em `meses` o periodo (varios meses ou um recorte de dias) e, se o painel tem dados antes dele, o periodo anterior (base das
-    comparacoes; so entra na pagina, fora da lista do filtro). `montar(periodo)` devolve o dict do periodo, como o do mes."""
+    comparacoes; so entra na pagina, fora da lista do filtro). `montar(periodo)` devolve o dict do periodo, como o do mes.
+    O periodo anterior so vale se comeca no Klingo ou depois: comparar com teste ou com o sistema anterior (Clinical) engana."""
     ant = per.anterior
-    tem_anterior = any(m in meses for m in ant.yms)
+    tem_anterior = any(m in meses for m in ant.yms) and (permitir_antes or ant.dia_ini >= date.fromisoformat(INICIO_KLINGO_DIA))
     meses[per.chave] = montar(per)
     meses[per.chave].update(periodo=True, n_meses=per.n, n_dias=per.n_dias, exato=per.exato, meses_do_periodo=per.yms,
                             chave_anterior=ant.chave if tem_anterior else None)
@@ -229,9 +258,17 @@ def limpo(obj):
 
 
 def completar_payload(payload: dict) -> dict:
-    """Campos que o filtro de periodo (painel_base.js) espera em todo painel: 'hoje' e a lista de meses que o filtro oferece."""
+    """Campos que o filtro de periodo (painel_base.js) espera em todo painel: 'hoje' e a lista de meses que o filtro oferece.
+    Tambem diz a pagina quando o Klingo comecou (`inicio_klingo`): meses de antes ficam de fora do painel e do filtro, a menos que o painel
+    declare `historico_antes_klingo` (so a Despesas: ela traz a planilha antiga, mostrada como historico que pode estar incompleto)."""
     payload.setdefault("hoje", date.today().isoformat())
-    payload["todos_meses"] = sorted(m for m in payload.get("meses", {}) if PADRAO_YM.match(str(m)))
+    payload["inicio_klingo"] = INICIO_KLINGO
+    payload["aviso_klingo"] = AVISO_KLINGO
+    meses = payload.get("meses", {})
+    if not payload.get("historico_antes_klingo"):
+        for m in [m for m in meses if PADRAO_YM.match(str(m)) and antes_do_klingo(m)]:
+            del meses[m]
+    payload["todos_meses"] = sorted(m for m in meses if PADRAO_YM.match(str(m)))
     return payload
 
 

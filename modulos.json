@@ -1,6 +1,8 @@
 {
   "titulo": "Clínica CSI",
   "banco_dados": "portal_csi.db",
+  "inicio_klingo": "2026-09",
+  "_inicio_klingo_ajuda": "Mês em que o Klingo passou a ser usado de verdade. O que vem de antes é de teste ou do sistema anterior (Clinical): não entra em histórico, média, comparação com o mês anterior nem previsão dos painéis.",
   "modulos": [
     {
       "id": "metas",
