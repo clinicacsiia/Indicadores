@@ -343,40 +343,6 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
             </div>
           </section>
 
-          {resultado.convenioInformado && (
-            <section className="panel" aria-labelledby="convenio-titulo">
-              <div className="panel-head">
-                <div>
-                  <h2 className="panel-title" id="convenio-titulo">
-                    SUS e não SUS
-                  </h2>
-                  <p className="panel-sub">Quanto dos atendimentos que contam nas metas foi pelo SUS e quanto foi por outro convênio ou particular.</p>
-                </div>
-              </div>
-              <div className="convenio-legenda" aria-hidden="true">
-                <span data-tipo="sus">SUS</span>
-                <span data-tipo="nao-sus">Não SUS</span>
-                {resultado.convenio.semConvenio > 0 && <span data-tipo="sem">Sem convênio informado</span>}
-              </div>
-              <ul className="convenio-lista">
-                <LinhaConvenio nome="Todas as metas" {...resultado.convenio} destaque />
-                {resultado.grupos.map((g) => (
-                  <LinhaConvenio
-                    key={g.id}
-                    nome={g.nome}
-                    sus={g.itens.reduce((s, i) => s + i.sus, 0)}
-                    naoSus={g.itens.reduce((s, i) => s + i.naoSus, 0)}
-                    semConvenio={g.itens.reduce((s, i) => s + i.semConvenio, 0)}
-                  />
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {resultado.convenioInformado && (
-            <ComparacaoPagante resultado={resultado} serie={serie} achados={achados} nomePeriodo={nomePeriodo} />
-          )}
-
           {resultado.grupos.map((g) => (
             <section className="panel" key={g.id} aria-labelledby={`grupo-${g.id}`}>
               <div className="panel-head">
@@ -436,6 +402,40 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
               {aviso}
             </div>
           ))}
+
+          {resultado.convenioInformado && (
+            <section className="panel" aria-labelledby="convenio-titulo">
+              <div className="panel-head">
+                <div>
+                  <h2 className="panel-title" id="convenio-titulo">
+                    SUS e não SUS
+                  </h2>
+                  <p className="panel-sub">Quanto dos atendimentos que contam nas metas foi pelo SUS e quanto foi por outro convênio ou particular.</p>
+                </div>
+              </div>
+              <div className="convenio-legenda" aria-hidden="true">
+                <span data-tipo="sus">SUS</span>
+                <span data-tipo="nao-sus">Não SUS</span>
+                {resultado.convenio.semConvenio > 0 && <span data-tipo="sem">Sem convênio informado</span>}
+              </div>
+              <ul className="convenio-lista">
+                <LinhaConvenio nome="Todas as metas" {...resultado.convenio} destaque />
+                {resultado.grupos.map((g) => (
+                  <LinhaConvenio
+                    key={g.id}
+                    nome={g.nome}
+                    sus={g.itens.reduce((s, i) => s + i.sus, 0)}
+                    naoSus={g.itens.reduce((s, i) => s + i.naoSus, 0)}
+                    semConvenio={g.itens.reduce((s, i) => s + i.semConvenio, 0)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {resultado.convenioInformado && (
+            <ComparacaoPagante resultado={resultado} serie={serie} achados={achados} nomePeriodo={nomePeriodo} />
+          )}
 
           {resultado.fora.length > 0 && (
             <details className="panel meta-fora">
