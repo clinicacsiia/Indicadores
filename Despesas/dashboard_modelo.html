@@ -11,10 +11,54 @@ __CSS__
 .calor { display: block; padding: 2px 6px; margin: -2px -6px; border-radius: 4px; }
 .pre td.n b, .linha-hist td { white-space: nowrap; }
 .plan td:first-child, .plan th:first-child { position: sticky; left: 0; background: var(--surface, #fff); z-index: 1; white-space: nowrap; }
-.plan tr.grp td { font-weight: 650; background: var(--surface-2, #f4f4f4); text-transform: uppercase; font-size: 12px; letter-spacing: .02em; }
 .plan tr.tot td { font-weight: 650; border-top: 1px solid var(--base, #999); background: var(--surface-2, #f4f4f4); }
-.plan tr.geral td { font-weight: 700; border-top: 2px solid var(--base, #999); }
 .plan td.hist { color: var(--ink2); }
+.plan tfoot td { font-weight: 650; }
+.plan td.n .calor { text-align: right; }
+.plan-barra { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 8px 0 16px; }
+.plan-tit { margin: 18px 0 4px; font-size: 14px; font-weight: 650; }
+.plan-tit small { font-weight: 400; color: var(--ink2); margin-left: 8px; }
+.plan-acoes { margin: 6px 0 4px; }
+.plan-ent { font: inherit; font-weight: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; text-transform: inherit; letter-spacing: inherit; text-decoration: underline dotted var(--neutro-2); text-underline-offset: 3px; }
+.plan-ent:hover, .plan-ent:focus-visible { color: var(--accent); text-decoration-color: var(--accent); }
+details.plan-grp > summary { flex-wrap: wrap; align-items: center; }
+details.plan-grp > summary .plan-grp-nome { font-weight: 650; }
+details.plan-grp > summary small { margin-left: auto; display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; justify-content: flex-end; }
+.plan-graf-btn { flex: none; }
+.mut { color: var(--muted); }
+/* comparar: paleta categorica (ordem fixa, validada para daltonismo e para os dois temas) */
+:root { --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300; --c7: #6250d6; --c8: #e34948; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) { --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767; } }
+:root[data-theme="dark"] { --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767; }
+.cmp-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 12px; }
+.cmp-linha .toolbar-label { margin: 0 4px 0 0; }
+.cmp-visao[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.cmp-minha { display: inline-flex; align-items: center; }
+.cmp-minha .btn-mini { border-radius: 8px 0 0 8px; }
+.cmp-x { font: inherit; font-size: 12px; cursor: pointer; color: var(--ink2); background: var(--surface); border: 1px solid var(--base); border-left: 0; border-radius: 0 8px 8px 0; padding: 4px 8px; min-height: 30px; }
+.cmp-x:hover { color: var(--crit-text); }
+.cmp-ctrl { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; padding: 14px 16px; margin: 0 0 12px; border: 1px solid var(--grid); border-radius: var(--radius); background: var(--surface-2); }
+.cmp-ctrl .mes-pick { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; font-weight: 600; }
+.cmp-ctrl .mes-pick select { font-weight: 400; max-width: 100%; }
+.cmp-ctrl .toolbar-label { margin-bottom: 6px; }
+.cmp-sel { margin: 0 0 8px; }
+.cmp-sel .toolbar-label { margin-bottom: 8px; }
+.cmp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border: 1px solid var(--base); border-radius: 999px; background: var(--surface); font-size: 13px; font-weight: 600; }
+.cmp-chip i, .cmp-leg i, .cmp-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+.cmp-sw { margin-right: 8px; }
+.cmp-chip small { font-weight: 400; color: var(--muted); }
+.cmp-chip button { font: inherit; font-size: 11px; cursor: pointer; color: var(--ink2); background: transparent; border: 0; border-radius: 50%; width: 22px; height: 22px; }
+.cmp-chip button:hover { background: var(--surface-2); color: var(--crit-text); }
+.cmp-chips select { min-height: 34px; font-size: 13px; max-width: 280px; }
+.cmp-salvar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.cmp-salvar input { font: inherit; min-height: 34px; padding: 0 10px; border: 1px solid var(--base); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); width: min(320px, 100%); }
+.cmp-tit { margin-top: 22px; }
+.cmp-leg { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 6px 0 0; font-size: 13px; color: var(--ink); }
+.cmp-leg span { display: inline-flex; align-items: center; gap: 7px; }
+.modal-corpo .kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.modal-corpo .kpi-num { font-size: 26px; }
+@media (max-width: 640px) { svg.cmp-svg text { font-size: 19px; } svg.cmp-svg .rot-pt, svg.cmp-svg .rot-nome { font-size: 17px; } .plan-barra { gap: 12px; } details.plan-grp > summary small { margin-left: 0; justify-content: flex-start; } }
 .tag-parcial { font-size: 11px; color: var(--muted); border: 1px solid var(--line, #ddd); border-radius: 10px; padding: 0 6px; margin-left: 6px; white-space: nowrap; }
 </style>
 </head>
@@ -55,6 +99,7 @@ __CSS__
         <li><b>Lançamentos repetidos:</b> duas linhas idênticas com números de lançamento diferentes podem ser parcelas ou um lançamento em duplicidade; o painel só avisa para conferir. As compras de estoque ficam fora dessa conferência.</li>
         <li><b>Repasse médico:</b> é a categoria <b>Honorário Médico</b> das despesas, vista por médico e por empresa (o nome do médico vem da descrição do lançamento). A <b>produção</b> é a receita produzida (faturada, não necessariamente recebida) de cada médico. Os dois lados são ligados pelo nome: vale quando 2 palavras do nome coincidem. Quando um mês só tem um dos lados, o painel mostra esse lado e não calcula o percentual de repasse. Linhas de equipamento ou setor (RM, RX, TC, densitometria...) ficam fora do ranking de médicos.</li>
         <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e alertas do mês), <b>Análise</b> (comparações do mês escolhido), <b>Histórico</b> e <b>Previsão</b> (valem para todos os meses), <b>Repasse médico</b> (com seletor de mês próprio) e <b>Detalhes</b> (tabelas recolhidas: clique para abrir).</li>
+        <li><b>Planilha e Comparar:</b> na <b>Planilha</b> os meses descem (uma linha por mês, o mais recente primeiro; dá para voltar a pô-los nas colunas) e cada grupo abre para mostrar os itens. Clicar no nome de um grupo ou item abre o gráfico dele. Em <b>Comparar</b> você escolhe o que comparar (o total, grupos inteiros e/ou itens, até 8), o período, a medida (R$, % do total, variação sobre o mês anterior ou índice) e o gráfico. No modo automático o painel escolhe: <b>linhas</b> para muitos meses (tendência), <b>barras agrupadas</b> para poucos meses (valor a valor) e <b>barras empilhadas</b> para a composição em %. Há visões prontas e dá para salvar as suas (ficam guardadas neste navegador). O mês em andamento aparece tracejado ou mais claro e não entra nas médias nem nas variações.</li>
         <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz os meses e grava na planilha <b>Despesas.xlsx</b>: o que foi corrigido ou excluído no Klingo muda aqui também.</li>
       </ul>
     </div>
@@ -281,34 +326,448 @@ function historicoHtml() {
 }
 
 // ====================== PLANILHA ======================
-// A planilha mensal de despesas (grupos > itens > meses) e a lista de fornecedores com a divisão CSI / CSI 2, montadas do Klingo (antes do Klingo, da planilha antiga).
+// A planilha mensal de despesas (grupos > itens > meses) e a lista de fornecedores com a divisao CSI / CSI 2, montadas do Klingo (antes do Klingo, da planilha antiga).
+// Os meses podem descer (uma linha por mes, padrao) ou ficar nas colunas; cada grupo abre e fecha; clicar num nome abre o grafico dele; o bloco "Comparar" monta o resto.
+const PLAN = { orient: 'linhas', recente: true, abertos: new Set() };
+const CMP = { pronto: false, sel: [], cor: {}, medida: 'valor', grafico: 'auto', de: 0, ate: 0, rapido: 'tudo', visao: null, aviso: '', salvas: [] };
+const MAX_CMP = 8;
+let PS = null;   // as series da planilha (total, grupos e itens) montadas de D.planilha.matriz
 let planForn = null;   // mes de vencimento escolhido na lista de fornecedores
+
+// "FOLHA SALARIAL" -> "Folha salarial" (siglas ficam em maiusculas); so para exibir, o dado continua o da planilha
+const SIGLAS = new Set(['IRPJ', 'CSLL', 'ISS', 'PIS', 'COFINS', 'IPTU', 'DARF', 'FGTS', 'INSS', 'IRRF', 'IPVA', 'CSI', 'TI', 'RH', 'EPI', 'PJ', 'PF', 'DP', 'CLT']);
+const PEQUENAS = new Set(['DE', 'DA', 'DO', 'DAS', 'DOS', 'E', 'EM', 'PARA', 'COM', 'A', 'O', 'AS', 'OS', 'NO', 'NA', 'POR']);
+function bonito(s) {
+  let primeira = true;
+  return String(s).split(/([\s\/\-.()+]+)/).map(w => {
+    if (!/[A-Za-zÀ-ú]/.test(w)) return w;
+    const u = w.toUpperCase();
+    const r = SIGLAS.has(u) ? u : (!primeira && PEQUENAS.has(u)) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    primeira = false;
+    return r;
+  }).join('');
+}
+const cortar = (t, n) => t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t;
+
+function planSeries() {
+  const P = D.planilha && D.planilha.matriz;
+  if (!P || !P.ok || !P.meses.length) return null;
+  if (PS && PS.P === P) return PS;
+  const S = { T: { id: 'T', tipo: 'total', nome: 'Total das despesas', valores: P.geral, total: P.total } }, grupos = [], itens = [], vistos = {}, dup = new Set();
+  P.grupos.forEach((g, gi) => {
+    const gid = 'G' + gi;
+    S[gid] = { id: gid, tipo: 'grupo', nome: g.grupo, valores: g.totais, total: g.total, gi, filhos: [] };
+    grupos.push(gid);
+    g.itens.forEach((it, ii) => {
+      const id = `I${gi}.${ii}`;
+      S[id] = { id, tipo: 'item', nome: it.item, grupo: g.grupo, gi, pai: gid, valores: it.valores, total: it.total, sem_klingo: it.sem_klingo, a_confirmar: it.a_confirmar };
+      S[gid].filhos.push(id); itens.push(id);
+      if (vistos[it.item]) dup.add(it.item); vistos[it.item] = 1;
+    });
+  });
+  return (PS = { P, S, grupos, itens, dup, meses: P.meses, n: P.meses.length });
+}
+const emCurso = k => PS.meses[k].situacao === 'em_curso';
+const mCurto = k => curto(PS.meses[k].rotulo, PS.meses[k].ym);
+const rotSerie = s => s.tipo === 'total' ? 'Total das despesas' : s.tipo === 'grupo' ? bonito(s.nome) : bonito(s.nome) + (PS.dup.has(s.nome) ? ` (${bonito(s.grupo)})` : '');
+const detalheSerie = s => s.tipo === 'item' ? `${bonito(s.nome)} · grupo ${bonito(s.grupo)}` : s.tipo === 'grupo' ? `Grupo ${bonito(s.nome)}: soma dos itens` : 'Todas as despesas';
+
+// ---------------- numeros de uma serie num intervalo de meses [i0, i1]
+function estat(s, i0, i1) {
+  const v = s.valores, ks = [], T = PS.S.T.valores;
+  for (let k = i0; k <= i1; k++) ks.push(k);
+  const fech = ks.filter(k => !emCurso(k));
+  const total = soma(ks, k => v[k]), totalGeral = soma(ks, k => T[k]);
+  let pico = null;
+  fech.forEach(k => { if (pico == null || v[k] > v[pico]) pico = k; });
+  const ult = fech.length ? fech[fech.length - 1] : null, ant = fech.length > 1 ? fech[fech.length - 2] : null;
+  return { total, totalGeral, part: totalGeral ? total / totalGeral * 100 : null, media: fech.length ? soma(fech, k => v[k]) / fech.length : null, pico,
+    ult, ant, varU: ult != null && ant != null && v[ant] > 0 ? (v[ult] - v[ant]) / v[ant] * 100 : null, nFech: fech.length };
+}
+// valor de cada mes na medida escolhida (R$, % do total do mes, variacao sobre o mes anterior, indice com o 1o mes = 100)
+function valoresMedida(s, i0, i1, medida) {
+  const v = s.valores, T = PS.S.T.valores, out = [];
+  let base = null;
+  if (medida === 'indice') for (let k = i0; k <= i1; k++) if (!emCurso(k) && v[k] > 0) { base = v[k]; break; }
+  for (let k = i0; k <= i1; k++) {
+    if (medida === 'valor') out.push(v[k]);
+    else if (medida === 'pct') out.push(T[k] ? v[k] / T[k] * 100 : null);
+    else if (medida === 'var') out.push(k > 0 && !emCurso(k) && v[k - 1] > 0 ? (v[k] - v[k - 1]) / v[k - 1] * 100 : null);
+    else out.push(base ? v[k] / base * 100 : null);
+  }
+  return out;
+}
+const MEDIDAS = { valor: 'Valor (R$)', pct: '% do total das despesas', var: 'Variação sobre o mês anterior (%)', indice: 'Índice (1º mês do período = 100)' };
+const fmtEixo = med => med === 'valor' ? (v => rotEixo(v)) : med === 'pct' ? (v => num(v, 0) + '%') : med === 'var' ? (v => (v > 0 ? '+' : v < 0 ? '−' : '') + num(Math.abs(v), 0) + '%') : (v => num(v, 0));
+const fmtTip = med => med === 'valor' ? brl : med === 'pct' ? (v => pct(v, 1)) : med === 'var' ? (v => (v > 0 ? '+' : v < 0 ? '−' : '') + num(Math.abs(v), 1) + '%') : (v => num(v, 1));
+
+// ---------------- grafico de comparacao (linhas, barras agrupadas ou barras empilhadas)
+function ticksBonitos(min, max, alvo = 5) {
+  if (!(max > min)) return [min, min + 1];
+  const raw = (max - min) / alvo, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  const passo = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p, t = [];
+  for (let v = Math.floor(min / passo) * passo; v <= Math.ceil(max / passo) * passo + passo / 2; v += passo) t.push(+v.toFixed(8));
+  return t;
+}
+const barraPath = (x, yTopo, w, yBase) => {   // barra com a ponta de dado arredondada (4px) e a base reta, para cima ou para baixo
+  const h = Math.abs(yBase - yTopo); if (h < .5) return `M${x},${yBase}h${w}`;
+  const r = Math.min(4, w / 2, h), s = yTopo < yBase ? 1 : -1;
+  return `M${x},${yBase}V${yTopo + s * r}Q${x},${yTopo} ${x + r},${yTopo}H${x + w - r}Q${x + w},${yTopo} ${x + w},${yTopo + s * r}V${yBase}Z`;
+};
+// series = [{id, nome, cor, ys: [valor|null por mes]}]; cfg = {tipo: 'linha'|'agrupada'|'empilhada', medida, k0 (indice do 1o mes), aria, ref: {v, rot}}
+function cmpGrafico(series, cfg) {
+  const n = series[0] ? series[0].ys.length : 0; if (!n) return '';
+  const est = estreito(), W = est ? 520 : 980, H = est ? 360 : 390, ml = est ? 100 : 66, mt = 20, mb = est ? 46 : 36, tipo = cfg.tipo, m = series.length;
+  const direto = tipo === 'linha' && m <= 4 && !est, mr = direto ? 156 : 14;
+  const pw = W - ml - mr, ph = H - mt - mb, bw = pw / n, cx = i => ml + (i + .5) * bw;
+  const todos = series.flatMap(s => s.ys.filter(y => y != null));
+  let lo = 0, hi = 0;
+  if (tipo === 'empilhada') { for (let i = 0; i < n; i++) hi = Math.max(hi, soma(series, s => Math.max(s.ys[i] || 0, 0))); }
+  else { hi = Math.max(...todos, 0); lo = Math.min(...todos, 0); }
+  if (cfg.ref) { hi = Math.max(hi, cfg.ref.v); lo = Math.min(lo, cfg.ref.v); }
+  if (cfg.medida === 'indice' && tipo === 'linha') { lo = Math.min(...todos, 100); hi = Math.max(...todos, 100); const folga = (hi - lo) * .12 || 5; lo -= folga; hi += folga; if (Math.min(...todos) >= 0) lo = Math.max(lo, 0); }
+  else if (hi > 0) hi *= 1.06;
+  const tk = ticksBonitos(lo, hi), L = tk[0], Hh = tk[tk.length - 1], Y = v => mt + (1 - (v - L) / (Hh - L)) * ph, fe = fmtEixo(cfg.medida), ft = fmtTip(cfg.medida);
+  let g = tk.map(v => `<line class="${v === 0 ? 'base' : 'gr'}" x1="${ml}" x2="${W - mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text x="${ml - 8}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end">${esc(fe(v))}</text>`).join('');
+  const passo = est ? Math.ceil(n / 5) : n > 14 ? 2 : 1;
+  for (let i = 0; i < n; i++) if (i % passo === 0 || i === n - 1 && passo === 1) g += `<text x="${cx(i).toFixed(1)}" y="${H - 12}" text-anchor="middle">${esc(mCurto(cfg.k0 + i))}${emCurso(cfg.k0 + i) ? '*' : ''}</text>`;
+  // onde os dados passam da planilha antiga para o Klingo
+  const iK = PS.meses.findIndex(x => x.fonte === 'klingo') - cfg.k0;
+  if (iK > 0 && iK < n) g += `<line x1="${ml + iK * bw}" x2="${ml + iK * bw}" y1="${mt}" y2="${H - mb}" stroke="var(--neutro-2)" stroke-dasharray="2 4"/><text class="rot-nome" x="${ml + iK * bw + 5}" y="${mt + 10}">Klingo →</text>`;
+  if (cfg.medida === 'indice' && tipo === 'linha') g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="var(--neutro-2)" stroke-dasharray="5 4"/>`;
+  if (cfg.ref) g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(cfg.ref.v).toFixed(1)}" y2="${Y(cfg.ref.v).toFixed(1)}" stroke="var(--neutro)" stroke-dasharray="5 4"/><text class="rot-nome" x="${W - mr - 4}" y="${(Y(cfg.ref.v) - 6).toFixed(1)}" text-anchor="end">${esc(cfg.ref.rot)}</text>`;
+  const rotulosFim = [], marcar = n <= 16;
+  if (tipo === 'linha') {
+    series.forEach(s => {
+      const pts = s.ys.map((y, i) => y == null ? null : { i, x: cx(i), y: Y(y), v: y, c: emCurso(cfg.k0 + i) });
+      const trechos = []; let t = [];
+      pts.forEach(p => { if (p) t.push(p); else { if (t.length) trechos.push(t); t = []; } }); if (t.length) trechos.push(t);
+      trechos.forEach(tr => {
+        const cheios = tr.filter(p => !p.c), parcial = tr.find(p => p.c);
+        if (cheios.length > 1) g += `<polyline fill="none" stroke="${s.cor}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" points="${cheios.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}"/>`;
+        if (parcial && cheios.length) { const u = cheios[cheios.length - 1]; g += `<line x1="${u.x.toFixed(1)}" y1="${u.y.toFixed(1)}" x2="${parcial.x.toFixed(1)}" y2="${parcial.y.toFixed(1)}" stroke="${s.cor}" stroke-width="2.4" stroke-dasharray="6 4"/>`; }
+        if (marcar || tr.length === 1) tr.forEach(p => { g += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.c ? 4 : 3.4}" fill="${p.c ? 'var(--surface)' : s.cor}" stroke="${p.c ? s.cor : 'var(--surface)'}" stroke-width="${p.c ? 2 : 1.6}"/>`; });
+        else { const u = tr[tr.length - 1]; g += `<circle cx="${u.x.toFixed(1)}" cy="${u.y.toFixed(1)}" r="4" fill="${s.cor}" stroke="var(--surface)" stroke-width="1.6"/>`; }
+      });
+      const u = [...pts].reverse().find(Boolean);
+      if (direto && u) rotulosFim.push({ s, u, y: u.y });
+    });
+  } else if (tipo === 'agrupada') {
+    const gap = 2, dentro = Math.min(bw * .78, m * 36), larg = (dentro - gap * (m - 1)) / m, rotulos = larg >= 33;
+    for (let i = 0; i < n; i++) {
+      const x0 = cx(i) - dentro / 2, curso = emCurso(cfg.k0 + i);
+      series.forEach((s, j) => {
+        const y = s.ys[i]; if (y == null) return;
+        const x = x0 + j * (larg + gap);
+        g += `<path d="${barraPath(x, Y(y), larg, Y(0))}" fill="${s.cor}"${curso ? ` fill-opacity=".5" stroke="${s.cor}" stroke-dasharray="3 2"` : ''}/>`;
+        if (rotulos && y !== 0) g += `<text class="rot-pt" x="${(x + larg / 2).toFixed(1)}" y="${(y >= 0 ? Y(y) - 5 : Y(y) + 14).toFixed(1)}" text-anchor="middle">${esc(fe(y))}</text>`;
+      });
+    }
+  } else {   // empilhada
+    const larg = Math.min(bw * .64, 64);
+    for (let i = 0; i < n; i++) {
+      let acum = 0; const curso = emCurso(cfg.k0 + i);
+      series.forEach(s => {
+        const y = Math.max(s.ys[i] || 0, 0); if (!y) return;
+        g += `<rect x="${(cx(i) - larg / 2).toFixed(1)}" y="${Y(acum + y).toFixed(1)}" width="${larg.toFixed(1)}" height="${Math.max(Y(acum) - Y(acum + y), 0).toFixed(1)}" fill="${s.cor}"${curso ? ' fill-opacity=".55"' : ''} stroke="var(--surface)" stroke-width="1.5"/>`;
+        acum += y;
+      });
+      if (n <= 14 && !est) g += `<text class="rot-pt" x="${cx(i).toFixed(1)}" y="${(Y(acum) - 6).toFixed(1)}" text-anchor="middle">${esc(fe(acum))}</text>`;
+    }
+  }
+  // rotulos na ponta das linhas (ate 4 series): valor + nome, afastados para nao se sobreporem
+  rotulosFim.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < rotulosFim.length; i++) if (rotulosFim[i].y - rotulosFim[i - 1].y < 32) rotulosFim[i].y = rotulosFim[i - 1].y + 32;
+  for (let i = rotulosFim.length - 1; i >= 0; i--) { const lim = i === rotulosFim.length - 1 ? H - mb - 4 : rotulosFim[i + 1].y - 32; if (rotulosFim[i].y > lim) rotulosFim[i].y = lim; }
+  rotulosFim.forEach(({ s, u, y }) => { g += `<text class="rot-fim" x="${(u.x + 10).toFixed(1)}" y="${(y + 3).toFixed(1)}">${esc(fe(u.v))}</text><text class="rot-nome" x="${(u.x + 10).toFixed(1)}" y="${(y + 17).toFixed(1)}">${esc(cortar(s.nome, 20))}</text>`; });
+  // uma faixa de passagem do mouse por mes: o balao mostra todas as series do mes, da maior para a menor
+  for (let i = 0; i < n; i++) {
+    const k = cfg.k0 + i, m_ = PS.meses[k];
+    const lin = series.map(s => ({ nome: s.nome, y: s.ys[i] })).filter(l => l.y != null).sort((a, b) => b.y - a.y).map(l => `${l.nome}: ${ft(l.y)}`);
+    const tip = `${m_.rotulo}${emCurso(k) ? ' · mês em andamento (ainda recebe lançamentos)' : ''}${m_.fonte === 'planilha' ? ' · planilha antiga' : ''}\n${lin.join('\n') || 'Sem valor'}`;
+    g += `<rect class="alvo" x="${(ml + i * bw).toFixed(1)}" y="${mt}" width="${bw.toFixed(1)}" height="${H - mt - mb}" fill="transparent" tabindex="0" data-tip="${esc(tip)}"/>`;
+  }
+  return `<svg class="grafico cmp-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(cfg.aria || '')}">${g}</svg>`;
+}
+
+// ---------------- quando o mes fica descendo: o grafico de um clique (um item, um grupo ou o total)
+function planGrafico(id) {
+  const ps = planSeries(), s = ps && ps.S[id]; if (!s) return;
+  const n = ps.n, e = estat(s, 0, n - 1), ys = s.valores;
+  const kpis = `<div class="kpis">
+    ${kpi('Total no período', brlc(e.total), { titulo: brl(e.total), sub: e.part != null && s.tipo !== 'total' ? `<b>${pct(e.part, 1)}</b> de todas as despesas` : `${num(n)} mês(es)${PS.meses.some((_, k) => emCurso(k)) ? ', o último em andamento' : ''}` })}
+    ${kpi('Média por mês fechado', e.media != null ? brlc(e.media) : VAZIO, { titulo: e.media != null ? brl(e.media) : '', sub: `${num(e.nFech)} mês(es) fechado(s)` })}
+    ${kpi('Último mês fechado', e.ult != null ? brlc(ys[e.ult]) : VAZIO, { titulo: e.ult != null ? brl(ys[e.ult]) : '', comp: e.varU != null ? comp(e.varU, `contra ${PS.meses[e.ant].rotulo}`, { inverso: true }) : '', sub: e.ult != null ? esc(PS.meses[e.ult].rotulo) : '' })}
+    ${kpi('Maior mês', e.pico != null ? brlc(ys[e.pico]) : VAZIO, { titulo: e.pico != null ? brl(ys[e.pico]) : '', sub: e.pico != null ? esc(PS.meses[e.pico].rotulo) : '' })}
+  </div>`;
+  const graf = cmpGrafico([{ id, nome: rotSerie(s), cor: 'var(--c1)', ys: valoresMedida(s, 0, n - 1, 'valor') }],
+    { tipo: 'linha', medida: 'valor', k0: 0, aria: 'Evolução mensal de ' + rotSerie(s), ref: e.media != null ? { v: e.media, rot: 'Média ' + brlc(e.media) } : null });
+  const filhos = s.tipo === 'total' ? PS.grupos : s.tipo === 'grupo' ? s.filhos : [];
+  const base = s.total || 1;
+  const quebra = filhos.length ? `<h3 style="margin:18px 0 4px;font-size:14px">${s.tipo === 'total' ? 'Peso de cada grupo' : 'Itens do grupo'} no período todo</h3>` +
+    barras(filhos.map(f => PS.S[f]).filter(f => f.total > 0).sort((a, b) => b.total - a.total).map(f => ({ rotulo: rotSerie(f), valor: f.total, texto: brlc(f.total), extra: pct(f.total / base * 100, 0),
+      tip: `${rotSerie(f)}\n${brl(f.total)} (${pct(f.total / base * 100, 1)} d${s.tipo === 'total' ? 'as despesas' : 'o grupo'})` })), 'Sem valor no período.', '40%', { porPagina: 8 }) : '';
+  const aviso = s.sem_klingo ? '<p class="nota">Este item não tem categoria do Klingo ligada: só tem valor nos meses da planilha antiga.</p>' : '';
+  modal(rotSerie(s), `<p class="nota">${esc(detalheSerie(s))} · mês a mês, ${esc(PS.meses[0].rotulo)} a ${esc(PS.meses[n - 1].rotulo)}. A linha tracejada horizontal é a média dos meses fechados.</p>${kpis}${graf}${quebra}${aviso}
+    <p style="margin-top:16px"><button type="button" class="btn-mini link" data-cmp-add="${id}">Comparar com outros itens →</button></p>`);
+}
+
+// ---------------- a tabela da planilha: meses descendo (padrao) ou nas colunas
+function planTabela(ids, o = {}) {
+  const S = PS.S, n = PS.n, ordem = [...Array(n).keys()];
+  if (PLAN.recente) ordem.reverse();
+  const ents = ids.map(id => S[id]), maxPor = ents.map(s => Math.max(...s.valores, 0));
+  const calor = (v, mx) => v ? `<span class="calor" style="background:color-mix(in srgb, var(--accent) ${Math.max(4, Math.round(v / (mx || 1) * 34))}%, transparent)">${brl(v)}</span>` : VAZIO;
+  const tot = s => s.total;
+  const mesTxt = k => esc(PS.meses[k].rotulo) + (emCurso(k) ? '*' : '') + (PS.meses[k].fonte === 'planilha' ? '' : '');
+  const cls = k => PS.meses[k].fonte === 'planilha' ? ' hist' : '';
+  const nomeBtn = s => `<button type="button" class="plan-ent" data-plan-graf="${s.id}" data-tip="Clique para ver o gráfico${s.tipo === 'item' ? '' : ' (' + esc(detalheSerie(s)) + ')'}">${esc(rotSerie(s))}</button>` +
+    (s.sem_klingo ? '<span class="tag-parcial" data-tip="Não há categoria do Klingo ligada a este item: só tem valor nos meses da planilha antiga. Para o Klingo alimentá-lo, crie a categoria lá e ligue em despesa_de_para.">só histórico</span>' : '') +
+    (s.a_confirmar ? `<span class="tag-parcial" data-tip="${esc('Ligação ainda a confirmar com: ' + (o.categorias && o.categorias[s.id] ? o.categorias[s.id].join(', ') : 'categorias do Klingo'))}">a confirmar</span>` : '');
+  const somaLin = k => soma(ents, s => s.valores[k]);
+  const somaTotal = soma(ents, tot);
+  if (PLAN.orient === 'linhas') {
+    const mostraTotal = ents.length > 1, T = o.totalCol !== false;
+    const cab = `<th>Mês</th>${ents.map(s => `<th class="n">${nomeBtn(s)}</th>`).join('')}${mostraTotal && T ? '<th class="n">Total</th>' : ''}<th class="n">Variação</th>`;
+    const linhas = ordem.map(k => {
+      const t = somaLin(k), ant = k > 0 && !emCurso(k) ? somaLin(k - 1) : 0, v = ant > 0 ? (t - ant) / ant * 100 : null;
+      return `<tr><td>${mesTxt(k)}</td>${ents.map((s, j) => `<td class="n${cls(k)}">${calor(s.valores[k], maxPor[j])}</td>`).join('')}${mostraTotal && T ? `<td class="n"><b>${t ? brl(t) : '—'}</b></td>` : ''}<td class="n">${v == null ? VAZIO : comp(v, '', { inverso: true, d: 1 })}</td></tr>`;
+    }).join('');
+    const rodape = `<tr class="tot"><td>Total no período</td>${ents.map(s => `<td class="n">${brl(tot(s))}</td>`).join('')}${mostraTotal && T ? `<td class="n">${brl(somaTotal)}</td>` : ''}<td></td></tr>`;
+    return `<div class="tab-wrap"><table class="plan plan-lin"><thead><tr>${cab}</tr></thead><tbody>${linhas}</tbody><tfoot>${rodape}</tfoot></table></div>`;
+  }
+  const cab = `<th>${o.cabecalho || 'Despesa'}</th>${ordem.slice().reverse().map(k => `<th class="n">${esc(mCurto(k))}${emCurso(k) ? '*' : ''}</th>`).join('')}<th class="n">Valor total</th>`;
+  const linhas = ents.map((s, j) => `<tr><td>${nomeBtn(s)}</td>${[...Array(n).keys()].map(k => `<td class="n${cls(k)}">${calor(s.valores[k], maxPor[j])}</td>`).join('')}<td class="n"><b>${s.total ? brl(s.total) : '—'}</b></td></tr>`).join('');
+  const rodape = ents.length > 1 ? `<tr class="tot"><td>Total</td>${[...Array(n).keys()].map(k => `<td class="n">${somaLin(k) ? brl(somaLin(k)) : '—'}</td>`).join('')}<td class="n">${brl(somaTotal)}</td></tr>` : '';
+  return `<div class="tab-wrap"><table class="plan plan-col"><thead><tr>${cab}</tr></thead><tbody>${linhas}</tbody>${rodape ? `<tfoot>${rodape}</tfoot>` : ''}</table></div>`;
+}
+function planCorpo() {
+  const P = PS.P, S = PS.S;
+  const cats = {}; P.grupos.forEach((g, gi) => g.itens.forEach((it, ii) => { cats[`I${gi}.${ii}`] = it.categorias; }));
+  const geral = `<h3 class="plan-tit">Visão geral: os grupos de despesa</h3>` + planTabela(PS.grupos, { cabecalho: 'Grupo' });
+  const todosAbertos = PS.grupos.every(g => PLAN.abertos.has(g));
+  const grupos = PS.grupos.map(gid => {
+    const g = S[gid], e = estat(g, 0, PS.n - 1), aberto = PLAN.abertos.has(gid);
+    const rank = S.T.total ? g.total / S.T.total * 100 : 0;
+    return `<details class="acord plan-grp" data-grp="${gid}"${aberto ? ' open' : ''}><summary><span class="plan-grp-nome">${esc(bonito(g.nome))}</span>
+      <small>${g.filhos.length} ite${g.filhos.length === 1 ? 'm' : 'ns'} · <b>${brlc(g.total)}</b> · ${pct(rank, 0)} do total${e.varU != null ? ' · ' + comp(e.varU, '', { inverso: true, d: 0 }) : ''}</small>
+      <button type="button" class="btn-mini link plan-graf-btn" data-plan-graf="${gid}">Ver gráfico</button></summary>
+      <div class="acord-corpo">${planTabela(g.filhos, { categorias: cats, cabecalho: 'Despesa' })}</div></details>`;
+  }).join('');
+  return `${geral}<h3 class="plan-tit" style="margin-top:22px">Cada grupo por dentro <small>clique no grupo para abrir os itens; clique no nome de um item para ver o gráfico dele</small></h3>
+    <div class="plan-acoes"><button type="button" class="btn-mini" data-plan-exp="${todosAbertos ? 'fechar' : 'abrir'}">${todosAbertos ? 'Recolher todos os grupos' : 'Abrir todos os grupos'}</button></div>${grupos}`;
+}
 function planilhaMatriz() {
   const P = D.planilha && D.planilha.matriz;
   if (!P) return '<section><p class="vazio">A aba Planilha ainda não foi gerada. Clique em <b>Atualizar agora</b>.</p></section>';
   if (!P.ok) return `<section><h2>Despesas por grupo e mês</h2><p class="vazio">${esc(P.motivo || 'Não foi possível montar a planilha.')}</p></section>`;
-  const cab = [{ t: 'Despesa' }, ...P.meses.map(m => ({ t: curto(m.rotulo, m.ym) + (m.situacao === 'em_curso' ? '*' : ''), n: 1 })), { t: 'Valor total', n: 1 }];
-  const cel = v => v ? brl(v) : VAZIO;
-  const linhas = [];
-  P.grupos.forEach(g => {
-    linhas.push(`<tr class="grp"><td colspan="${cab.length}">${esc(g.grupo)}</td></tr>`);
-    g.itens.forEach(i => {
-      const tags = (i.sem_klingo ? '<span class="tag-parcial" data-tip="Não há categoria do Klingo ligada a este item: só tem valor nos meses da planilha antiga. Para o Klingo alimentá-lo, crie a categoria lá e ligue em despesa_de_para.">só histórico</span>' : '') +
-        (i.a_confirmar ? `<span class="tag-parcial" data-tip="${esc('Ligação ainda a confirmar com: ' + i.categorias.join(', '))}">a confirmar</span>` : '');
-      linhas.push(`<tr><td>${esc(i.item)}${tags}</td>${i.valores.map((v, k) => `<td class="n${P.meses[k].fonte === 'planilha' ? ' hist' : ''}">${cel(v)}</td>`).join('')}<td class="n"><b>${cel(i.total)}</b></td></tr>`);
-    });
-    linhas.push(`<tr class="tot"><td>Total ${esc(g.grupo.toLowerCase())}</td>${g.totais.map(v => `<td class="n">${cel(v)}</td>`).join('')}<td class="n">${cel(g.total)}</td></tr>`);
-  });
-  linhas.push(`<tr class="geral"><td>Total das despesas</td>${P.geral.map(v => `<td class="n">${cel(v)}</td>`).join('')}<td class="n">${cel(P.total)}</td></tr>`);
-  const tabela_ = `<div class="tab-wrap"><table class="plan"><thead><tr>${cab.map(c => `<th class="${c.n ? 'n' : ''}">${esc(c.t)}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+  if (!planSeries()) return '<section><p class="vazio">A planilha ainda não tem meses.</p></section>';
   const notas = [
     `Até ${esc(P.meses.filter(m => m.fonte === 'planilha').slice(-1)[0]?.rotulo || '')}, os valores são os da planilha antiga (em cinza). De ${esc(P.inicio_klingo)} em diante vêm do Klingo, pelo vencimento, somando o bruto das categorias ligadas a cada item (despesa_de_para). * Mês em andamento.`,
   ];
   if (P.sem_destino.length) notas.push(`<b>${P.sem_destino.length} categoria(s) do Klingo ainda não têm item na planilha</b> e estão no grupo SEM CLASSIFICAÇÃO (${esc(P.sem_destino.slice(0, 5).map(c => `${c.categoria}: ${brl(c.valor)}`).join('; '))}${P.sem_destino.length > 5 ? '…' : ''}). Ligue cada uma ao item certo na tabela despesa_de_para.`);
-  if (P.itens_sem_klingo.length) notas.push(`<b>${P.itens_sem_klingo.length} item(ns) da planilha não têm categoria no Klingo</b> e só mostram os meses antigos: ${esc(P.itens_sem_klingo.join(', '))}. Para eles voltarem a aparecer, é preciso criar a categoria no Klingo (ou ligar uma já existente).`);
+  if (P.itens_sem_klingo.length) notas.push(`<b>${P.itens_sem_klingo.length} item(ns) da planilha não têm categoria no Klingo</b> e só mostram os meses antigos: ${esc(P.itens_sem_klingo.map(bonito).join(', '))}. Para eles voltarem a aparecer, é preciso criar a categoria no Klingo (ou ligar uma já existente).`);
   if (P.categorias_a_confirmar.length) notas.push(`${P.categorias_a_confirmar.length} ligação(ões) categoria → item ainda a confirmar (marcadas “a confirmar”): ${esc(P.categorias_a_confirmar.join(', '))}.`);
-  return `<section><h2>Despesas por grupo e mês</h2>${notas.map(n => `<p class="nota">${n}</p>`).join('')}${tabela_}</section>`;
+  const seg = (atr, ativo, rot) => `<button type="button" class="seg-item" ${atr}${ativo ? ' aria-current="true"' : ''}>${rot}</button>`;
+  const barra = `<div class="plan-barra"><div><span class="toolbar-label">Meses</span><div class="seg">${seg('data-plan-orient="linhas"', PLAN.orient === 'linhas', '↓ Descem (uma linha por mês)')}${seg('data-plan-orient="colunas"', PLAN.orient === 'colunas', '→ Nas colunas')}</div></div>
+    <div><span class="toolbar-label">Ordem dos meses</span><div class="seg">${seg('data-plan-ordem="recente"', PLAN.recente, 'Mais recente primeiro')}${seg('data-plan-ordem="antigo"', !PLAN.recente, 'Mais antigo primeiro')}</div></div></div>`;
+  return `<section><h2>Despesas por grupo e mês</h2>${notas.map(n => `<p class="nota">${n}</p>`).join('')}${barra}<div id="plan-corpo">${planCorpo()}</div></section>`;
 }
+function planRedesenhar() { const el = $('plan-corpo'); if (el) el.innerHTML = planCorpo(); }
+
+// ====================== COMPARAR ======================
+// O leitor escolhe o que comparar (total, grupos e/ou itens), o periodo, a medida e o tipo de grafico; ha visoes prontas e as que ele salva.
+const LS_VISOES = 'csi_despesas_visoes_v1';
+const lsLer = () => { try { return JSON.parse(localStorage.getItem(LS_VISOES) || '[]'); } catch (e) { return []; } };
+const lsGravar = lista => { try { localStorage.setItem(LS_VISOES, JSON.stringify(lista)); return true; } catch (e) { return false; } };
+const totUltimos = (s, k) => soma(s.valores.slice(-k));
+const maisPesados = (ids, k, f) => [...ids].sort((a, b) => f(PS.S[b]) - f(PS.S[a])).slice(0, k);
+function ultimosFechados() { const f = PS.meses.map((_, k) => k).filter(k => !emCurso(k)); return f.length > 1 ? [f[f.length - 2], f[f.length - 1]] : null; }
+const PRESETS = [
+  { id: 'exec', nome: 'Visão executiva', dica: 'O total das despesas e os 3 maiores grupos, mês a mês', monta: () => ({ sel: ['T', ...maisPesados(PS.grupos, 3, s => s.total)], medida: 'valor', grafico: 'auto', rapido: 'tudo' }) },
+  { id: 'comp', nome: 'Composição por grupo', dica: 'Quanto cada grupo pesa no total, mês a mês (%)', monta: () => ({ sel: maisPesados(PS.grupos, MAX_CMP, s => s.total), medida: 'pct', grafico: 'auto', rapido: 'tudo' }) },
+  { id: 'itens', nome: 'Maiores despesas', dica: 'Os 6 itens que mais pesam, mês a mês', monta: () => ({ sel: maisPesados(PS.itens, 6, s => s.total), medida: 'valor', grafico: 'linha', rapido: 'tudo' }) },
+  { id: 'seis', nome: 'Grupos nos últimos 6 meses', dica: 'Os 5 maiores grupos lado a lado nos últimos 6 meses', monta: () => ({ sel: maisPesados(PS.grupos, 5, s => totUltimos(s, 6)), medida: 'valor', grafico: 'auto', rapido: '6' }) },
+  { id: 'altas', nome: 'O que mais subiu', dica: 'Os 5 itens com maior aumento em R$ no último mês fechado contra o anterior', monta: () => {
+    const u = ultimosFechados(); if (!u) return null;
+    const sel = maisPesados(PS.itens.filter(id => PS.S[id].valores[u[1]] > PS.S[id].valores[u[0]]), 5, s => s.valores[u[1]] - s.valores[u[0]]);
+    return sel.length ? { sel, medida: 'valor', grafico: 'auto', rapido: '6' } : null; } },
+];
+function aplicarRapido(r) {
+  const n = PS.n; CMP.rapido = r;
+  if (r === '12' || r === '6') { CMP.de = Math.max(0, n - Number(r)); CMP.ate = n - 1; }
+  else if (r === 'klingo') { CMP.de = Math.max(0, PS.meses.findIndex(m => m.fonte === 'klingo')); CMP.ate = n - 1; }
+  else { CMP.de = 0; CMP.ate = n - 1; CMP.rapido = 'tudo'; }
+}
+function corLivre() { const usadas = new Set(Object.values(CMP.cor)); for (let i = 1; i <= MAX_CMP; i++) if (!usadas.has(i)) return i; return 1; }
+function definirSel(ids) {
+  CMP.sel = ids.slice(0, MAX_CMP); CMP.cor = {};
+  CMP.sel.forEach(id => { CMP.cor[id] = corLivre(); });
+}
+function aplicarEstado(e) {
+  definirSel(e.sel); CMP.medida = e.medida || 'valor'; CMP.grafico = e.grafico || 'auto'; CMP.aviso = '';
+  if (e.rapido && e.rapido !== 'custom') aplicarRapido(e.rapido); else { CMP.rapido = null; CMP.de = Math.max(0, Math.min(PS.n - 1, e.de ?? 0)); CMP.ate = Math.max(CMP.de, Math.min(PS.n - 1, e.ate ?? PS.n - 1)); }
+}
+function cmpIniciar() {
+  CMP.pronto = true; CMP.salvas = lsLer();
+  aplicarEstado(PRESETS[0].monta()); CMP.visao = 'exec';
+}
+function adicionar(id) {
+  if (!PS.S[id] || CMP.sel.includes(id)) return;
+  if (CMP.sel.length >= MAX_CMP) { CMP.aviso = `No máximo ${MAX_CMP} itens por gráfico: tire algum para incluir outro.`; return; }
+  CMP.sel.push(id); CMP.cor[id] = corLivre(); CMP.aviso = ''; CMP.visao = null;
+}
+function remover(id) { CMP.sel = CMP.sel.filter(x => x !== id); delete CMP.cor[id]; CMP.aviso = ''; CMP.visao = null; }
+function sobrepoe(ids) {
+  if (ids.includes('T') && ids.length > 1) return true;
+  return ids.some(id => PS.S[id].tipo === 'item' && ids.includes(PS.S[id].pai));
+}
+// o tipo de grafico que os dados pedem: partes de um todo = empilhado; poucos meses = barras lado a lado; muitos meses = linhas
+function graficoEfetivo() {
+  const n = CMP.ate - CMP.de + 1, k = CMP.sel.length, empilhavel = (CMP.medida === 'valor' || CMP.medida === 'pct') && k >= 2 && !sobrepoe(CMP.sel);
+  let g = CMP.grafico, nota = '';
+  if (g === 'empilhada' && !empilhavel) {
+    g = 'agrupada'; nota = k < 2 ? 'Barras empilhadas precisam de pelo menos dois itens.' : sobrepoe(CMP.sel) ? 'Barras empilhadas somam as partes: não dá para empilhar o total junto com grupos, nem um grupo junto com os próprios itens. Mostrando barras agrupadas.' : 'Barras empilhadas só valem para valores (R$) ou % do total. Mostrando barras agrupadas.';
+  } else if (g === 'auto') {
+    if (CMP.medida === 'pct' && empilhavel) { g = 'empilhada'; nota = 'Automático: como é a participação no total, as barras empilhadas mostram como a composição muda de mês para mês.'; }
+    else if (CMP.medida === 'indice') { g = 'linha'; nota = 'Automático: o índice compara o ritmo de crescimento, melhor visto em linhas.'; }
+    else if (n <= 6) { g = 'agrupada'; nota = 'Automático: com poucos meses, barras lado a lado facilitam comparar valor a valor.'; }
+    else { g = 'linha'; nota = 'Automático: com muitos meses, as linhas mostram melhor a tendência.'; }
+  }
+  return { g, nota };
+}
+const NOME_GRAFICO = { linha: 'linhas', agrupada: 'barras agrupadas', empilhada: 'barras empilhadas' };
+
+function cmpLeitura(est, series) {
+  if (!series.length) return [];
+  const itens = [], periodo = `${PS.meses[CMP.de].rotulo} a ${PS.meses[CMP.ate].rotulo}`;
+  const base = series.filter(s => s.id !== 'T'), maior = [...(base.length ? base : series)].sort((a, b) => est[b.id].total - est[a.id].total)[0], em = est[maior.id];   // o total nao entra na disputa de "maior"
+  if (series.length === 1) itens.push(`<b>${esc(maior.nome)}</b> somou <b>${brl(em.total)}</b> em ${esc(periodo)}${maior.id !== 'T' && em.part != null ? `, ${pct(em.part, 1)} de todas as despesas` : ''}${em.media != null ? `; a média dos meses fechados é de <b>${brl(em.media)}</b>` : ''}.`);
+  else itens.push(`<b>${esc(maior.nome)}</b> é o maior do que está comparado: <b>${brl(em.total)}</b> em ${esc(periodo)}${em.part != null ? ` (${pct(em.part, 1)} de todas as despesas)` : ''}.`);
+  const comVar = series.filter(s => est[s.id].varU != null && Math.abs(est[s.id].varU) >= 1);
+  if (comVar.length) {
+    const alta = [...comVar].sort((a, b) => est[b.id].varU - est[a.id].varU)[0], queda = [...comVar].sort((a, b) => est[a.id].varU - est[b.id].varU)[0];
+    const frase = (s, rot) => { const e = est[s.id]; return `${rot}: <b>${esc(s.nome)}</b>, ${e.varU > 0 ? '+' : '−'}${num(Math.abs(e.varU), 1)}% (${brl(PS.S[s.id].valores[e.ant])} em ${esc(PS.meses[e.ant].rotulo)} para ${brl(PS.S[s.id].valores[e.ult])} em ${esc(PS.meses[e.ult].rotulo)})`; };
+    if (est[alta.id].varU > 0) itens.push(frase(alta, 'Maior alta no último mês fechado') + '.');
+    if (queda.id !== alta.id && est[queda.id].varU < 0) itens.push(frase(queda, 'Maior queda no último mês fechado') + '.');
+  }
+  if (series.length === 1 && em.pico != null && em.nFech > 2) itens.push(`O mês mais caro foi <b>${esc(PS.meses[em.pico].rotulo)}</b>, com <b>${brl(PS.S[maior.id].valores[em.pico])}</b>.`);
+  if (CMP.medida === 'pct' && sobrepoe(CMP.sel) === false) {
+    const somaPart = soma(series, s => est[s.id].part || 0);
+    if (somaPart < 99.5) itens.push(`Juntos, os itens escolhidos representam <b>${pct(somaPart, 1)}</b> das despesas do período; o restante está em outros itens.`);
+  }
+  return itens;
+}
+
+function cmpHtml() {
+  const S = PS.S, i0 = CMP.de, i1 = CMP.ate, sel = CMP.sel.map(id => S[id]);
+  const ativa = id => CMP.visao === id ? ' aria-pressed="true"' : ' aria-pressed="false"';
+  const prontas = PRESETS.map(p => `<button type="button" class="btn-mini cmp-visao" data-cmp-visao="${p.id}"${ativa(p.id)} data-tip="${esc(p.dica)}">${esc(p.nome)}</button>`).join('') +
+    `<select data-cmp="grupo" aria-label="Abrir um grupo por dentro"><option value="">Um grupo por dentro…</option>${PS.grupos.map(g => `<option value="${g}"${CMP.visao === 'grupo:' + g ? ' selected' : ''}>${esc(bonito(S[g].nome))}</option>`).join('')}</select>`;
+  const minhas = CMP.salvas.length ? `<div class="cmp-linha"><span class="toolbar-label">Minhas visões</span>${CMP.salvas.map((v, i) => `<span class="cmp-minha"><button type="button" class="btn-mini cmp-visao" data-cmp-minha="${i}"${CMP.visao === 'minha:' + i ? ' aria-pressed="true"' : ' aria-pressed="false"'}>${esc(v.nome)}</button><button type="button" class="cmp-x" data-cmp-apagar="${i}" aria-label="Apagar a visão ${esc(v.nome)}">✕</button></span>`).join('')}</div>` : '';
+  const optMes = (atual) => PS.meses.map((m, k) => `<option value="${k}"${k === atual ? ' selected' : ''}>${esc(m.rotulo)}${emCurso(k) ? ' *' : ''}</option>`).join('');
+  const rapido = r => `aria-current="${CMP.rapido === r}"`;
+  const controles = `<div class="cmp-ctrl">
+    <label class="mes-pick">De <select data-cmp="de">${optMes(i0)}</select></label>
+    <label class="mes-pick">Até <select data-cmp="ate">${optMes(i1)}</select></label>
+    <div><span class="toolbar-label">Período rápido</span><div class="seg"><button type="button" class="seg-item" data-cmp-rapido="tudo" ${rapido('tudo')}>Tudo</button><button type="button" class="seg-item" data-cmp-rapido="12" ${rapido('12')}>12 meses</button><button type="button" class="seg-item" data-cmp-rapido="6" ${rapido('6')}>6 meses</button><button type="button" class="seg-item" data-cmp-rapido="klingo" ${rapido('klingo')}>Só Klingo</button></div></div>
+    <label class="mes-pick">Medida <select data-cmp="medida">${Object.entries(MEDIDAS).map(([k, t]) => `<option value="${k}"${k === CMP.medida ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+    <label class="mes-pick">Gráfico <select data-cmp="grafico">${[['auto', 'Automático (o melhor para os dados)'], ['linha', 'Linhas'], ['agrupada', 'Barras agrupadas'], ['empilhada', 'Barras empilhadas']].map(([k, t]) => `<option value="${k}"${k === CMP.grafico ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>`;
+  const chips = sel.map(s => `<span class="cmp-chip" style="--c:var(--c${CMP.cor[s.id]})" data-tip="${esc(detalheSerie(s))}"><i></i>${esc(rotSerie(s))}${s.tipo === 'grupo' ? '<small>grupo</small>' : ''}<button type="button" data-cmp-rem="${s.id}" aria-label="Tirar ${esc(rotSerie(s))} da comparação">✕</button></span>`).join('');
+  const opcoes = `<option value="">+ Incluir na comparação…</option><optgroup label="Visão geral"><option value="T"${CMP.sel.includes('T') ? ' disabled' : ''}>Total das despesas</option>${PS.grupos.map(g => `<option value="${g}"${CMP.sel.includes(g) ? ' disabled' : ''}>Grupo inteiro: ${esc(bonito(S[g].nome))}</option>`).join('')}</optgroup>` +
+    PS.grupos.map(g => `<optgroup label="Itens de ${esc(bonito(S[g].nome))}">${S[g].filhos.map(f => `<option value="${f}"${CMP.sel.includes(f) ? ' disabled' : ''}>${esc(rotSerie(S[f]))}</option>`).join('')}</optgroup>`).join('');
+  const escolha = `<div class="cmp-sel"><span class="toolbar-label">Comparando (até ${MAX_CMP})</span><div class="cmp-chips">${chips || '<span class="vazio">Nada escolhido ainda.</span>'}<select data-cmp="add" aria-label="Incluir na comparação">${opcoes}</select>${sel.length ? '<button type="button" class="btn-mini" data-cmp-act="limpar">Limpar</button>' : ''}</div>${CMP.aviso ? `<p class="nota" role="status" style="color:var(--crit-text)">${esc(CMP.aviso)}</p>` : ''}</div>`;
+  const salvar = `<details class="mais"><summary>Salvar esta visão para usar de novo</summary><div class="cmp-salvar"><input type="text" id="cmp-nome" maxlength="40" placeholder="Nome da visão (ex.: Folha x impostos)" aria-label="Nome da visão"><button type="button" class="btn-mini" data-cmp-act="salvar">Salvar</button></div><p class="nota">Fica guardada neste navegador (só você a vê).</p></details>`;
+  return `<div class="cmp-linha"><span class="toolbar-label">Visões prontas</span>${prontas}</div>${minhas}${controles}${escolha}${salvar}<div id="cmp-saida">${cmpSaida()}</div>`;
+}
+function cmpSaida() {
+  const S = PS.S, i0 = CMP.de, i1 = CMP.ate, n = i1 - i0 + 1;
+  if (!CMP.sel.length) return '<p class="vazio" style="margin-top:18px">Escolha uma visão pronta acima, ou inclua o total, um grupo ou itens para montar o gráfico. Também dá para clicar no nome de qualquer item da planilha.</p>';
+  const series = CMP.sel.map(id => ({ id, nome: rotSerie(S[id]), cor: `var(--c${CMP.cor[id]})`, ys: valoresMedida(S[id], i0, i1, CMP.medida) }));
+  const { g, nota } = graficoEfetivo();
+  const est = {}; CMP.sel.forEach(id => { est[id] = estat(S[id], i0, i1); });
+  const periodo = `${PS.meses[i0].rotulo} a ${PS.meses[i1].rotulo}`;
+  const tem = series.some(s => s.ys.some(y => y != null));
+  const graf = tem ? cmpGrafico(series, { tipo: g, medida: CMP.medida, k0: i0, aria: `${MEDIDAS[CMP.medida]}, ${periodo}: ${series.map(s => s.nome).join(', ')}` })
+    : '<p class="vazio">Não há valores para esta medida neste período (a variação, por exemplo, precisa de dois meses fechados seguidos).</p>';
+  const emC = PS.meses.slice(i0, i1 + 1).some((m, k) => emCurso(i0 + k));
+  const legenda = series.length > 1 ? `<div class="cmp-leg">${series.map(s => `<span style="--c:${s.cor}"><i></i>${esc(s.nome)}</span>`).join('')}</div>` : '';
+  const rodapeG = `<p class="nota">${esc(nota ? nota + ' ' : '')}${emC ? 'O * é o mês em andamento: ainda recebe lançamentos e aparece tracejado ou mais claro. ' : ''}${PS.meses.slice(i0, i1 + 1).some(m => m.fonte === 'planilha') && PS.meses.slice(i0, i1 + 1).some(m => m.fonte === 'klingo') ? 'A linha pontilhada marca onde os dados passam da planilha antiga para o Klingo.' : ''}</p>`;
+  const linhasRes = series.map(s => { const e = est[s.id];
+    return `<tr><td><span class="cmp-sw" style="--c:${s.cor}"></span>${esc(s.nome)}</td><td class="n">${brl(e.total)}</td><td class="n">${e.media != null ? brl(e.media) : VAZIO}</td><td class="n">${e.pico != null ? `${brl(S[s.id].valores[e.pico])} <small class="mut">${esc(mCurto(e.pico))}</small>` : VAZIO}</td><td class="n">${e.ult != null ? brl(S[s.id].valores[e.ult]) : VAZIO}</td><td class="n">${e.varU == null ? VAZIO : comp(e.varU, '', { inverso: true, d: 1 })}</td><td class="n">${e.part == null || s.id === 'T' ? VAZIO : pct(e.part, 1)}</td></tr>`; }).join('');
+  const resumo = `<h3 class="plan-tit">Resumo da comparação <small>${esc(periodo)}</small></h3><div class="tab-wrap"><table><thead><tr><th>O quê</th><th class="n">Total no período</th><th class="n">Média por mês</th><th class="n">Maior mês</th><th class="n">Último mês fechado</th><th class="n">Variação</th><th class="n">Peso nas despesas</th></tr></thead><tbody>${linhasRes}</tbody></table></div>
+    <p class="nota" style="margin-top:8px">Média, maior mês, último mês e variação usam só meses fechados${emC ? '; o total inclui o mês em andamento' : ''}. A variação compara o último mês fechado com o anterior.</p>`;
+  const leit = cmpLeitura(est, series);
+  const leitura = leit.length ? `<h3 class="plan-tit">O que os números dizem</h3><ul class="motivos">${leit.map(t => `<li>${t}</li>`).join('')}</ul>` : '';
+  const ft = fmtTip(CMP.medida), ordem = [...Array(n).keys()]; if (PLAN.recente) ordem.reverse();
+  const numeros = acordeao('Ver os números do gráfico', `<div class="tab-wrap"><table><thead><tr><th>Mês</th>${series.map(s => `<th class="n"><span class="cmp-sw" style="--c:${s.cor}"></span>${esc(s.nome)}</th>`).join('')}</tr></thead><tbody>${ordem.map(i => `<tr><td>${esc(PS.meses[i0 + i].rotulo)}${emCurso(i0 + i) ? '*' : ''}</td>${series.map(s => `<td class="n">${s.ys[i] == null ? VAZIO : ft(s.ys[i])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`, { dica: `${n} mês(es) · ${series.length} série(s)` });
+  return `<h3 class="plan-tit cmp-tit">${esc(MEDIDAS[CMP.medida])} <small>${esc(periodo)} · ${NOME_GRAFICO[g]}</small></h3>${legenda}${graf}${rodapeG}${leitura}${resumo}${numeros}`;
+}
+function comparar() {
+  if (!planSeries()) return '';
+  if (!CMP.pronto) cmpIniciar();
+  return `<section id="cmp-secao"><h2>Monte sua comparação</h2>
+    <p class="nota">Escolha uma visão pronta ou monte a sua: o total, grupos inteiros e/ou itens, o período, a medida e o tipo de gráfico. No modo automático, o painel escolhe o gráfico que melhor mostra os dados (linhas para tendência, barras lado a lado para poucos meses, barras empilhadas para a composição).</p>
+    <div id="cmp-corpo">${cmpHtml()}</div></section>`;
+}
+function cmpRedesenhar(tudo = true) {
+  const corpo = $('cmp-corpo'); if (!corpo) return;
+  const foco = document.activeElement && document.activeElement.closest && document.activeElement.closest('#cmp-corpo') ? (document.activeElement.dataset.cmp ? `[data-cmp="${document.activeElement.dataset.cmp}"]` : document.activeElement.id ? '#' + document.activeElement.id : null) : null;
+  if (tudo) corpo.innerHTML = cmpHtml(); else $('cmp-saida').innerHTML = cmpSaida();
+  if (foco) { const el = corpo.querySelector(foco); if (el) el.focus(); }
+}
+function cmpPronta(estado, visao) { if (!estado) return; aplicarEstado(estado); CMP.visao = visao; cmpRedesenhar(); }
+
+// ---- eventos (delegados: valem para o que for redesenhado)
+document.addEventListener('click', e => {
+  const t = e.target.closest ? e.target : null; if (!t) return;
+  const q = a => t.closest(`[${a}]`);
+  let el;
+  if ((el = q('data-plan-graf'))) { e.preventDefault(); planGrafico(el.dataset.planGraf); }
+  else if ((el = q('data-plan-orient'))) { PLAN.orient = el.dataset.planOrient; el.parentNode.querySelectorAll('.seg-item').forEach(b => b.setAttribute('aria-current', String(b === el))); planRedesenhar(); cmpRedesenhar(false); }
+  else if ((el = q('data-plan-ordem'))) { PLAN.recente = el.dataset.planOrdem === 'recente'; el.parentNode.querySelectorAll('.seg-item').forEach(b => b.setAttribute('aria-current', String(b === el))); planRedesenhar(); cmpRedesenhar(false); }
+  else if ((el = q('data-plan-exp'))) { PS.grupos.forEach(g => (el.dataset.planExp === 'abrir' ? PLAN.abertos.add(g) : PLAN.abertos.delete(g))); planRedesenhar(); }
+  else if ((el = q('data-cmp-add'))) { adicionar(el.dataset.cmpAdd); CMP.visao = null; const dlg = $('modal-painel'); if (dlg && dlg.open) dlg.close(); cmpRedesenhar(); const s = $('cmp-secao'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  else if ((el = q('data-cmp-visao'))) { const p = PRESETS.find(x => x.id === el.dataset.cmpVisao); const est = p && p.monta(); if (!est) { CMP.aviso = 'Ainda não há dados suficientes para esta visão.'; cmpRedesenhar(); } else cmpPronta(est, p.id); }
+  else if ((el = q('data-cmp-minha'))) { const v = CMP.salvas[+el.dataset.cmpMinha]; if (v) cmpPronta(estadoSalvo(v), 'minha:' + el.dataset.cmpMinha); }
+  else if ((el = q('data-cmp-apagar'))) { CMP.salvas.splice(+el.dataset.cmpApagar, 1); lsGravar(CMP.salvas); CMP.visao = null; cmpRedesenhar(); }
+  else if ((el = q('data-cmp-rapido'))) { aplicarRapido(el.dataset.cmpRapido); CMP.visao = null; cmpRedesenhar(); }
+  else if ((el = q('data-cmp-rem'))) { remover(el.dataset.cmpRem); cmpRedesenhar(); }
+  else if ((el = q('data-cmp-act'))) {
+    if (el.dataset.cmpAct === 'limpar') { definirSel([]); CMP.visao = null; CMP.aviso = ''; cmpRedesenhar(); }
+    else if (el.dataset.cmpAct === 'salvar') {
+      const nome = ($('cmp-nome').value || '').trim(); if (!nome || !CMP.sel.length) { CMP.aviso = !CMP.sel.length ? 'Escolha o que comparar antes de salvar.' : 'Dê um nome à visão.'; cmpRedesenhar(); return; }
+      const v = { nome, sel: CMP.sel.map(id => { const s = PS.S[id]; return s.tipo === 'total' ? { t: 'T' } : s.tipo === 'grupo' ? { t: 'G', g: s.nome } : { t: 'I', g: s.grupo, i: s.nome }; }), medida: CMP.medida, grafico: CMP.grafico, rapido: CMP.rapido, de: CMP.de, ate: CMP.ate };
+      const ja = CMP.salvas.findIndex(x => x.nome === nome); if (ja >= 0) CMP.salvas[ja] = v; else CMP.salvas.push(v);
+      CMP.aviso = lsGravar(CMP.salvas) ? '' : 'Não consegui guardar neste navegador (armazenamento bloqueado): a visão vale só até fechar a página.';
+      CMP.visao = 'minha:' + (ja >= 0 ? ja : CMP.salvas.length - 1); cmpRedesenhar();
+    }
+  }
+});
+function estadoSalvo(v) {   // acha de novo cada item pelo nome (a ordem na planilha pode ter mudado); o que sumiu fica de fora
+  const ids = v.sel.map(x => x.t === 'T' ? 'T' : x.t === 'G' ? PS.grupos.find(g => PS.S[g].nome === x.g) : PS.itens.find(i => PS.S[i].nome === x.i && PS.S[i].grupo === x.g)).filter(Boolean);
+  return { sel: ids, medida: v.medida, grafico: v.grafico, rapido: v.rapido, de: v.de, ate: v.ate };
+}
+document.addEventListener('change', e => {
+  const c = e.target && e.target.dataset && e.target.dataset.cmp; if (!c || !PS) return;
+  const v = e.target.value;
+  if (c === 'add') { if (v) adicionar(v); CMP.visao = null; cmpRedesenhar(); }
+  else if (c === 'grupo') { if (!v) return; const est = { sel: maisPesados(PS.S[v].filhos, MAX_CMP, s => s.total), medida: 'valor', grafico: 'auto', rapido: 'tudo' }; cmpPronta(est, 'grupo:' + v); }
+  else {
+    if (c === 'de') { CMP.de = +v; if (CMP.ate < CMP.de) CMP.ate = CMP.de; CMP.rapido = null; }
+    else if (c === 'ate') { CMP.ate = +v; if (CMP.de > CMP.ate) CMP.de = CMP.ate; CMP.rapido = null; }
+    else if (c === 'medida') CMP.medida = v;
+    else if (c === 'grafico') CMP.grafico = v;
+    CMP.visao = null; cmpRedesenhar();
+  }
+});
+document.addEventListener('toggle', e => {   // "toggle" nao borbulha: escuta na captura
+  const d = e.target; if (!d || !d.classList || !d.classList.contains('plan-grp') || !PS) return;
+  const gid = d.dataset.grp;
+  if (d.open) PLAN.abertos.add(gid); else PLAN.abertos.delete(gid);
+  const b = document.querySelector('[data-plan-exp]'); if (b) { const todos = PS.grupos.every(g => PLAN.abertos.has(g)); b.dataset.planExp = todos ? 'fechar' : 'abrir'; b.textContent = todos ? 'Recolher todos os grupos' : 'Abrir todos os grupos'; }
+}, true);
+document.addEventListener('click', e => { const s = e.target.closest && e.target.closest('.plan-graf-btn'); if (s) e.preventDefault(); }, true);
 function planilhaFornecedores() {
   const F = D.planilha && D.planilha.fornecedores;
   if (!F) return '';
@@ -583,7 +1042,8 @@ function render(ym) {
       kpisHtml(ym, m, prev) + evolucaoHtml() + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente, para o mês escolhido.</p>${alertasTopo(alertas, ym)}</section>`) +
     tier('Análise', `Comparações de ${m.rotulo}`, categoriasGraf(m) + mudancasGraf(m) + composicaoGraf(m)) +
     tier('Histórico', 'O que já se passou, mês a mês e categoria a categoria', historicoHtml()) +
-    tier('Planilha', 'A planilha mensal de despesas e os fornecedores do mês, como a equipe consulta', planilhaMatriz() + planilhaFornecedores()) +
+    tier('Planilha', 'A planilha mensal de despesas (grupos que abrem, meses descendo; clique num nome para ver o gráfico) e os fornecedores do mês', planilhaMatriz() + planilhaFornecedores()) +
+    tier('Comparar', 'Escolha o que comparar e veja em gráfico: total, grupos ou itens, mês a mês', comparar()) +
     tier('Previsão', 'O que deve acontecer nos próximos meses', previsaoHtml()) +
     repasseTier() +
     tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);

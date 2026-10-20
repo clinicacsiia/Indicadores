@@ -292,7 +292,7 @@ class NoNavegadorTest(unittest.TestCase):
         dom, erros = self.abrir()
         self.assertEqual(erros, [])
         corpo = re.search(r'<main id="conteudo">(.*?)</main>', dom, re.S).group(1)
-        for texto in ("Despesas por grupo e mês", "FOLHA SALARIAL", "Total das despesas", "SEM CLASSIFICAÇÃO", "Categoria Nova", "Fornecedores do mês", "JRL - FOLHA SALARIAL", "KLINGO", "só histórico", "a confirmar"):
+        for texto in ("Despesas por grupo e mês", "Folha Salarial", "Total das despesas", "Sem Classificação", "Categoria Nova", "Fornecedores do mês", "JRL - FOLHA SALARIAL", "KLINGO", "só histórico", "a confirmar"):
             self.assertIn(texto, corpo)
         self.assertNotRegex(corpo, r"undefined|NaN|\[object")
 

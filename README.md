@@ -336,6 +336,17 @@ formato (grupos > itens > meses; fornecedores com divisão CSI / CSI 2), atualiz
   início confiável** (`inicio_confiavel` do `Despesas/relatorios.json`, hoje 2026-09) usam os valores da planilha antiga, guardados em `despesa_historico` (out/2025 a ago/2026); do
   início em diante, só o Klingo. Categoria do Klingo que o de-para não conhece cai no grupo **SEM CLASSIFICAÇÃO** (o total nunca perde dinheiro). Item da planilha sem categoria no Klingo
   aparece com "só histórico". Ligação deduzida (não confirmada pela planilha de mapeamento) aparece com "a confirmar" (`despesa_de_para.confirmado = false`).
+- **Meses descendo, grupos que abrem e gráfico no clique.** Na planilha os meses **descem** (uma linha por mês, o mais recente primeiro; os botões "Meses" e "Ordem dos meses" voltam ao
+  formato antigo, com os meses nas colunas). A **Visão geral** mostra os grupos lado a lado e cada grupo abre para mostrar os itens (com mapa de calor por coluna). Clicar no nome de um
+  grupo, item ou no botão "Ver gráfico" abre uma janela com a linha mensal, a média dos meses fechados, os números-chave e o peso de cada item do grupo.
+- **Comparar** (bloco logo abaixo da Planilha; `comparar()`, `cmpGrafico()` e `PRESETS` em `Despesas/dashboard_modelo.html`; teste no navegador: `tests/test_comparar_despesas.py`).
+  O leitor escolhe até 8 séries (o total, grupos inteiros e/ou itens), o período (De/Até ou 12 meses, 6 meses, Só Klingo), a **medida** (R$, % do total das despesas, variação sobre o mês
+  anterior, índice com o 1º mês = 100) e o **gráfico**. No modo **Automático** o tipo vem dos dados: % do total de partes que não se sobrepõem → barras empilhadas; poucos meses (até 6) →
+  barras agrupadas; mais meses ou índice → linhas. Há visões prontas (executiva, composição por grupo, maiores despesas, grupos nos últimos 6 meses, o que mais subiu, um grupo por dentro) e
+  "Minhas visões" salvas no navegador (`localStorage`, chave `csi_despesas_visoes_v1`, por nome de grupo/item: sobrevive a mudança de ordem da planilha). Abaixo do gráfico: leitura em
+  frases, resumo (total, média, maior mês, último mês fechado, variação e peso nas despesas) e a tabela do gráfico. O mês em andamento aparece tracejado/mais claro e fica fora das médias e
+  variações; uma linha pontilhada marca onde os dados passam da planilha antiga para o Klingo. Cores: paleta categórica de 8 tons em ordem fixa, validada para daltonismo nos dois temas
+  (`--c1`…`--c8` no modelo), sempre com legenda, tooltip e tabela.
 - **Fornecedores do mês** (antiga Planilha1). O que **vence** no mês na empresa `CLÍNICA DE SAÚDE E IMAGEM - CSI`, somado por fornecedor com o nome da planilha antiga e dividido entre CSI e
   CSI 2 (`despesa_fornecedor.pct_csi`, 50% como na planilha). O Financeiro (#798) traz empresa e vencimento mas não o fornecedor; as Despesas Detalhadas (#13509) trazem o fornecedor; o painel
   cruza os dois pelo **ID do lançamento** (o #798 repete o lançamento, uma linha por conta/conciliação: conta uma vez). Por isso `armazenamento.DEPENDENCIAS["despesas"] = ["financeiro"]` e o
