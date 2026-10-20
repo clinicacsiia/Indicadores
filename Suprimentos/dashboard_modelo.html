@@ -178,7 +178,7 @@ function detalhes(m) {
     const linhas = e2.map(x => [esc(x.rotulo), num(x.solicitacoes), num(x.linhas), num(x.atendidas), num(x.pendentes), num(x.encerradas), x.linhas ? pct(x.atendidas / x.linhas * 100, 0) : '—', num(x.consumo), num(x.transferencias), num(x.compras), num(x.inventario)]);
     const tot = ['Total', ...[1, 2, 3, 4, 5].map(i => num(e2.reduce((s, x) => s + [0, x.solicitacoes, x.linhas, x.atendidas, x.pendentes, x.encerradas][i], 0))),
       pct(e2.reduce((s, x) => s + x.atendidas, 0) / Math.max(e2.reduce((s, x) => s + x.linhas, 0), 1) * 100, 0), ...['consumo', 'transferencias', 'compras', 'inventario'].map(c => num(e2.reduce((s, x) => s + x[c], 0)))];
-    it.push(acordeao('Mês a mês', `<p class="nota">Todos os meses com registro. A situação dos pedidos é a de hoje: um pedido de setembro que ainda aparece pendente continua contando como pendente.</p>` +
+    it.push(acordeao('Mês a mês', `<p class="nota">Todos os meses a partir de ${esc(rotuloMes(D.inicio_klingo))}, quando o Klingo passou a ser usado (o que vem de antes é teste e não entra). A situação dos pedidos é a de hoje: um pedido de setembro que ainda aparece pendente continua contando como pendente.</p>` +
       tabela([{ t: 'Mês' }, { t: 'Solicitações', n: 1 }, { t: 'Itens pedidos', n: 1 }, { t: 'Atendidos', n: 1 }, { t: 'Pendentes', n: 1 }, { t: 'Sem entrega', n: 1 }, { t: '% atendido', n: 1 }, { t: 'Baixas de consumo', n: 1 }, { t: 'Transferências', n: 1 }, { t: 'Compras e doações', n: 1 }, { t: 'Inventário', n: 1 }], linhas, tot), { dica: `${e2.length} meses` }));
   }
   const s = m.sol;

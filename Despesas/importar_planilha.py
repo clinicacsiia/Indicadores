@@ -1,7 +1,7 @@
 """Lê a planilha mensal de despesas (aba "Planilha2" do FORNECEDORES - MM.AAAA.xlsx) e grava Despesas/planilha_base.json.
 
 É o que aparece na aba "Planilha" do painel de Despesas: grupos (IMPOSTOS, PESSOAL...), itens e os valores de cada mês de ANTES do Klingo
-(o painel usa o Klingo a partir de `inicio_confiavel`). O JSON é a base do programa local e a origem das migrations de seed; no site os
+(o painel usa o Klingo a partir de `inicio_klingo`, do `modulos.json`). O JSON é a base do programa local e a origem das migrations de seed; no site os
 mesmos dados ficam nas tabelas despesa_* do Supabase (editáveis no Table Editor).
 
 Uso:  python Despesas/importar_planilha.py "FORNECEDORES - 09.2026.xlsx" ["mapeamento_nomenclatura_despesas.xlsx"]

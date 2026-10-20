@@ -1,7 +1,7 @@
 {
   "_ajuda": "Edite as metas aqui. 'regra' diz quais atendimentos do Klingo contam para cada meta (todas as condições valem ao mesmo tempo). Condições: classe (a classe esta entre as do procedimento), classes_iguais (as classes sao exatamente essas), especialidade, procedimento_igual, procedimento_contem (qualquer um dos textos), procedimento_nao_contem. Acentos e maiúsculas não importam. Para mudar a meta só de um mês use metas_por_mes: {\"2026-11\": {\"csi1/densitometria\": 520}}.",
   "primeiro_mes": "2026-09",
-  "_primeiro_mes_ajuda": "Meses antes deste não aparecem no painel (agosto/2026 tem só 2 registros de teste, de 31/08).",
+  "_primeiro_mes_ajuda": "Meses antes deste não aparecem no painel (agosto/2026 tem só 2 registros de teste, de 31/08). Nunca vale antes do inicio_klingo do modulos.json: o Klingo só passou a ser usado em setembro/2026.",
   "dias_semana_atendimento": [0, 1, 2, 3, 4, 5],
   "_dias_semana_ajuda": "0=segunda ... 6=domingo. Usado para calcular o ritmo esperado (dias úteis de atendimento).",
   "horario_atendimento": ["07:00", "18:00"],

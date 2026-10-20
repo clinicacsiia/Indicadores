@@ -471,6 +471,10 @@ document.addEventListener('focusout', () => { tip.style.display = 'none'; });
 const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const rotuloMes = ym => `${NOMES_MES[+ym.slice(5) - 1]}/${ym.slice(0, 4)}`;
 const rotuloMesCurto = ym => `${NOMES_MES[+ym.slice(5) - 1].slice(0, 3)}/${ym.slice(2, 4)}`;
+// O Klingo so passou a ser usado em D.inicio_klingo ("2026-09"): o que vem de antes e de teste ou do sistema anterior (Clinical). O servidor ja tira esses
+// meses do painel (painel_comum.completar_payload); estes ajudantes servem aos graficos que ainda desenham algo de antes (so a Despesas, que traz a planilha antiga).
+const antesDoKlingo = (D, ym) => !!D.inicio_klingo && String(ym).slice(0, 7) < D.inicio_klingo;
+const notaKlingo = D => D.inicio_klingo ? `O Klingo só passou a ser usado em ${rotuloMes(D.inicio_klingo)}: o que vem de antes é de teste ou do sistema anterior (Clinical) e não entra em históricos, médias, comparações nem previsões.` : '';
 const ehPeriodo = ym => String(ym).includes('..');
 const chavesMeses = D => Object.keys(D.meses).filter(k => !ehPeriodo(k)).sort().reverse();   // so os meses simples, do mais novo ao mais antigo
 // mes (ou periodo) anterior ao escolhido: num periodo, e o periodo de mesmo tamanho logo antes (chave_anterior, calculado junto)
@@ -517,7 +521,7 @@ function iniciarPeriodo(D, render, o = {}) {
   const pedDe = P ? (P.pedido_de || P.de) : D.mes_padrao, pedAte = P ? (P.pedido_ate || P.ate) : D.mes_padrao;
   const lista = mesesEntre([todos[0], pedDe].sort()[0], [todos[todos.length - 1], pedAte].sort().reverse()[0]).reverse();
   const hoje = D.hoje || new Date().toISOString().slice(0, 10);
-  const minDia = `${lista[lista.length - 1]}-01`, maxDia = `${lista[0]}-${dia2(ultimoDiaDoMes(lista[0]))}`;
+  const minDia = `${(!D.historico_antes_klingo && D.inicio_klingo && lista[lista.length - 1] < D.inicio_klingo) ? D.inicio_klingo : lista[lista.length - 1]}-01`, maxDia = `${lista[0]}-${dia2(ultimoDiaDoMes(lista[0]))}`;
 
   // ---- barra de filtros (a mesma das telas do site)
   let barraF = $('toolbar');
@@ -541,7 +545,7 @@ function iniciarPeriodo(D, render, o = {}) {
     const t = datasDoPeriodo(n.dia_de, n.dia_ate, D.hoje);
     window.PERIODO_TXT = t.ini === t.fim ? `em ${dataBR(t.ini)}` : `de ${dataBR(t.ini)} a ${dataBR(t.fim)}`;
     linha.innerHTML = `Período: <b>${window.PERIODO_TXT}</b>` + (t.parcial ? ' <small>(o período ainda não terminou: só há dados até hoje)</small>' : '') +
-      (baseTxt ? ` <small>· meses contados por ${esc(baseTxt)}</small>` : '');
+      (baseTxt ? ` <small>· meses contados por ${esc(baseTxt)}</small>` : '') + (D.inicio_klingo && !D.historico_antes_klingo ? ` <small title="${esc(notaKlingo(D))}">· dados do Klingo desde ${esc(rotuloMes(D.inicio_klingo))}</small>` : '');
   }
   function marcar(n) {   // datas preenchidas com o periodo ativo
     iDe.value = n.dia_de; iAte.value = n.dia_ate;
@@ -581,13 +585,14 @@ function iniciarPeriodo(D, render, o = {}) {
     const n = normalizarPeriodo(pedido.de, pedido.ate) || { dia_de: minDia, dia_ate: maxDia, chave: '', exato: false };
     marcar(n); mostrarLinha(n);
     aviso.hidden = false;
-    aviso.textContent = `Este painel não tem dados entre ${dataBR(n.dia_de)} e ${dataBR(n.dia_ate)}. Os dados vão de ${rotuloMes(todos[0])} a ${rotuloMes(todos[todos.length - 1])}: escolha outro período.`;
+    aviso.textContent = `${P.antes_klingo ? notaKlingo(D) + ' ' : ''}Este painel não tem dados entre ${dataBR(n.dia_de)} e ${dataBR(n.dia_ate)}. Os dados vão de ${rotuloMes(todos[0])} a ${rotuloMes(todos[todos.length - 1])}: escolha outro período.`;
     $('conteudo').innerHTML = '';
     return;
   }
   const inicial = P && P.chave ? { de: P.exato ? P.dia_de : P.de, ate: P.exato ? P.dia_ate : P.ate } : { de: D.mes_padrao, ate: D.mes_padrao };
   const n0 = normalizarPeriodo(inicial.de, inicial.ate);
-  if (P && P.recortado) avisos(`O painel só tem dados de ${dataBR(P.dia_de)} a ${dataBR(P.dia_ate)}; é esse o recorte mostrado (você pediu ${dataBR(pedido.de.length === 7 ? pedido.de + '-01' : pedido.de)} a ${dataBR(pedido.ate.length === 7 ? pedido.ate + '-' + dia2(ultimoDiaDoMes(pedido.ate)) : pedido.ate)}).`);
+  if (P && P.recortado && P.antes_klingo) avisos(`${notaKlingo(D)} Por isso o período mostrado é de ${dataBR(P.dia_de)} a ${dataBR(P.dia_ate)}.`);
+  else if (P && P.recortado) avisos(`O painel só tem dados de ${dataBR(P.dia_de)} a ${dataBR(P.dia_ate)}; é esse o recorte mostrado (você pediu ${dataBR(pedido.de.length === 7 ? pedido.de + '-01' : pedido.de)} a ${dataBR(pedido.ate.length === 7 ? pedido.ate + '-' + dia2(ultimoDiaDoMes(pedido.ate)) : pedido.ate)}).`);
   else avisos('');
   escolher(n0);
 }

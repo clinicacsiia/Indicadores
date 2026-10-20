@@ -238,6 +238,24 @@ históricos ganharam o evento "Correção de registro"; a linha original não fo
 - Fechar um alerta é feito só na aba Avisos (`fechar_aviso`, no banco, com justificativa). Quem fechou vem do login (`auth.uid()`),
   nunca do corpo do pedido.
 
+### O Klingo começou em setembro/2026
+
+O Klingo só passou a ser usado em **setembro/2026**. O que existe de antes (fevereiro a agosto) é **teste ou do sistema anterior (Clinical)** e não pode virar histórico,
+média, comparação com o mês anterior nem previsão. Uma só definição vale para tudo: `"inicio_klingo": "2026-09"` no `modulos.json` (lido por `painel_comum.INICIO_KLINGO`
+no Python e por `lib/inicio-klingo.ts` no site). Para mudar a data, mude só ali.
+
+- **Todos os painéis Python** (`painel_comum`): `completar_payload` tira do painel e do filtro qualquer mês anterior e leva `inicio_klingo` para a página;
+  `periodo_pedido` corta o período pedido (`info["antes_klingo"]` explica o recorte na tela); `acrescentar_periodo` só traz o período anterior se ele começa no Klingo
+  ou depois; o seletor De/Até não deixa escolher data de antes; a linha do período mostra "dados do Klingo desde setembro/2026".
+- **Despesas** é a única exceção declarada (`historico_antes_klingo`): mostra a planilha antiga (out/2025 a ago/2026) como histórico "parcial" (pode estar incompleto),
+  que **não entra** em médias, comparações, "o que mais subiu", previsão nem tendência.
+- **Suprimentos:** o "Mês a mês", o consumo por mês de cada item, as pendências, o ritmo de pedidos e as baixas em bloco só olham o Klingo em diante; as movimentações
+  de antes entram apenas no **saldo do estoque** (ele depende de todo o histórico).
+- **Faturamento:** faturas emitidas antes de setembro não entram em prazo aprendido por convênio, cancelamento, SUS mês a mês nem funil (a tela diz quantas ficaram de fora);
+  a conferência com as Faturas em Aberto olha todas.
+- **Metas** (painel e site): nunca antes do `inicio_klingo`, mesmo que o `metas.json` peça; o filtro do site explica a data de início.
+- Testes: `tests/test_inicio_klingo.py` (inclui a regra de que nenhum `relatorios.json`, fora o da Despesas, começa antes do Klingo).
+
 ### Testes
 
 `python -m unittest discover -s tests -v` — sobe um Supabase e um Klingo simulados (`tests/mock_nuvem.py`) e confere login,
@@ -333,7 +351,7 @@ formato (grupos > itens > meses; fornecedores com divisão CSI / CSI 2), atualiz
 `planilhaFornecedores()` em `Despesas/dashboard_modelo.html`; testes: `tests/test_planilha_despesas.py`.
 
 - **Despesas por grupo e mês** (antiga Planilha2). Cada lançamento do #13505 vai para um item da planilha pela tabela `despesa_de_para` (categoria do Klingo → item). Meses **antes do
-  início confiável** (`inicio_confiavel` do `Despesas/relatorios.json`, hoje 2026-09) usam os valores da planilha antiga, guardados em `despesa_historico` (out/2025 a ago/2026); do
+  início confiável** (`inicio_klingo` do `modulos.json`, hoje 2026-09) usam os valores da planilha antiga, guardados em `despesa_historico` (out/2025 a ago/2026); do
   início em diante, só o Klingo. Categoria do Klingo que o de-para não conhece cai no grupo **SEM CLASSIFICAÇÃO** (o total nunca perde dinheiro). Item da planilha sem categoria no Klingo
   aparece com "só histórico". Ligação deduzida (não confirmada pela planilha de mapeamento) aparece com "a confirmar" (`despesa_de_para.confirmado = false`).
 - **Fornecedores do mês** (antiga Planilha1). O que **vence** no mês na empresa `CLÍNICA DE SAÚDE E IMAGEM - CSI`, somado por fornecedor com o nome da planilha antiga e dividido entre CSI e
