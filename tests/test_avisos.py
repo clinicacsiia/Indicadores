@@ -1,6 +1,7 @@
 """Aba Avisos: o que sai do payload de um painel para o banco (avisos.py). A regra de novo/resolvido/voltou fica no banco (supabase/tests/avisos.sql)."""
 import sys
 import unittest
+from datetime import date
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -90,6 +91,33 @@ class ColetarTest(unittest.TestCase):
             self.assertEqual((chamadas[0][0], chamadas[0][1], chamadas[0][2], len(chamadas[0][3])), ("x", ["", "2026-10"], 7, 1))
         finally:
             avisos.arm.sincronizar_avisos = antes
+
+
+class VencimentoComoReferenciaTest(unittest.TestCase):
+    """Alerta com `vencimento` por vir ainda esta dentro do prazo: nao vira aviso (e some se ja era). Passada a data, entra como os demais."""
+
+    def avisos_de(self, hoje, **a):
+        p = payload({"2026-10": [{**alerta("fat_pouco_recebido", "2026-10"), **a}]}, hoje=hoje)
+        return [x["tipo"] for x in avisos.coletar(p)[0]]
+
+    def test_dentro_do_prazo_nao_vira_aviso(self):
+        self.assertEqual(self.avisos_de("2026-10-20", vencimento="2026-10-25"), [])
+
+    def test_no_dia_do_vencimento_ainda_esta_no_prazo(self):
+        self.assertEqual(self.avisos_de("2026-10-25", vencimento="2026-10-25"), [])
+
+    def test_vencido_vira_aviso(self):
+        self.assertEqual(self.avisos_de("2026-10-26", vencimento="2026-10-25"), ["fat_pouco_recebido"])
+
+    def test_sem_vencimento_ou_data_ilegivel_vale_sempre(self):
+        self.assertEqual(self.avisos_de("2026-10-20"), ["fat_pouco_recebido"])
+        self.assertEqual(self.avisos_de("2026-10-20", vencimento=None), ["fat_pouco_recebido"])
+        self.assertEqual(self.avisos_de("2026-10-20", vencimento="amanha"), ["fat_pouco_recebido"])
+
+    def test_sem_hoje_no_payload_usa_o_relogio(self):
+        p = payload({"2026-10": [{**alerta("x", "2026-10"), "vencimento": "2999-01-01"}]})
+        self.assertEqual(avisos.coletar(p)[0], [])
+        self.assertEqual(avisos.coletar(p, hoje=date(3000, 1, 1))[0][0]["tipo"], "x")
 
 
 if __name__ == "__main__":

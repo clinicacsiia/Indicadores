@@ -162,5 +162,16 @@ class AlertasTest(unittest.TestCase):
         self.assertNotIn("Ficam de fora", espera["texto"])
 
 
+class VencimentoDoMesTest(unittest.TestCase):
+    """'Quase nada recebido' fica dentro do prazo ate o ultimo vencimento das faturas ativas da competencia (a aba Avisos so conta depois dele)."""
+
+    def test_ultimo_vencimento_das_faturas_ativas_da_competencia(self):
+        f = pd.DataFrame({"_comp": ["2026-09", "2026-09", "2026-09", "2026-08"], "_st": [gf.ENVIADA, gf.MOVIMENTADA, gf.CANCELADA, gf.ENVIADA],
+                          "Fatura - Data de Vencimento": pd.to_datetime(["2026-10-25", "2026-11-05", "2026-12-31", "2026-09-30"])})
+        self.assertEqual(gf.vencimento_do_mes(f, "2026-09"), "2026-11-05")   # a cancelada nao conta
+        self.assertIsNone(gf.vencimento_do_mes(f, "2026-07"))
+        self.assertIsNone(gf.vencimento_do_mes(f.iloc[0:0], "2026-09"))
+
+
 if __name__ == "__main__":
     unittest.main()

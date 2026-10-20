@@ -39,6 +39,7 @@ SUBIDA_MIN_PCT = 30.0       # ...e de 30% sobre o mes anterior (ou se e nova no 
 FALTA_MIN_VALOR = 5000.0    # categoria recorrente ainda nao lancada no mes: so avisa se faltar mais que isto
 MAX_LINHAS_MES = 400        # lancamentos listados por mes na tabela completa
 MIN_MESES_TENDENCIA = 3     # com menos meses fechados nao ha tendencia que se possa chamar de tendencia
+PRAZO_REPASSE_MESES = 1   # o repasse da producao de um mes costuma vencer ate o fim do mes seguinte: ate la nao e "repasse faltando"
 COMPRA_ESTOQUE = "Compra de Estoque"   # inicio da descricao dos lancamentos que o Suprimentos gera ao comprar
 ABA_PROD = "Produção"                   # #26 (Receita Produzida): o que cada medico produziu
 COLUNAS_PROD = ("Data", "Categoria", "Médico", "Procedimento", "Operadora", "Quantidade", "Valor")
@@ -493,12 +494,18 @@ def montar_repasse(d: pd.DataFrame, prod: pd.DataFrame | None, meses: dict, ym_h
         if len(g) >= 2:
             repetidos.append({"ym": ym, "mes": pc.rotulo_mes(ym), "nome": nome, "qtd": int(len(g)), "valor": float(g["Bruto"].sum())})
     com_repasse = [m for m in rep_meses if len(h[h["_ym"] == m])]
-    sem_repasse = [e for e in evolucao if e["ym"] >= inicio and e["producao"] and not e["bruto"]]
+    # producao sem Honorario Medico: o mes so entra se nenhum repasse VENCEU nele nem ate o fim do prazo (PRAZO_REPASSE_MESES); antes disso ainda esta no prazo
+    bruto_de = {e["ym"]: e["bruto"] for e in evolucao}
+    sem_repasse = []
+    for e in evolucao:
+        if e["ym"] < inicio or not e["producao"] or any(bruto_de.get(k.mes_mais(e["ym"], i)) for i in range(PRAZO_REPASSE_MESES + 1)):
+            continue
+        sem_repasse.append({**e, "no_prazo": k.mes_mais(e["ym"], PRAZO_REPASSE_MESES) >= ym_hoje})
     return {"ok": True, "meses": rep_meses, "mes_padrao": com_repasse[-1] if com_repasse else rep_meses[-1], "evolucao": evolucao, "por_mes": por_mes, "por_periodo": por_periodo, "acumulado": acum,
             "empresas": empresas, "tem_producao": p is not None, "producao_desde": pc.rotulo_mes(prod_ini) if prod_ini else None,
             "total": {"bruto": float(h["Bruto"].sum()), "liquido": float(h["Líquido"].sum()), "qtd": int(len(h)), "n_medicos": len(acum)},
             "mais_de_uma_empresa": [{"nome": m["nome"], "empresas": m["empresas"]} for m in mais_de_uma], "repetidos": repetidos,
-            "sem_repasse": [{"ym": e["ym"], "rotulo": e["rotulo"], "producao": e["producao"], "em_curso": e["situacao"] == "em_curso"} for e in sem_repasse],
+            "sem_repasse": [{"ym": e["ym"], "rotulo": e["rotulo"], "producao": e["producao"], "em_curso": e["situacao"] == "em_curso", "no_prazo": e["no_prazo"]} for e in sem_repasse],
             "ultimo_repasse": {"rotulo": pc.rotulo_mes(com_repasse[-1]), "bruto": float(h.loc[h["_ym"] == com_repasse[-1], "Bruto"].sum())} if com_repasse else None}
 
 
@@ -511,7 +518,9 @@ def alertas_do_mes(rotulo: str, sit: str, parcial: bool, x: pd.DataFrame, mud: d
     alertas = []
     zeradas = x[x["Bruto"] == 0]
     if len(zeradas) and sit != "previsto":   # em mes futuro, valor zero e contrato com valor ainda nao definido: ainda ha tempo
+        venc = zeradas["Vencimento"].min()   # o aviso so conta quando o primeiro desses lancamentos vence: antes disso ainda da tempo de preencher o valor
         alertas.append({"nivel": "atencao", "titulo": "Despesas lançadas com valor zero", "itens": itens_lancamentos(zeradas),
+                        "vencimento": venc.strftime("%Y-%m-%d") if pd.notna(venc) else None,
                         "texto": f"<b>{len(zeradas)}</b> despesa(s) de {rotulo} estão com valor <b>R$ 0,00</b> (ex.: {html.escape(texto(zeradas.iloc[0]['Fornecedor']) or texto(zeradas.iloc[0]['Descrição'], 'sem descrição'))}). "
                                  "Elas não entram nos totais. Se o valor ainda vai ser definido, preencha antes do vencimento; se o lançamento não é mais necessário, exclua."})
     # as "Compra de Estoque: ..." nascem da compra no Suprimentos, onde repetir o mesmo item e preco e normal: ficam fora desta conferencia
@@ -678,8 +687,9 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
             # ---- repasse medico (Honorario Medico lancado x producao de cada medico)
             repasse = montar_repasse(d, abas.get(ABA_PROD), meses, ym_hoje, inicio, per=per)
             extras["repasse"] = repasse
-            if repasse.get("ok") and repasse["sem_repasse"]:
-                sr, ult = repasse["sem_repasse"], repasse["ultimo_repasse"]
+            atrasados = [e for e in repasse.get("sem_repasse", []) if not e["no_prazo"]] if repasse.get("ok") else []   # dentro do prazo (vencimento ainda por vir) nao alerta
+            if atrasados:
+                sr, ult = atrasados, repasse["ultimo_repasse"]
                 lista = ", ".join(f"<b>{e['rotulo']}</b> ({brl(e['producao'])})" for e in sr)
                 atencao.append({"nivel": "atencao", "titulo": "Produção médica sem Honorário Médico lançado",
                                 "texto": f"Há produção em {lista}, mas nenhum <b>Honorário Médico</b> com vencimento nesses meses"
