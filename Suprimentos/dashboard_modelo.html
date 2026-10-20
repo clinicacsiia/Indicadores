@@ -15,7 +15,9 @@ __CSS__
   .filtros { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 4px 0 14px; }
   .filtros input[type=search], .calc input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--base); border-radius: 8px; padding: 6px 10px; min-width: 0; }
   .filtros input[type=search] { flex: 1 1 220px; max-width: 360px; }
-  #tb-itens tr.clic { cursor: pointer; } #tb-itens tr.clic:hover td { background: var(--grid); } #tb-itens tr.sel td { background: var(--grid); }
+  #tb-itens tr.clic, #tb-uso tr.clic { cursor: pointer; } #tb-itens tr.clic:hover td, #tb-uso tr.clic:hover td { background: var(--grid); } #tb-itens tr.sel td, #tb-uso tr.sel td { background: var(--grid); }
+  .filtros select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--base); border-radius: 8px; padding: 6px 10px; min-width: 0; max-width: 100%; }
+  .resposta { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--grid); border-radius: 0 8px 8px 0; font-size: 15px; }
   #tb-itens .tag + .tag { margin-left: 10px; }
   .micro { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px 20px; margin: 0 0 22px; }
   .micro h3 { margin: 0 0 2px; font-size: 18px; } .micro .sub2 { color: var(--ink2); font-size: 13px; margin: 0 0 14px; }
@@ -338,6 +340,81 @@ function ligarItens() {
   if (ITEM_SEL) abrirItem(ITEM_SEL); else desenharItens();
 }
 
+// ====================== CONSUMO MEDIO (quantidade pedida pelos setores) ======================
+let USO_SEL = null, USO_VER_TODOS = false;
+const mediaTxt = v => v == null ? '—' : v >= 100 ? num(v, 0) : v >= 10 ? num(v, 1) : num(v, 2);
+const qm = (v, u) => `${mediaTxt(v)}${u ? ' ' + unid(u) : ''}`;
+const aCada = d => d == null ? '—' : d <= 1.05 ? 'todo dia' : `${num(d, d >= 10 ? 0 : 1)} dias`;
+const porSemana = r => r.por_dia * D.uso.semana, porMes = r => r.por_dia * D.uso.mes;
+const dePeriodo = () => `${dataBR(D.uso.de)} a ${dataBR(D.uso.ate)} (${num(D.uso.dias_base)} dias)`;
+// a linha de um item para o setor escolhido (ou o item inteiro); sem pedido do setor devolve null
+const usoDe = (x, setor) => setor ? x.setores.find(s => s.nome === setor) || null : x;
+
+function usoFicha(x) {
+  if (!x) return `<div class="micro"><p class="ficha-vazia">Escolha um item na lista abaixo (ou digite o nome na busca, ex.: folha) para ver quanto os setores pedem dele, qual setor mais usa e de quantos em quantos dias.</p></div>`;
+  const u = unid(x.un), top = x.setores[0];
+  const resposta = `<p class="resposta"><b>${esc(bonito(top.nome))}</b> é quem mais pede ${esc(bonito(x.item))}: <b>${pct(top.pct, 0)}</b> do total (${qtd(top.total, x.un)}), em média <b>${qm(porMes(top), x.un)} por mês</b>${top.a_cada_dias != null ? `, com pedido ${top.a_cada_dias <= 1.05 ? 'todo dia' : `a cada ${aCada(top.a_cada_dias)}`}` : ''}.${x.setores.length > 1 ? ` Ao todo ${num(x.setores.length)} setores pedem este item.` : ''}</p>`;
+  const kpis = `<div class="kpis">
+    ${kpi('Pedido no total', qtd(x.total, x.un), { sub: `${num(x.pedidos)} solicitações em ${num(x.dias_com_pedido)} dias diferentes` })}
+    ${kpi('Média por semana', qm(porSemana(x), x.un), { sub: `${dePeriodo()}` })}
+    ${kpi('Média por mês', qm(porMes(x), x.un), { sub: `média por dia: ${qm(x.por_dia, x.un)}` })}
+    ${kpi('Pedido a cada', aCada(x.a_cada_dias), { sub: `último pedido em ${dataBR(x.ultimo)}` })}
+  </div>`;
+  const barrasSetor = barras(x.setores.map(s => ({ rotulo: bonito(s.nome), valor: s.total, texto: qtd(s.total, x.un), extra: pct(s.pct, 0),
+    tip: `${bonito(s.nome)}\n${qtd(s.total, x.un)} pedidos (${pct(s.pct, 1)} do total)\nMédia por mês: ${qm(porMes(s), x.un)}\nPedido ${aCada(s.a_cada_dias) === 'todo dia' ? 'todo dia' : 'a cada ' + aCada(s.a_cada_dias)}` })), '', '40%');
+  const tabSetor = tabela([{ t: 'Setor', txt: 1 }, { t: 'Pedido', n: 1 }, { t: 'Parte do total', n: 1 }, { t: 'Por semana', n: 1 }, { t: 'Por mês', n: 1 }, { t: 'Pede a cada', n: 1 }, { t: 'Último pedido', n: 1 }],
+    x.setores.map(s => [esc(bonito(s.nome)), qtd(s.total, x.un), pct(s.pct, 0), qm(porSemana(s), x.un), qm(porMes(s), x.un), aCada(s.a_cada_dias), dataBR(s.ultimo)]));
+  const hojeYm = D.hoje.slice(0, 7);
+  const tabMes = tabela([{ t: 'Mês' }, { t: 'Pedido', n: 1 }, { t: 'Solicitações', n: 1 }],
+    x.meses.map(r => [esc(r.ym.slice(5) + '/' + r.ym.slice(0, 4)) + (r.ym === hojeYm ? ' <small style="color:var(--muted)">(até hoje)</small>' : ''), qtd(r.qtd, x.un), num(r.pedidos)]));
+  return `<div class="micro"><h3>${esc(bonito(x.item))}</h3><p class="sub2">${esc([x.grupo ? bonito(x.grupo) : '', `pedido em ${u}`].filter(Boolean).join(' · '))}</p>
+    ${resposta}${kpis}<h2 style="margin-top:16px">Quem pede</h2>${barrasSetor}
+    ${acordeao('Números de cada setor', tabSetor, { dica: `${num(x.setores.length)} setores` })}${acordeao('Mês a mês', tabMes)}</div>`;
+}
+
+function usoTier() {
+  const U = D.uso; if (!U || !U.itens.length) return '';
+  const corpo = `<section><p class="nota">Quanto os setores <b>pediram</b> ao estoque de ${dePeriodo()}, desde que o Klingo passou a ser usado. É a quantidade pedida (inclui o que ainda está pendente), na unidade de cada item.
+    A média divide o total pelos ${num(U.dias_base)} dias do período, e “pede a cada” é o período dividido pelos dias em que houve pedido. Com poucas semanas de dados, a média ainda oscila bastante.</p>
+    <div id="ficha-uso">${usoFicha(null)}</div>
+    <div class="filtros"><input type="search" id="q-uso" placeholder="Buscar item (ex.: folha, luva, papel)" aria-label="Buscar item">
+      <label class="mes-pick">Setor <select id="s-uso"><option value="">Todos os setores</option>${U.setores.map(n => `<option value="${esc(n)}">${esc(bonito(n))}</option>`).join('')}</select></label>
+      <span class="nota" id="n-uso" style="margin:0"></span></div>
+    <div class="tab-wrap"><table><thead><tr><th>Item</th><th class="n">Pedido no total</th><th class="n">Por semana</th><th class="n">Por mês</th><th class="n">Pede a cada</th><th id="th-uso">Setor que mais pede</th></tr></thead><tbody id="tb-uso"></tbody></table></div>
+    <p><button type="button" class="btn" id="btn-todos-uso" hidden></button></p></section>`;
+  return tier('Consumo médio', 'Quanto cada setor pede de cada item, por semana e por mês', corpo);
+}
+
+function desenharUso() {
+  const tb = $('tb-uso'); if (!tb) return;
+  const q = $('q-uso').value.trim().toLowerCase(), setor = $('s-uso').value;
+  const lista = D.uso.itens.filter(x => (!q || (x.item + ' ' + (x.grupo || '')).toLowerCase().includes(q)) && usoDe(x, setor));
+  if (setor) lista.sort((a, b) => usoDe(b, setor).pedidos - usoDe(a, setor).pedidos || a.item.localeCompare(b.item));   // sem setor: ja vem dos mais pedidos
+  const LIM = 15, mostra = USO_VER_TODOS ? lista : lista.slice(0, LIM);
+  $('th-uso').textContent = setor ? 'Parte do total do item' : 'Setor que mais pede';
+  tb.innerHTML = mostra.map(x => {
+    const r = usoDe(x, setor), top = x.setores[0];
+    const ultima = setor ? pct(r.pct, 0) : `${esc(bonito(top.nome))} <small style="color:var(--muted)">${pct(top.pct, 0)}</small>`;
+    return `<tr class="clic${x.item === USO_SEL ? ' sel' : ''}" data-item="${esc(x.item)}"><td class="txt">${esc(bonito(x.item))}</td><td class="n">${qtd(r.total, x.un)}</td>
+      <td class="n">${qm(porSemana(r), x.un)}</td><td class="n">${qm(porMes(r), x.un)}</td><td class="n">${aCada(r.a_cada_dias)}</td><td class="txt">${ultima}</td></tr>`;
+  }).join('') || `<tr><td colspan="6" class="txt">Nenhum item com esse filtro.</td></tr>`;
+  $('n-uso').textContent = `${num(lista.length)} itens${setor ? ' pedidos por ' + bonito(setor) : ''}`;
+  const b = $('btn-todos-uso'); b.hidden = lista.length <= LIM; b.textContent = USO_VER_TODOS ? `Mostrar só os ${LIM} primeiros` : `Mostrar todos os ${num(lista.length)} itens`;
+}
+function abrirUso(nome) {
+  USO_SEL = nome;
+  $('ficha-uso').innerHTML = usoFicha(D.uso.itens.find(i => i.item === nome));
+  desenharUso();
+  $('ficha-uso').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function ligarUso() {
+  if (!$('tb-uso')) return;
+  ['q-uso', 's-uso'].forEach(id => $(id).addEventListener('input', () => { USO_VER_TODOS = false; desenharUso(); }));
+  $('btn-todos-uso').addEventListener('click', () => { USO_VER_TODOS = !USO_VER_TODOS; desenharUso(); });
+  $('tb-uso').addEventListener('click', e => { const tr = e.target.closest('tr[data-item]'); if (tr) abrirUso(tr.dataset.item); });
+  if (USO_SEL) abrirUso(USO_SEL); else desenharUso();
+}
+
 function render(ym) {
   const m = D.meses[ym], prev = anteriorDe(D, CHAVES, ym);
   const alertas = [...D.atencao, ...m.alertas].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
@@ -345,8 +422,10 @@ function render(ym) {
     tier('Resumo', m.periodo ? 'Os números do período e a atividade de cada mês' : 'Os números do mês e o ritmo da atividade',
       kpisHtml(m, prev) + atividadeHtml(m) + `<section><h2>O que merece atenção</h2><p class="nota">Do mais urgente para o menos urgente. Parte vale para hoje, parte para o mês escolhido.</p>${alertasTopo(alertas, ym)}</section>`) +
     tier('Análise', 'Setores, pedidos pendentes, estoque e consumo', solicitacoesGraf(m) + pendentesGraf() + estoqueGraf() + consumoGraf(m)) +
+    usoTier() +
     itensTier() +
     tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+  ligarUso();
   ligarItens();
 }
 
