@@ -58,6 +58,7 @@ SEM_BAIXA_ATENCAO, SEM_BAIXA_CRITICA = 7, 15     # dias sem nenhuma baixa de con
 COBERTURA_MIN = 15                                # dias de estoque principal
 JANELA_DEMANDA = 30                               # dias olhados para medir o ritmo de pedidos
 SETOR_PARADO_PCT, SETOR_PARADO_MIN = 90, 50       # setor com >= 90% pendente e pelo menos 50 itens pedidos
+MEDIA_DIAS_MES = 30.4375                           # dias de um mes medio, para a media por mes
 CUSTO_CONCENTRADO_PCT = 50                        # um item com mais da metade do valor do estoque
 
 
@@ -709,6 +710,35 @@ def montar_itens(m: pd.DataFrame, s: pd.DataFrame, hoje: date, informados: dict[
     return {"lista": lista, "resumo": resumo, "compras": compras, "achados": achados, "informados": len(informados), "arquivo_custos": CUSTOS_ARQ.name, "custos_nuvem": armazenamento.ativo()}
 
 
+def montar_uso(s: pd.DataFrame, hoje: date) -> dict:
+    """Quanto cada item foi pedido pelos setores (quantidade pedida) desde o Klingo: total, media por dia/semana/mes e quem mais pede.
+    A media divide pelos dias desde o primeiro pedido do Klingo (o mesmo para todos os itens), nao pelos dias em que o item apareceu."""
+    vazio = {"itens": [], "setores": [], "dias_base": 0, "de": None, "ate": hoje, "semana": 7, "mes": MEDIA_DIAS_MES}
+    if not len(s):
+        return vazio
+    de = s["_dia"].min()
+    dias_base = max((hoje - de).days + 1, 1)
+
+    def resumo(g: pd.DataFrame) -> dict:
+        total = float(g["_qs"].sum())
+        dias = int(g["_dia"].nunique())
+        return {"total": total, "pedidos": int(g[S_ID].nunique()), "dias_com_pedido": dias, "a_cada_dias": dias_base / dias if dias else None,
+                "por_dia": total / dias_base, "primeiro": g["_dia"].min(), "ultimo": g["_dia"].max()}
+
+    itens = []
+    for item, g in s.groupby(S_ITEM):
+        un = g["_un"].mode()
+        x = {"item": item, "un": un.iloc[0] if len(un) else "", "grupo": "" if pd.isna(g[S_GRUPO].iloc[0]) else g[S_GRUPO].iloc[0], **resumo(g)}
+        x["setores"] = sorted(({"nome": nome, **resumo(h)} for nome, h in g.groupby("_cc")), key=lambda r: (-r["total"], r["nome"]))
+        for r in x["setores"]:
+            r["pct"] = r["total"] / x["total"] * 100 if x["total"] else 0.0
+        x["meses"] = [{"ym": ym, "qtd": float(h["_qs"].sum()), "pedidos": int(h[S_ID].nunique())} for ym, h in g.groupby("_ym")]
+        itens.append(x)
+    itens.sort(key=lambda x: (-x["pedidos"], x["item"]))
+    setores = sorted(s["_cc"].unique(), key=lambda n: (n == SEM_SETOR, n))
+    return {"itens": itens, "setores": setores, "dias_base": dias_base, "de": de, "ate": hoje, "semana": 7, "mes": MEDIA_DIAS_MES}
+
+
 def montar_exame(m: pd.DataFrame, itens: dict, primeiro_mes: str) -> dict | None:
     """Material gasto por atendimento em um setor (hoje so RM/TC, o unico que o relatorio de Atendimento separa). Ordem de grandeza: as baixas nao sao diarias."""
     try:
@@ -783,7 +813,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         atencao = alertas_gerais(hoje, m, s, pend, est, valor, consumo, exames, itens)
         extras = {"pendentes": pend, "estoque": est, "valor": valor, "consumo": consumo, "evolucao": montar_evolucao(m, s),
                   "conferencia": gp.anotar("suprimentos", conferir(m, s_todas, valor, consumo, primeiro)), "tem_exames": bool(exames),
-                  "itens": itens, "exame": montar_exame(m, itens, primeiro)}
+                  "itens": itens, "exame": montar_exame(m, itens, primeiro), "uso": montar_uso(s, hoje)}
 
     arq = arquivo_dados()
     dados_em = datetime.fromtimestamp(arq.stat().st_mtime) if arq.exists() else datetime.now()
