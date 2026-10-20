@@ -6,11 +6,16 @@ no Supabase (supabase/migrations/20261014210000_avisos.sql). Quem decide o que e
   * fechado com justificativa e continua nos dados depois de uma atualizacao -> aberto de novo (a justificativa nao resolveu).
 Aqui so se monta a lista do que o painel mostra agora, e em quais escopos ela vale.
 
+Vencimento como referencia: o alerta pode trazer `vencimento` (AAAA-MM-DD), a data em que o prazo dele acaba (o vencimento das faturas do mes, dos
+lancamentos zerados...). Enquanto ela nao passou o alerta ainda esta dentro do prazo e NAO vira aviso (no painel ele continua aparecendo); passada a data,
+entra como qualquer outro. Se ja era aviso e voltou para dentro do prazo, e dado como resolvido. Sem o campo, vale como sempre.
+
 Escopos: o alerta de "hoje" tem escopo "" e os do mes valem so para aquele mes (ver guia_pendencias.ESCOPO_MES). Conferimos o mes atual e o anterior
 (`JANELA_MESES`); um aviso de um mes que saiu da janela fica como estava (nao e dado como resolvido so porque o painel deixou de olhar para ele).
 """
 import html
 import re
+from datetime import date
 
 import armazenamento as arm
 import guia_pendencias as gp
@@ -41,6 +46,14 @@ def _achar(no, saida: list) -> None:
             _achar(v, saida)
 
 
+def no_prazo(alerta: dict, hoje: date) -> bool:
+    """O alerta traz um vencimento que ainda nao passou (hoje conta como dentro do prazo)? Data ausente ou ilegivel: nao ha prazo, vale o alerta."""
+    try:
+        return date.fromisoformat(str(alerta.get("vencimento") or "")[:10]) >= hoje
+    except ValueError:
+        return False
+
+
 def janela(payload: dict) -> list[str]:
     """Os meses (AAAA-MM) que o painel tem e que entram na conferencia: o mes padrao e o anterior."""
     meses = sorted(m for m in (payload.get("meses") or {}) if PADRAO_MES.match(str(m)))
@@ -48,8 +61,17 @@ def janela(payload: dict) -> list[str]:
     return meses[max(0, fim - JANELA_MESES):fim]
 
 
-def coletar(payload: dict, painel: str = "") -> tuple[list[dict], list[str]]:
-    """(alertas, escopos) do que o painel mostra agora. Alertas sao os que tem guia e nao sao do nivel 'ok'; escopos, onde a conferencia vale."""
+def _hoje_do(payload: dict) -> date:
+    try:
+        return date.fromisoformat(str(payload.get("hoje") or "")[:10])
+    except ValueError:
+        return date.today()
+
+
+def coletar(payload: dict, painel: str = "", hoje: date | None = None) -> tuple[list[dict], list[str]]:
+    """(alertas, escopos) do que o painel mostra agora. Alertas sao os que tem guia e nao sao do nivel 'ok' nem estao dentro do prazo (`vencimento`
+    ainda por vir); escopos, onde a conferencia vale. `hoje` vem do painel (payload["hoje"]) ou, sem ele, do relogio."""
+    hoje = hoje or _hoje_do(payload)
     meses_janela = janela(payload)
     escopos = ["", *meses_janela]
     achados: list[dict] = []
@@ -64,7 +86,7 @@ def coletar(payload: dict, painel: str = "") -> tuple[list[dict], list[str]]:
         if a.get("nivel") not in ("critico", "atencao", "info"):
             continue
         escopo = a.get("escopo") or ""
-        if escopo not in escopos:
+        if escopo not in escopos or no_prazo(a, hoje):
             continue
         itens = a.get("itens") if isinstance(a.get("itens"), dict) else None
         chave = f"{escopo}|{a['id']}"

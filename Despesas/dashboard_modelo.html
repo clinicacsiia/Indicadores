@@ -975,7 +975,7 @@ document.addEventListener('input', e => { if (e.target && e.target.id === 'sim-t
 
 function repAtencao() {
   const it = [];
-  R.sem_repasse.forEach(s => it.push(`<b>${esc(s.rotulo)}</b>: produção de ${brl(s.producao)} e nenhum Honorário Médico lançado${s.em_curso ? ' (o mês ainda não terminou)' : ''}.`));
+  R.sem_repasse.forEach(s => it.push(`<b>${esc(s.rotulo)}</b>: produção de ${brl(s.producao)} e nenhum Honorário Médico lançado${s.no_prazo ? ' (ainda dentro do prazo: o repasse costuma vencer até o fim do mês seguinte)' : ''}.`));
   R.repetidos.forEach(r => it.push(`<b>${esc(r.nome)}</b> tem ${num(r.qtd)} lançamentos em ${esc(r.mes)} (${brl(r.valor)} no total): pode ser parcela, complemento ou lançamento em duplicidade.`));
   R.mais_de_uma_empresa.forEach(r => it.push(`<b>${esc(r.nome)}</b> recebeu por mais de uma empresa: ${esc(r.empresas.join('; '))}.`));
   const ret = R.evolucao.filter(x => x.parcial && x.retido > 0.005).reduce((s, x) => s + x.retido, 0), depois = R.evolucao.filter(x => !x.parcial && x.bruto > 0);

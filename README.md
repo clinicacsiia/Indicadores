@@ -301,6 +301,13 @@ reabrem o aviso e **contam como recorrência** ("Reaberto N×"), e a justificati
 recorrência de verdade). Quem justificou, quando, a previsão e o texto ficam no aviso e em todo o **histórico**. Regras no banco:
 `aviso_sincronizar`, `fechar_aviso`, `reabrir_aviso` (migration `20261017110000_aviso_informacao_e_previsao.sql`; teste: `supabase/tests/avisos.sql`).
 
+**Vencimento como referência (dentro do prazo não é aviso).** Um alerta pode trazer `vencimento` (AAAA-MM-DD): a data em que o prazo dele acaba. Até essa data
+(inclusive) ele continua aparecendo no painel, mas **não vira aviso** (`avisos.no_prazo`; se já era aviso e voltou para dentro do prazo, é dado como resolvido); passada a data, entra
+como qualquer outro. Sem o campo, nada muda. Hoje usam: **"Quase nada de convênio aparece como recebido"** (último vencimento das faturas ativas da competência, `vencimento_do_mes`)
+e **"Despesas lançadas com valor zero"** (vencimento do primeiro lançamento zerado: antes dele ainda dá tempo de preencher). Em Despesas, **"Produção médica sem Honorário Médico
+lançado"** só cobra o mês depois do prazo do repasse (`PRAZO_REPASSE_MESES`, hoje até o fim do mês seguinte, já que o repasse vence depois da produção); antes disso a aba Repasse
+médico mostra "ainda dentro do prazo". Testes: `VencimentoComoReferenciaTest` (`tests/test_avisos.py`) e `MesDeVencimentoTest`.
+
 **Dica e nota de atualização no guia.** `guia_pendencias.DICAS` e `ATUALIZACOES` acrescentam ao guia de um alerta uma dica e "Painel atualizado em
 dd/mm/aaaa: ..." (aparecem no painel e na aba Avisos). Use `ATUALIZACOES` quando uma regra do painel mudar por causa de um aviso já tratado.
 

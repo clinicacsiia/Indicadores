@@ -473,6 +473,15 @@ def alertas_faturas(fg: dict, funil: dict, ref_rotulo: str) -> list[dict]:
     return out
 
 
+def vencimento_do_mes(fat: pd.DataFrame, ym: str) -> str | None:
+    """Ultimo vencimento (AAAA-MM-DD) das faturas ativas da competencia ym: ate ele o convenio ainda esta dentro do prazo para pagar, entao
+    'quase nada recebido' nao e problema (a aba Avisos so conta o alerta depois dessa data). None = nenhuma fatura da competencia tem vencimento."""
+    if not len(fat) or "Fatura - Data de Vencimento" not in fat.columns:
+        return None
+    v = fat.loc[(fat["_comp"] == ym) & (fat["_st"] != CANCELADA), "Fatura - Data de Vencimento"].dropna()
+    return v.max().strftime("%Y-%m-%d") if len(v) else None
+
+
 def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, hoje: date, cfg: dict,
                fat: pd.DataFrame, fg: dict, per: pc.Periodo | None = None, ref: pc.Periodo | None = None) -> dict:
     """Um mes, ou (per) um periodo de varios meses: nesse caso as tabelas ja chegam reagrupadas (ver montar_periodo), 'ym' e o ultimo mes
@@ -573,7 +582,7 @@ def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, ho
                         "texto": f"<b>{aberto['vencido_qtd']}</b> fatura(s) somando <b>{pc_brl(aberto['vencido_valor'])}</b> já passaram do vencimento"
                                  f" (a mais antiga há <b>{aberto['maior_atraso']}</b> dias). Veja a lista em “Faturas em aberto”."})
     if ref_prod > 0 and ref_rec / ref_prod < LIMITE_RECEBIDO_BAIXO:
-        alertas.append({"nivel": "atencao", "titulo": "Quase nada de convênio aparece como recebido",
+        alertas.append({"nivel": "atencao", "titulo": "Quase nada de convênio aparece como recebido", "vencimento": vencimento_do_mes(fat, ref_ym),
                         "itens": gp.tabela(["Convênio", "Produzido", "Recebido"],
                                            [[r["Convênio"], gp.reais(r["Produzido"]), gp.reais(r["Recebido"])] for _, r in ref.sort_values("Produzido", ascending=False).iterrows() if (r["Produzido"] or 0) > 0],
                                            numericas=(1, 2)),

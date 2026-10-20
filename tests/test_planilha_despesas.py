@@ -303,6 +303,9 @@ class NoNavegadorTest(unittest.TestCase):
         self.assertLessEqual(int(escrito), int(janela))
 
 
+pc_rotulo = lambda ym: __import__('painel_comum').rotulo_mes(ym)
+
+
 class MesDeVencimentoTest(unittest.TestCase):
     """O painel conta cada despesa no mes em que ela VENCE (vindo do Financeiro #798 pelo ID), nao no da competencia."""
 
@@ -360,6 +363,37 @@ class MesDeVencimentoTest(unittest.TestCase):
         pm = d["repasse"]["por_mes"]
         self.assertEqual(pm["2026-09"]["repasse"]["bruto"], 400.0)
         self.assertEqual(pm["2026-10"]["repasse"]["bruto"], 900.0)
+
+    def test_valor_zero_so_vira_aviso_depois_do_vencimento(self):
+        hoje = pd.Timestamp.today().normalize()
+        d = self.pagina([(1, "Luz", hoje.strftime("%Y-%m-01"), 0.0, hoje.strftime("%Y-%m-%d"), hoje.strftime("%Y-%m")),
+                         (2, "Agua", hoje.strftime("%Y-%m-01"), 50.0, hoje.strftime("%Y-%m-%d"), hoje.strftime("%Y-%m"))])
+        zero = [a for a in d["meses"][hoje.strftime("%Y-%m")]["alertas"] if "valor zero" in a["titulo"]]
+        self.assertEqual([a["vencimento"] for a in zero], [hoje.strftime("%Y-%m-%d")])   # a aba Avisos so conta depois dessa data
+
+    def test_producao_sem_honorario_so_alerta_depois_do_prazo_do_repasse(self):
+        import gerar_despesas as gd
+        hoje = pd.Timestamp.today().normalize()
+        m = lambda n: (hoje.replace(day=1) - pd.DateOffset(months=-n)).strftime("%Y-%m")   # n meses a partir do atual (negativo = passado)
+        brutos, liqs, lancs = [], [], []
+        for i, (cat, comp, v, venc) in enumerate([("Luz", m(-3) + "-01", 5.0, m(-3) + "-10"), ("Luz", m(0) + "-01", 5.0, hoje.strftime("%Y-%m-%d"))], 1):
+            brutos.append({"Categoria": "Debito", "Despesa": cat, "Competência": pd.Timestamp(comp), "Valor": v, "Descrição": cat, "Fornecedor": "F", "Mês (filtro)": comp[:7]})
+            liqs.append({"ID do Lançamento": float(i), "Despesa": cat, "Competência": pd.Timestamp(comp), "Descrição": cat, "Fornecedor": "F", "Valor Líquido": v, "Mês (filtro)": comp[:7]})
+            lancs.append({"Lançamento": float(i), "Empresa": pl.EMPRESA_RATEIO, "Vencimento": pd.Timestamp(venc), "Categoria": cat, "Valor": v, "Tipo": "DESPESAS", "Mês (filtro)": comp[:7]})
+        prod = pd.DataFrame([{"Data": pd.Timestamp(m(n) + "-05"), "Categoria": "Consulta", "Médico": "DR TESTE", "Procedimento": "X", "Operadora": "Particular",
+                              "Quantidade": 1.0, "Valor": 1000.0, "Mês (filtro)": m(n)} for n in (-3, -1, 0)])
+        desp, fin = {"Despesas": pd.DataFrame(brutos), "Líquido": pd.DataFrame(liqs), gd.ABA_PROD: prod}, {"Lançamentos": pd.DataFrame(lancs)}
+        with mock.patch.dict(os.environ, {"PORTAL_ARMAZENAMENTO": "arquivos", "VERCEL": ""}), \
+                mock.patch.object(gd, "INICIO_KLINGO", "2000-01", create=True), mock.patch.object(gd.pc, "INICIO_KLINGO", "2000-01"), \
+                mock.patch.object(gd.k, "carregar", lambda p: fin if Path(p).name == "Financeiro" else desp):
+            d = dados_da_pagina(gd.gerar(devolver_html=True))
+        sr = {x["ym"]: x["no_prazo"] for x in d["repasse"]["sem_repasse"]}
+        self.assertFalse(sr[m(-3)])                  # o prazo (fim do mes seguinte) ja passou
+        self.assertTrue(sr[m(-1)] and sr[m(0)])      # ainda dentro do prazo: nao e repasse faltando
+        alerta = [a for a in d["atencao"] if "Honorário Médico lançado" in a["titulo"]]
+        self.assertEqual(len(alerta), 1)
+        self.assertIn(pc_rotulo(m(-3)), alerta[0]["texto"])
+        self.assertNotIn(pc_rotulo(m(0)), alerta[0]["texto"])
 
 
 if __name__ == "__main__":
