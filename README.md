@@ -251,6 +251,8 @@ no Python e por `lib/inicio-klingo.ts` no site). Para mudar a data, mude só ali
   que **não entra** em médias, comparações, "o que mais subiu", previsão nem tendência.
 - **Suprimentos:** o "Mês a mês", o consumo por mês de cada item, as pendências, o ritmo de pedidos e as baixas em bloco só olham o Klingo em diante; as movimentações
   de antes entram apenas no **saldo do estoque** (ele depende de todo o histórico).
+- **Suprimentos, aba "Consumo médio":** a quantidade **pedida** pelos setores (inclui o pendente), só do Klingo em diante, por item e por setor: média por dia/semana/mês
+  (total ÷ dias desde o primeiro pedido do Klingo, o mesmo para todos os itens) e "pede a cada N dias" (período ÷ dias com pedido). Não usa valores em R$, então abre também sem "Dados financeiros".
 - **Faturamento:** faturas emitidas antes de setembro não entram em prazo aprendido por convênio, cancelamento, SUS mês a mês nem funil (a tela diz quantas ficaram de fora);
   a conferência com as Faturas em Aberto olha todas.
 - **Metas** (painel e site): nunca antes do `inicio_klingo`, mesmo que o `metas.json` peça; o filtro do site explica a data de início.

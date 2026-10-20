@@ -92,6 +92,29 @@ class SuprimentosTest(unittest.TestCase):
         m, s = gs.preparar_mov(movs), gs.preparar_sol(sols, datetime(2026, 10, 20).date())
         self.assertEqual([x["ym"] for x in gs.montar_evolucao(m, s)], ["2026-09", "2026-10"])
 
+    def test_consumo_medio_por_setor(self):
+        sys.path.insert(0, str(RAIZ / "Suprimentos"))
+        import gerar_suprimentos as gs
+        hoje = datetime(2026, 10, 20).date()
+        linhas = [(1, (9, 1), "FOLHA A4", "RM", 100.0), (2, (9, 11), "FOLHA A4", "RM", 100.0), (3, (9, 11), "FOLHA A4", "RECEPCAO", 50.0),
+                  (4, (10, 20), "FOLHA A4", "RECEPCAO", 50.0), (5, (8, 5), "FOLHA A4", "RM", 999.0), (6, (9, 5), "LUVA", "RM", 10.0)]
+        sols = pd.DataFrame([{gs.S_USU: "u1", gs.S_ID: i, gs.S_DATA: datetime(2026, d[0], d[1], 10), gs.S_ITEM: item, gs.S_GRUPO: "G", gs.S_UN: "FL", gs.S_PEND: "N",
+                              gs.S_OBS: "", gs.S_QS: q, gs.S_QA: q, gs.S_VA: 0.0, gs.S_CC: cc, gs.S_LOCAL: "ESTOQUE PRINCIPAL"} for i, d, item, cc, q in linhas])
+        s = gs.preparar_sol(sols, hoje)
+        s = s[s["_ym"] >= pc.INICIO_KLINGO]   # o pedido de agosto e de teste e nao entra (como em gerar)
+        uso = gs.montar_uso(s, hoje)
+        self.assertEqual(uso["dias_base"], 50)   # 1/set a 20/out
+        folha = next(x for x in uso["itens"] if x["item"] == "FOLHA A4")
+        self.assertEqual(folha["total"], 300.0)
+        self.assertEqual([x["nome"] for x in folha["setores"]], ["RM", "RECEPCAO"])
+        self.assertEqual(folha["setores"][0]["total"], 200.0)
+        self.assertAlmostEqual(folha["setores"][0]["pct"], 66.67, places=1)
+        self.assertAlmostEqual(folha["por_dia"] * uso["mes"], 300 / 50 * 30.4375, places=3)
+        self.assertEqual(folha["dias_com_pedido"], 3)   # dois pedidos em 11/09 contam um dia so
+        self.assertAlmostEqual(folha["a_cada_dias"], 50 / 3)
+        self.assertEqual([x["ym"] for x in folha["meses"]], ["2026-09", "2026-10"])
+        self.assertEqual(gs.montar_uso(s.iloc[0:0], hoje)["itens"], [])
+
 
 class FaturamentoTest(unittest.TestCase):
     def test_fatura_de_antes_do_klingo_fica_fora(self):
