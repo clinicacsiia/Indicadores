@@ -70,7 +70,7 @@ sincronizados de uma API externa, com acesso restrito a usuários autenticados.
   sincroniza qualquer relatório cadastrado em `dim_relatorio` (ver seção
   "Data warehouse de relatórios" abaixo).
 
-## Painéis em Python (Faturamento, Financeiro, Despesas, Indicadores, Cesta, Suprimentos, Atendimento, Tempo)
+## Painéis em Python (Faturamento, Financeiro, Despesas, Indicadores, Cesta, Suprimentos, Atendimento, Tempo, NPS × Google)
 
 São os painéis do programa local (`servidor_portal.py` / `Indicadores CSI.exe`), agora publicados neste mesmo site. O
 código de cálculo (`*/gerar_*.py`, `klingo_relatorios.py`, `painel_comum.py`) e as telas
@@ -211,6 +211,9 @@ históricos ganharam o evento "Correção de registro"; a linha original não fo
 
 **19/10/2026, `20261019120000_despesas_planilha.sql` (+ `..120100_..._base.sql` e `..120200_..._historico.sql`):** aplicadas pelo `apply_migration` (as tabelas, sem `drop`) e pelo
 `execute_sql` (os dados de seed: 78 itens, 59 ligações categoria → item, 33 linhas de fornecedor e 659 valores mensais de out/2025 a ago/2026). Ver "Aba Planilha (Despesas)".
+
+**20/10/2026, `20261020120000_cadastra_relatorio_nps_13697.sql`:** aplicada pelo `apply_migration` (um `insert ... on conflict`, sem `drop`). Cadastra o #13697 (NPS) como ativo, coleta mensal desde set/2026; a primeira coleta
+trouxe 283 respostas (174 em set e 109 em out) e o filtro de período foi comprovado sozinho. Ver "Aba NPS × Google".
 
 ### Para colocar no ar
 
@@ -409,6 +412,33 @@ tempos "fora do normal" (encerramento esquecido). Painel `tempo` (`Tempo/`), **s
 - **Testes:** `tests/test_tempo.py` (contas, com respostas feitas à mão) e `tests/test_tempo_painel.py` (página gerada de dados inventados em `tests/paineis_de_mentira.py`, nos três
   períodos do filtro, e aberta no Chromium: sem erro de JavaScript, sem sobra horizontal no celular). Painel novo precisa entrar na lista `todos` de `tests/test_nuvem.py` (permissões).
 - **Não verificado:** o tema escuro da tela (os mesmos tokens de cor do resto do site), o tempo da página com o volume real de um ano e o deploy na Vercel de verdade.
+
+## Aba NPS × Google
+
+A satisfação medida pela clínica ao lado da nota pública no Google Maps, com análises para decidir o que melhorar. Painel `nps` (`Nps/`), **sem dinheiro** (`"financeiro": "nenhum"`);
+nasce bloqueado e é liberado por usuário em Configurações. Aparece no menu como **NPS × Google**.
+
+- **NPS (Klingo):** relatório **#13697 "Relatorio NPS - Notas por Marcação"** (migration `20261020120000_cadastra_relatorio_nps_13697.sql`: coleta mensal desde set/2026, como o #13402). Colunas:
+  Data Agendado Para, Id da Marcação, NPS - Nota, NPS - Classificação, NPS - Data de Resposta, NPS - Comentário, Profissional, Procedimento, Unidade (sem nome de paciente). Passa pelo mesmo caminho dos
+  outros painéis (`Nps/relatorios.json` → `fonte_banco` → `painel_dados`); o mês é o do **agendamento** e a chave é o Id da Marcação. A classe vem da nota (9-10 promotor, 7-8 neutro, 0-6 detrator, igual à do Klingo).
+- **Contas em `Nps/metricas_nps.py`** (pandas puro, testado à mão em `tests/test_nps.py`): NPS, **margem de erro de 95%** (variância da diferença de proporções; uma diferença só vale como mudança quando passa de √(m₁² + m₂²)),
+  **contribuição ao NPS** de cada grupo (a soma dos grupos é o NPS geral), temas dos comentários por palavras (`Nps/parametros.json`, com "negacao" para o elogio não contar "não recomendo"), **pontos de NPS que cada tema custa**
+  (detratores que falam dele ÷ respostas × 100) e o **caminho até a meta** (quantos detratores converter ou quantas respostas novas de promotores, em conta exata com `Fraction`: com `float` dava 51 onde o certo é 50).
+- **O que a página mostra:** Resumo (NPS com margem, meta e comparação com o período anterior, respostas por dia, detratores, nota média, nota do Google, leitura automática em frases); **NPS × Google** (tabela lado a lado, mês a mês,
+  avaliações do Google e os assuntos das de 1 a 3 estrelas); Análise (distribuição das notas, unidades, assuntos dos comentários, dia da semana e hora do agendamento, profissionais e procedimentos, onde estão os detratores, dia a dia, meta);
+  Voz do cliente (comentários dos detratores e neutros, com filtro por assunto) e Detalhes (tabelas). Grupos com menos de `minimo_grupo` respostas aparecem em cinza e ficam fora dos rankings.
+- **Google Maps pela API oficial (Places API New),** `Nps/google_maps.py`: a página de avaliações do Google carrega por JavaScript e raspá-la viola os termos. A API entrega **nota, total de avaliações e até 5 avaliações** (as "mais
+  relevantes", não as mais novas). Por isso a cada atualização (automática a cada 5 h, no máximo; o botão pode repetir depois de 30 min) o painel guarda o **resumo do dia** (aba `Google` do `painel_dados` do painel `nps`) e as **avaliações
+  ainda não vistas** (aba `Google avaliações`). O histórico da nota **só começa no dia em que a coleta é ligada** e a lista de avaliações é uma amostra que cresce com o tempo. Como fica no `painel_dados`, a página pronta se refaz sozinha
+  quando entra dado novo. Falha do Google (chave, cota, rede) vira aviso e nunca derruba a atualização do NPS. Só funciona na nuvem; no programa local o painel mostra só o NPS.
+- **Para ligar o Google (uma vez):** criar uma chave de API no Google Cloud com a **Places API (New)** ativada e guardá-la na Vercel como **`GOOGLE_PLACES_API_KEY`** (nunca em arquivo do projeto); opcional: **`GOOGLE_PLACE_ID`** (ChIJ...) se o painel
+  não achar o perfil. Sem `GOOGLE_PLACE_ID`, o perfil é achado pela busca "Clínica CSI" e conferido pelo **CID** `13831494129270129913` (o `0xbff356a0d00c04f9` do link do Maps da clínica), em `Nps/parametros.json`.
+- **Comparar NPS e Google é por tendência, não por igualdade:** perguntas e públicos diferentes. O painel compara a nota média do NPS ÷ 2 com as estrelas e mostra um "NPS equivalente" do Google (5★ promotor, 4★ neutro, 1-3★ detrator)
+  só quando há `minimo_google_equivalencia` avaliações no período. `unidades_no_google` (null = todas) tira do NPS comparável uma unidade que tenha perfil próprio no Google (ex.: Desenvoar).
+- **Dados de paciente:** o relatório não traz nome, mas os **comentários são texto livre** e podem citar nomes e detalhes. O Id da Marcação não vai para a página; a tela avisa para não compartilhar os comentários.
+- **Testes:** `tests/test_nps.py` (contas com respostas feitas à mão, assuntos e o cliente do Google com a API simulada) e `tests/test_nps_painel.py` (página gerada de dados inventados em `tests/paineis_de_mentira.py`, nos três períodos do
+  filtro, com e sem Google, e aberta no Chromium: sem erro de JavaScript, sem sobra horizontal no celular, filtro por assunto).
+- **Não verificado:** a chamada real à API do Google (só com a chave), o volume real de um ano de respostas e o deploy na Vercel. A taxa de resposta (respostas ÷ atendimentos) não é calculada: o #13402 não traz o Id da marcação.
 
 ## Aba Metas
 

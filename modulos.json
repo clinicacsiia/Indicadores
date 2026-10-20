@@ -83,6 +83,15 @@
       "tipo": "relatorios",
       "financeiro": "nenhum",
       "codigo": "gerar_tempo"
+    },
+    {
+      "id": "nps",
+      "nome": "NPS × Google",
+      "descricao": "NPS do Klingo, nota do Google Maps e o que os comentários dizem",
+      "pasta": "Nps",
+      "tipo": "relatorios",
+      "financeiro": "nenhum",
+      "codigo": "gerar_nps"
     }
   ]
 }

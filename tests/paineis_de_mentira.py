@@ -28,7 +28,7 @@ def so_arquivos(f):
     return interno
 
 
-for _p in (RAIZ, RAIZ / "Atendimento", RAIZ / "Cesta", RAIZ / "Suprimentos", RAIZ / "Tempo", RAIZ / "Acompanhamento de META"):
+for _p in (RAIZ, RAIZ / "Atendimento", RAIZ / "Cesta", RAIZ / "Suprimentos", RAIZ / "Tempo", RAIZ / "Nps", RAIZ / "Acompanhamento de META"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
@@ -239,7 +239,68 @@ def pagina_tempo(de=None, ate=None) -> str:
         return gt.gerar(de, ate, devolver_html=True)
 
 
-PAGINAS_SEM_DINHEIRO = {"tempo": pagina_tempo}
+# ------------------------------------------------------------------ NPS x Google
+COMENTARIOS_NPS = {
+    "Detrator": ["Esperei mais de duas horas, o exame estava marcado para as 14h e fui atendida as 16h30", "Atendimento demorado e a recepção sem empatia", "Não cumpriu o horário marcado",
+                 "Demora muito para entregar o laudo no portal", "A marcação pelo WhatsApp é péssima, ninguém responde", "Atendimento do médico foi bom mas a espera foi enorme", ""],
+    "Neutro": ["Bom atendimento, mas sugiro senha para a fila", "A estrutura é ótima, o banheiro precisa de mais limpeza", "Houve atraso no atendimento", "", "Gostei do médico"],
+    "Promotor": ["Excelente atendimento, recomendo", "Médica maravilhosa e atenciosa", "Ótimo", "", "Equipe educada e ambiente limpo", "10", "Parabéns a toda a recepção"],
+}
+
+
+def nps_de_mentira() -> pd.DataFrame:
+    """A aba 'NPS' como o `k.carregar` a entregaria: dois meses, tres unidades, uma resposta por marcacao. O RM/TC tem mais detratores e a espera e o assunto deles."""
+    rnd = random.Random(11)
+    unidades = {"CLÍNICA DE SAÚDE E IMAGEM - CSI": 0.10, "CLÍNICA DE SAÚDE E IMAGEM - RM/TC": 0.20, "DESENVOAR": 0.03}
+    profs = ["DR ANA LIMA", "DR BRUNO REIS", "DRA CARLA SOUZA", "DR DIOGO MATOS", "DRA ELISA NEVES", "TEC FELIPE", "DR GUSTAVO", "DRA HELENA"]
+    procs = ["CONSULTA", "RM CRANIO", "TC TORAX", "ECG", "USG ABDOME", "RM JOELHO"]
+    linhas, n = [], 0
+    d = datetime(2026, 9, 1)
+    while d <= datetime(2026, 10, 19):
+        if d.weekday() < 6:
+            for _ in range(rnd.randint(4, 8)):
+                n += 1
+                unidade = rnd.choice(list(unidades))
+                hora = rnd.choice([8, 9, 10, 11, 14, 15, 16, 17])
+                p_det = unidades[unidade] + (0.15 if hora in (15, 16) else 0)
+                sorteio = rnd.random()
+                if sorteio < p_det:
+                    nota, classe = rnd.choice([0, 2, 3, 4, 5, 5, 6]), "Detrator"
+                elif sorteio < p_det + 0.15:
+                    nota, classe = rnd.choice([7, 8, 8]), "Neutro"
+                else:
+                    nota, classe = rnd.choice([9, 10, 10, 10]), "Promotor"
+                quando = d.replace(hour=hora, minute=rnd.choice([0, 10, 30, 40]))
+                linhas.append({"Data Agendado Para": quando, "Id da Marcação": f"M{n:05d}", "NPS - Nota": nota, "NPS - Classificação": classe, "NPS - Data de Resposta": d,
+                               "NPS - Comentário": rnd.choice(COMENTARIOS_NPS[classe]), "Profissional": rnd.choice(profs), "Procedimento": rnd.choice(procs), "Unidade": unidade,
+                               "Mês (filtro)": d.strftime("%Y-%m"), "Atualizado em": datetime(2026, 10, 20, 8, 0)})
+        d += timedelta(days=1)
+    return pd.DataFrame(linhas)
+
+
+def google_de_mentira(com_dados: bool = True) -> dict:
+    """O que `google_maps.ler()` devolveria: resumos diarios (nota e total) e algumas avaliacoes."""
+    if not com_dados:
+        return {"resumos": [], "avaliacoes": []}
+    resumos = [{"dia": "2026-10-01", "coletado_em": "2026-10-01T12:00:00+00:00", "nota": 4.6, "total": 310, "place_id": "ChIJteste", "nome": "Clínica CSI", "url": ""},
+               {"dia": "2026-10-10", "coletado_em": "2026-10-10T12:00:00+00:00", "nota": 4.6, "total": 318, "place_id": "ChIJteste", "nome": "Clínica CSI", "url": ""},
+               {"dia": "2026-10-19", "coletado_em": "2026-10-19T12:00:00+00:00", "nota": 4.5, "total": 329, "place_id": "ChIJteste", "nome": "Clínica CSI", "url": ""}]
+    textos = [(5, "Excelente atendimento, recomendo!"), (5, "Médica atenciosa e ambiente limpo"), (1, "Esperei mais de duas horas, demora absurda"), (2, "Recepção sem educação e muito atraso"), (4, "Bom, mas a fila é grande"),
+              (5, "Tudo ótimo"), (5, "Parabéns"), (3, "Preço alto e demora no laudo"), (5, "Muito bom"), (5, "Amei o atendimento"), (5, "Equipe atenciosa"), (1, "Não recomendo, atraso enorme")]
+    avaliacoes = [{"id": f"places/ChIJteste/reviews/r{i}", "dia": f"2026-10-{2 + i:02d}", "nota": nota, "texto": texto, "relativo": "há pouco", "visto_em": "2026-10-19T12:00:00+00:00"}
+                  for i, (nota, texto) in enumerate(textos)]
+    return {"resumos": resumos, "avaliacoes": avaliacoes}
+
+
+@so_arquivos
+def pagina_nps(de=None, ate=None) -> str:
+    import gerar_nps as gn
+    with mock.patch.object(gn.k, "carregar", lambda pasta: {gn.ABA: nps_de_mentira()}), mock.patch.object(gn.gm, "ler", lambda: google_de_mentira()), \
+            mock.patch.object(gn.gm, "disponivel", lambda: True), mock.patch.object(gn.gm, "configurado", lambda: True):
+        return gn.gerar(de, ate, devolver_html=True)
+
+
+PAGINAS_SEM_DINHEIRO = {"tempo": pagina_tempo, "nps": pagina_nps}
 
 PAGINAS = {"atendimento": pagina_atendimento, "cesta": pagina_cesta, "suprimentos": pagina_suprimentos}
 # visoes do filtro De/Ate que cada painel entrega (a pagina de sempre, varios meses, dias exatos): o servidor calcula cada uma e a limpeza vale para todas
