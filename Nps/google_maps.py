@@ -49,6 +49,29 @@ def disponivel() -> bool:
 
 
 # ---------------------------------------------------------------- chamadas à API
+CAUSAS = {   # "reason" que o Google manda no 403 -> o que fazer
+    "SERVICE_DISABLED": "a Places API (New) não está ativada no projeto do Google Cloud dessa chave (não vale a “Places API” antiga: tem de ser a “(New)”)",
+    "API_KEY_SERVICE_BLOCKED": "a chave está restrita a outras APIs: em Credenciais > a chave > Restrições de API, inclua a Places API (New)",
+    "API_KEY_HTTP_REFERRER_BLOCKED": "a chave tem restrição de site (referenciador), que barra o servidor da Vercel: deixe a restrição de aplicativo em “Nenhuma”",
+    "API_KEY_IP_ADDRESS_BLOCKED": "a chave tem restrição de IP, e a Vercel não tem IP fixo: deixe a restrição de aplicativo em “Nenhuma”",
+    "BILLING_DISABLED": "o projeto do Google Cloud está sem faturamento ativo (a API exige, mesmo dentro do crédito gratuito)",
+    "API_KEY_INVALID": "a chave não existe ou foi digitada errada na Vercel",
+}
+
+
+def explicar_erro(codigo: int, erro: dict) -> str:
+    """Mensagem para a tela: o que o Google respondeu (status e motivo) e o que verificar. O motivo vem em error.details[].reason."""
+    motivos = [d.get("reason") for d in erro.get("details") or [] if isinstance(d, dict) and d.get("reason")]
+    motivo = motivos[0] if motivos else ""
+    if codigo == 403:
+        dica = CAUSAS.get(motivo) or ("o Google negou a permissão: confira, no projeto da chave, se a Places API (New) está ativada, se há faturamento ativo e se a chave "
+                                      "não tem restrição de API (inclua a Places API (New)) nem de site ou IP (a Vercel não tem IP fixo)")
+    else:
+        dica = {400: "a chave ou o pedido foi recusado", 401: "a chave não foi aceita", 429: "a cota do Google acabou por agora"}.get(codigo, "o Google recusou o pedido")
+    técnico = " / ".join(x for x in (erro.get("status"), motivo) if x)
+    return f"Google Maps: {dica} (HTTP {codigo}{', ' + técnico if técnico else ''}). {erro.get('message', '')}".strip()
+
+
 def _http(metodo: str, caminho: str, campos: str, corpo: dict | None = None) -> dict:
     cab = {"X-Goog-Api-Key": chave(), "X-Goog-FieldMask": campos, "Accept": "application/json"}
     dados = None
@@ -60,12 +83,10 @@ def _http(metodo: str, caminho: str, campos: str, corpo: dict | None = None) -> 
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
-            detalhe = json.loads(e.read().decode("utf-8")).get("error", {}).get("message", "")
+            erro = json.loads(e.read().decode("utf-8")).get("error", {})
         except Exception:
-            detalhe = ""
-        dica = {400: "a chave ou o pedido foi recusado", 403: "a chave não tem a Places API (New) ativada ou tem restrição que barra a Vercel",
-                429: "a cota do Google acabou por agora"}.get(e.code, "o Google recusou o pedido")
-        raise GoogleErro(f"Google Maps: {dica} (HTTP {e.code}). {detalhe}".strip()) from e
+            erro = {}
+        raise GoogleErro(explicar_erro(e.code, erro)) from e
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise GoogleErro(f"Google Maps: sem resposta ({type(e).__name__}).") from e
 

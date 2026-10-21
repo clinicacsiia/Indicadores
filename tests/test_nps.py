@@ -13,7 +13,10 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "tests"))
 import paineis_de_mentira as pm  # noqa: E402,F401  (poe as pastas dos paineis no sys.path)
+import google_maps as _gm  # noqa: E402
 import metricas_nps as mn  # noqa: E402
+
+HTTP_REAL = _gm._http    # o setUp da classe do Google troca o _http por um simulado; este teste precisa do verdadeiro
 
 
 def base(notas, comentarios=None, **extra):
@@ -273,6 +276,30 @@ class GoogleMapsTest(unittest.TestCase):
             r = self.gm.atualizar(self.CFG)
         self.assertFalse(r["atualizou"])
         self.assertIn("403", r["avisos"][0])
+
+    def test_o_403_do_google_diz_o_motivo_e_o_que_fazer(self):
+        gm = self.gm
+        erro = lambda reason, msg="The caller does not have permission": {"code": 403, "status": "PERMISSION_DENIED", "message": msg, "details": [{"reason": reason}] if reason else []}
+        m = gm.explicar_erro(403, erro("SERVICE_DISABLED"))
+        self.assertIn("Places API (New) não está ativada", m)
+        self.assertIn("PERMISSION_DENIED / SERVICE_DISABLED", m)
+        self.assertIn("restrita a outras APIs", gm.explicar_erro(403, erro("API_KEY_SERVICE_BLOCKED")))
+        self.assertIn("IP", gm.explicar_erro(403, erro("API_KEY_IP_ADDRESS_BLOCKED")))
+        self.assertIn("faturamento", gm.explicar_erro(403, erro("BILLING_DISABLED")))
+        sem_motivo = gm.explicar_erro(403, erro(None))                      # o caso real: so "The caller does not have permission", sem motivo
+        for pista in ("Places API (New) está ativada", "faturamento", "restrição de API", "The caller does not have permission"):
+            self.assertIn(pista, sem_motivo)
+        self.assertIn("a cota", gm.explicar_erro(429, {}))
+        self.assertIn("HTTP 500", gm.explicar_erro(500, {}))
+
+    def test_http_leva_o_corpo_do_erro_para_a_mensagem(self):
+        import io
+        import urllib.error
+        corpo = b'{"error": {"code": 403, "status": "PERMISSION_DENIED", "message": "x", "details": [{"reason": "API_KEY_SERVICE_BLOCKED"}]}}'
+        falha = urllib.error.HTTPError("https://places.googleapis.com/v1/places:searchText", 403, "Forbidden", {}, io.BytesIO(corpo))
+        with mock.patch.object(self.gm.urllib.request, "urlopen", side_effect=falha), self.assertRaises(self.gm.GoogleErro) as cm:
+            HTTP_REAL("POST", "/places:searchText", "places.id", {"textQuery": "x"})
+        self.assertIn("restrita a outras APIs", str(cm.exception))
 
     def test_perfil_nao_encontrado_pelo_cid(self):
         def so_outros(metodo, caminho, campos, corpo=None):
