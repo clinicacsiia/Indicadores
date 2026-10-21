@@ -14,6 +14,9 @@ export type Regra = {
 export type MetaItem = { id: string; nome: string; meta: number; regra: Regra };
 export type MetaGrupo = { id: string; nome: string; unidade: string; itens: MetaItem[] };
 
+/** Mudança de meta feita em Configurações: vale do mês `mes` (AAAA-MM) em diante, até a próxima mudança do mesmo serviço. */
+export type AlteracaoMeta = { mes: string; meta: number };
+
 export type MetasConfig = {
   primeiro_mes: string;
   dias_semana_atendimento: number[]; // 0 = segunda ... 6 = domingo
@@ -21,6 +24,8 @@ export type MetasConfig = {
   feriados: string[];
   grupos: MetaGrupo[];
   metas_por_mes: Record<string, Record<string, number>>;
+  /** Mudanças feitas em Configurações, por serviço ("grupo/item"). Vencem o metas.json. */
+  alteracoes?: Record<string, AlteracaoMeta[]>;
 };
 
 /** Atendimentos já contados, como a função metas_atendimentos_mes() os devolve. */
@@ -307,11 +312,25 @@ function contextoDoPeriodo(cfg: MetasConfig, de: string, ate: string): ContextoP
   return { uteis, mesesDoPeriodo, fracaoDoMes };
 }
 
+/** Meta de um serviço num mês: a última mudança feita até esse mês (e que segue valendo nos meses seguintes); sem mudança, a do metas.json. */
+export function metaDoMes(cfg: MetasConfig, chave: string, padrao: number, mes: string): number {
+  let ultima: AlteracaoMeta | undefined;
+  for (const a of cfg.alteracoes?.[chave] ?? []) if (a.mes <= mes && (!ultima || a.mes > ultima.mes)) ultima = a;
+  return ultima ? ultima.meta : Number(cfg.metas_por_mes?.[mes]?.[chave] ?? padrao);
+}
+
+/** Linhas da tabela metas_valor ({ servico, a_partir_de }) agrupadas por serviço, no formato de MetasConfig.alteracoes. */
+export function agruparAlteracoes(linhas: { servico: string; a_partir_de: string; meta: number }[]): Record<string, AlteracaoMeta[]> {
+  const porServico: Record<string, AlteracaoMeta[]> = {};
+  for (const l of linhas) (porServico[l.servico] ??= []).push({ mes: String(l.a_partir_de).slice(0, 7), meta: Number(l.meta) });
+  return porServico;
+}
+
 /** Meta de um serviço no período: a de cada mês (metas_por_mes ou a padrão) pela parte do mês que o período cobre. */
 function metaDoPeriodo(cfg: MetasConfig, g: MetaGrupo, it: MetaItem, ctx: ContextoPeriodo): number {
   return Math.round(
     ctx.mesesDoPeriodo.reduce(
-      (soma, m) => soma + Number(cfg.metas_por_mes?.[m]?.[`${g.id}/${it.id}`] ?? it.meta) * (ctx.fracaoDoMes.get(m) ?? 0),
+      (soma, m) => soma + metaDoMes(cfg, `${g.id}/${it.id}`, it.meta, m) * (ctx.fracaoDoMes.get(m) ?? 0),
       0
     )
   );

@@ -3,11 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
 import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
-import { metasConfig } from "@/lib/metas/config";
+import { metasConfig as metasBase } from "@/lib/metas/config";
 import { INICIO_KLINGO, primeiroMesValido } from "@/lib/inicio-klingo";
 import { ComparacaoPagante } from "./ComparacaoPagante";
 import {
   agoraSaoPaulo,
+  agruparAlteracoes,
   analisarPagante,
   calcularPeriodo,
   fimDoMes,
@@ -188,7 +189,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
 
   const agora = agoraSaoPaulo();
   const mesAtual = agora.hoje.slice(0, 7);
-  const primeiroMesMetas = primeiroMesValido(metasConfig.primeiro_mes); // nunca antes do uso do Klingo, mesmo que o metas.json peça
+  const primeiroMesMetas = primeiroMesValido(metasBase.primeiro_mes); // nunca antes do uso do Klingo, mesmo que o metas.json peça
   const primeiroMes = primeiroMesMetas > mesAtual ? mesAtual : primeiroMesMetas;
   const meses = mesesDisponiveis(primeiroMes, mesAtual);
 
@@ -220,6 +221,10 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const nomePeriodo = mesUnico ? "mês" : "período";
 
   const supabase = await createClient();
+  // Metas mudadas em Configurações (valem do mês escolhido em diante). Se a leitura falhar, vale o metas.json.
+  const { data: mudancas, error: erroMetas } = await supabase.from("metas_valor").select("servico, a_partir_de, meta");
+  if (erroMetas) console.error("Falha ao carregar as mudanças de meta:", erroMetas.message);
+  const metasConfig = { ...metasBase, alteracoes: agruparAlteracoes(mudancas ?? []) };
   // A função aplica a permissão "Pode ver Metas" e já entrega os atendimentos do mês contados.
   const { data: bruto, error } = mesUnico
     ? await supabase.rpc("metas_atendimentos_mes", { p_mes: mesUnico })

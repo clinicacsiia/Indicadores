@@ -827,7 +827,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
     agora = datetime.now()
     hoje = agora.date()
     p = ler_parametros()
-    cfg = json.loads(gd.METAS.read_text(encoding="utf-8-sig"))
+    cfg = gd.carregar_config()   # metas.json + mudancas de meta feitas em Configuracoes
     defn = k.ler_definicao(PASTA)
     abas = lido_com_cache(arquivo_dados(), "atendimento", lambda: k.carregar(PASTA))
     bruto = abas.get(ABA, pd.DataFrame())
