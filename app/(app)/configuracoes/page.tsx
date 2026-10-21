@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, type Profile } from "@/lib/supabase/profile";
 import { signOut } from "@/app/actions";
 import { IconAlerta, IconSair } from "@/app/components/icons";
-import { PAINEIS, PERMISSAO_FINANCEIRA } from "@/lib/paineis";
+import { PAINEIS, PERMISSAO_ATENDIMENTO_VISAO, PERMISSAO_FINANCEIRA } from "@/lib/paineis";
 import { NovoUsuarioForm } from "./NovoUsuarioForm";
 import { SolicitacaoForm } from "./SolicitacaoForm";
 import { UsuarioForm } from "./UsuarioForm";
@@ -201,6 +201,7 @@ export default async function ConfiguracoesPage({ searchParams }: Props) {
                   role={usuario.role}
                   veMetas={usuario.permissions?.metas !== false}
                   veFinanceiro={usuario.permissions?.[PERMISSAO_FINANCEIRA] === true}
+                  visaoAtendimento={String(usuario.permissions?.[PERMISSAO_ATENDIMENTO_VISAO] ?? "")}
                   paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome, liberado: usuario.permissions?.[p.id] === true }))}
                   ehVoce={usuario.id === profile.id}
                 />

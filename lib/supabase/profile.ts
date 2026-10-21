@@ -5,7 +5,7 @@ export type Profile = {
   id: string;
   email: string | null;
   role: "admin" | "viewer";
-  permissions: Record<string, boolean>;
+  permissions: Record<string, boolean | string>;
   // Só vem preenchido na lista da tela de Configurações.
   status?: "ativo" | "pendente";
   nome?: string | null;

@@ -28,7 +28,7 @@
     },
     "api/pendencias.py": {
       "maxDuration": 30,
-      "includeFiles": "{portal_nuvem.py,armazenamento.py,modulos.json}",
+      "includeFiles": "{portal_nuvem.py,armazenamento.py,restricao.py,modulos.json}",
       "excludeFiles": "{**/__pycache__/**,**/*.pyc,**/*.xlsx,**/*.pkl,**/*.db,node_modules/**,.next/**,app/**,lib/**,supabase/**}"
     }
   },

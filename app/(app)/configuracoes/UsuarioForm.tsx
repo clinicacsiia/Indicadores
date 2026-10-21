@@ -2,8 +2,10 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { RESPONSAVEIS_ATENDIMENTO } from "@/lib/paineis";
 import { ExcluirUsuario } from "./ExcluirUsuario";
 import { RedefinirSenha } from "./RedefinirSenha";
+import { VisaoAtendimento } from "./VisaoAtendimento";
 import { salvarUsuario, type SalvarUsuarioState } from "./actions";
 
 type Props = {
@@ -12,6 +14,7 @@ type Props = {
   role: "admin" | "viewer";
   veMetas: boolean;
   veFinanceiro: boolean;
+  visaoAtendimento: string;
   paineis: { id: string; nome: string; liberado: boolean }[];
   ehVoce: boolean;
 };
@@ -28,7 +31,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, paineis, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtendimento, paineis, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -42,6 +45,7 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, paineis, e
       : [
           veMetas ? "Metas" : null,
           nPaineis > 0 ? `${nPaineis} ${nPaineis === 1 ? "painel" : "painéis"}` : null,
+          visaoAtendimento ? `Atendimento só de ${RESPONSAVEIS_ATENDIMENTO.find((r) => r.id === visaoAtendimento)?.nome ?? visaoAtendimento}` : null,
           veFinanceiro ? "Financeiro" : null,
         ]
           .filter(Boolean)
@@ -113,6 +117,11 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, paineis, e
                   </label>
                 ))}
               </div>
+            </div>
+
+            <div className="user-paineis">
+              <VisaoAtendimento id={id} valor={visaoAtendimento} />
+              {papel === "admin" && <span className="switch-hint">Administradores sempre veem a clínica inteira.</span>}
             </div>
 
             <div className="user-paineis" role="group" aria-labelledby={`dados-${id}`}>

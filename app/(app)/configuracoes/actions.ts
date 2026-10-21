@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/lib/supabase/profile";
-import { PAINEIS, PERMISSAO_FINANCEIRA } from "@/lib/paineis";
+import { PAINEIS, PERMISSAO_ATENDIMENTO_VISAO, PERMISSAO_FINANCEIRA, RESPONSAVEIS_ATENDIMENTO } from "@/lib/paineis";
 import { BLOQUEIO_PENDENTE, DOMINIO_INTERNO } from "@/lib/acesso";
 import { metasConfig, mesesParaMudarMeta, SERVICOS_METAS } from "@/lib/metas/config";
 import { agoraSaoPaulo, agruparAlteracoes, metaDoMes } from "@/lib/metas/calculo";
@@ -37,6 +37,15 @@ export async function updateProfileRole(userId: string, role: string) {
 
 export type SalvarUsuarioState = { ok?: boolean; error?: string };
 
+// "Atendimento: o que a pessoa vê": "" = a clínica inteira; um id de Atendimento/responsaveis.json = só a parte dele. Só mexe no que já estava salvo se o campo veio
+// no formulário (um formulário velho ou sem o campo não pode, sem querer, soltar uma restrição). Id desconhecido é erro, não "sem restrição".
+function visaoDoFormulario(formData: FormData): { acesso: Record<string, string> } | { error: string } {
+  if (!formData.has(PERMISSAO_ATENDIMENTO_VISAO)) return { acesso: {} };
+  const v = String(formData.get(PERMISSAO_ATENDIMENTO_VISAO) ?? "").trim().toLowerCase();
+  if (v !== "" && !RESPONSAVEIS_ATENDIMENTO.some((r) => r.id === v)) return { error: "Responsável do Atendimento inválido." };
+  return { acesso: { [PERMISSAO_ATENDIMENTO_VISAO]: v } };
+}
+
 // Salva permissão e acesso às telas de uma vez, com retorno para a tela.
 // Se o campo "role" não vier (select desabilitado para o próprio usuário),
 // só o acesso às telas é atualizado.
@@ -46,11 +55,14 @@ export async function salvarUsuario(
 ): Promise<SalvarUsuarioState> {
   const userId = String(formData.get("userId") ?? "");
   const role = formData.get("role");
-  const acesso: Record<string, boolean> = {
+  const visao = visaoDoFormulario(formData);
+  if ("error" in visao) return { error: visao.error };
+  const acesso: Record<string, boolean | string> = {
     metas: formData.get("metas") === "on",
     [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
     // Painéis em Python: cada um é uma chave em profiles.permissions (o id do painel).
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
+    ...visao.acesso,
   };
 
   if (!userId) return { error: "Usuário inválido." };
@@ -66,7 +78,7 @@ export async function salvarUsuario(
   return { ok: true };
 }
 
-export async function updateProfileAccess(userId: string, acesso: Record<string, boolean>) {
+export async function updateProfileAccess(userId: string, acesso: Record<string, boolean | string>) {
   const supabase = await createClient();
   const { data: current, error: fetchError } = await supabase
     .from("profiles")
@@ -235,10 +247,13 @@ export async function aprovarSolicitacao(
   const { data: alvo } = await acesso.admin.from("profiles").select("status").eq("id", userId).single();
   if (alvo?.status !== "pendente") return { error: "Este pedido não está mais pendente." };
 
-  const permissions: Record<string, boolean> = {
+  const visao = visaoDoFormulario(formData);
+  if ("error" in visao) return { error: visao.error };
+  const permissions: Record<string, boolean | string> = {
     metas: formData.get("metas") === "on",
     [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
+    ...visao.acesso,
   };
 
   const { error: desbloqueioError } = await acesso.admin.auth.admin.updateUserById(userId, { ban_duration: "none" });

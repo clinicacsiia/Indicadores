@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { ExcluirUsuario } from "./ExcluirUsuario";
+import { VisaoAtendimento } from "./VisaoAtendimento";
 import { aprovarSolicitacao, type UsuarioAdminState } from "./actions";
 
 type Props = {
@@ -79,6 +80,10 @@ export function SolicitacaoForm({ id, usuario, nome, emailContato, desde, painei
               </label>
             ))}
           </div>
+        </div>
+
+        <div className="user-paineis">
+          <VisaoAtendimento id={`pedido-${id}`} valor="" />
         </div>
 
         <div className="user-paineis" role="group" aria-labelledby={`pedido-dados-${id}`}>

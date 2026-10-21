@@ -117,6 +117,16 @@ botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?
     receita, ticket, custo etc.) ficam invisíveis na aba Avisos e em `/api/pendencias` (`aviso.sensivel` + RLS `can_view_aviso`); a regra de antes
     segue por cima: o aviso só aparece se o painel dele estiver liberado.
   Quem já via Faturamento, Financeiro, Despesas ou Indicadores ficou com a permissão marcada (migration `20261016120000_dados_financeiros.sql`).
+- **Atendimento só de uma parte (por responsável):** em **Configurações > Usuários** (e ao aprovar um pedido), o campo **"Atendimento: o que a pessoa vê"**
+  grava `profiles.permissions.atendimento_visao` com o id de um responsável do `Atendimento/responsaveis.json` (Juliana, Carla, Luzia: cada um com os seus
+  setores). Vazio = a clínica inteira, como sempre; administrador nunca é restrito. Para uma chefia só ver os atendimentos dela: libere o painel Atendimento
+  e escolha o nome dela ali (se ela não está no `responsaveis.json`, acrescente com os `setores` dela, nomes de grupos do `metas.json`).
+  - o servidor (`restricao.py`, chamado por `portal_nuvem.com_marcas`) troca o JSON da página pelos meses da visão dessa pessoa e apaga o resto
+    (`por_visao`, o total da clínica); o modelo abre direto na visão (`D.visao_fixa`), sem seletor "Responsável" e sem "Todos", mesmo com `?visao=todos`.
+    Visão que não existe mais no `responsaveis.json` **nega** (403), nunca mostra tudo. `tests/test_restricao.py`;
+  - os avisos do Atendimento falam da clínica inteira, então ficam invisíveis para quem está restrito: `can_view_painel` devolve falso quando existe
+    `<painel>_visao` preenchido (migration `20261021110000_atendimento_visao_avisos.sql`, testada em `supabase/tests/avisos.sql`) e `/api/pendencias` devolve lista vazia;
+  - **não vale para a aba Metas** (clínica inteira, permissão própria): para quem é restrito, deixe **Metas** desmarcado.
 
   **Painel, relatório ou gráfico novo: o que fazer para já nascer protegido** (os testes forçam cada passo):
   1. `modulos.json`: `"financeiro": "total"` (só dinheiro), `"parcial"` (misto) ou `"nenhum"`. **Sem o campo o painel conta como `"total"`**: esquecer bloqueia, não libera.
