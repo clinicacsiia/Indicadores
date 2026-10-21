@@ -56,7 +56,7 @@ function LinhaComparacao({
           Com SUS <b>{pctTexto(total)}</b>
         </span>
         <span className="pagante-par" data-serie="pagante">
-          Só pagante <b>{pctTexto(pagante)}</b>
+          Só convênios e particular <b>{pctTexto(pagante)}</b>
         </span>
         <span className="pagante-dif">{ppTexto(dif)}</span>
         <span className="status-pill" data-status={situacaoPagante}>
@@ -152,7 +152,7 @@ function GraficoAcumulado({ serie }: { serie: SerieDiaria }) {
   const max = tetoDoEixo(serie.pontos.flatMap((p) => [p.esperado, p.total, p.pagante]));
   const ult = [...serie.pontos].reverse().find((p) => p.total !== null && p.pagante !== null);
   const resumo = ult
-    ? `Em ${dataCurta(ult.dia)}: esperado ${pctTexto(ult.esperado)}, com SUS ${pctTexto(ult.total ?? 0)}, só pagante ${pctTexto(ult.pagante ?? 0)}.`
+    ? `Em ${dataCurta(ult.dia)}: esperado ${pctTexto(ult.esperado)}, com SUS ${pctTexto(ult.total ?? 0)}, só convênios e particular ${pctTexto(ult.pagante ?? 0)}.`
     : "Sem atendimentos sincronizados no período.";
   return (
     <figure className="grafico">
@@ -161,16 +161,16 @@ function GraficoAcumulado({ serie }: { serie: SerieDiaria }) {
         <span>% da meta de todos os serviços, dia a dia</span>
       </figcaption>
       <div className="grafico-rolagem" tabIndex={0} role="group" aria-label="Gráfico de cumprimento acumulado">
-      <svg viewBox={`0 0 ${L} ${A}`} role="img" aria-label={`Cumprimento acumulado das metas, com SUS e só pagante, contra o esperado. ${resumo}`}>
+      <svg viewBox={`0 0 ${L} ${A}`} role="img" aria-label={`Cumprimento acumulado das metas, com SUS e só convênios e particular, contra o esperado. ${resumo}`}>
         <Grade n={n} dias={dias} x={x} max={max} />
         <Serie nome="Esperado" serie="esperado" tracejada x={x} max={max} pontos={serie.pontos.map((p) => ({ dia: p.dia, y: p.esperado }))} />
         <Serie nome="Com SUS" serie="total" x={x} max={max} pontos={serie.pontos.map((p) => ({ dia: p.dia, y: p.total }))} />
-        <Serie nome="Só pagante" serie="pagante" x={x} max={max} pontos={serie.pontos.map((p) => ({ dia: p.dia, y: p.pagante }))} />
+        <Serie nome="Só convênios e particular" serie="pagante" x={x} max={max} pontos={serie.pontos.map((p) => ({ dia: p.dia, y: p.pagante }))} />
       </svg>
       </div>
       <div className="grafico-legenda" aria-hidden="true">
         <span data-serie="total">Com SUS</span>
-        <span data-serie="pagante">Só pagante</span>
+        <span data-serie="pagante">Só convênios e particular</span>
         <span data-serie="esperado">Esperado pelos dias úteis</span>
       </div>
     </figure>
@@ -187,18 +187,18 @@ function GraficoParticipacao({ serie }: { serie: SerieDiaria }) {
   return (
     <figure className="grafico">
       <figcaption>
-        <b>Participação do pagante</b>
-        <span>% de pagante entre SUS + pagante, média dos últimos 7 dias</span>
+        <b>Participação de convênios e particular</b>
+        <span>% de convênios e particular entre SUS + convênios e particular, média dos últimos 7 dias</span>
       </figcaption>
-      <div className="grafico-rolagem" tabIndex={0} role="group" aria-label="Gráfico de participação do pagante">
-      <svg viewBox={`0 0 ${L} ${A}`} role="img" aria-label={`Participação do pagante nos atendimentos, média móvel de 7 dias${media !== null ? `; média do período ${pctTexto(media)}` : ""}.`}>
+      <div className="grafico-rolagem" tabIndex={0} role="group" aria-label="Gráfico de participação de convênios e particular">
+      <svg viewBox={`0 0 ${L} ${A}`} role="img" aria-label={`Participação de convênios e particular nos atendimentos, média móvel de 7 dias${media !== null ? `; média do período ${pctTexto(media)}` : ""}.`}>
         <Grade n={n} dias={dias} x={x} max={100} />
         {media !== null && <Serie nome="Média do período" serie="esperado" tracejada x={x} max={100} pontos={serie.pontos.map((p) => ({ dia: p.dia, y: media }))} />}
-        <Serie nome="Pagante (média de 7 dias)" serie="pagante" x={x} max={100} pontos={pontos} />
+        <Serie nome="Convênios e particular (média de 7 dias)" serie="pagante" x={x} max={100} pontos={pontos} />
       </svg>
       </div>
       <div className="grafico-legenda" aria-hidden="true">
-        <span data-serie="pagante">Pagante, média de 7 dias</span>
+        <span data-serie="pagante">Convênios e particular, média de 7 dias</span>
         {media !== null && <span data-serie="esperado">Média do período ({pctTexto(media)})</span>}
       </div>
     </figure>
@@ -225,10 +225,10 @@ export function ComparacaoPagante({
       <div className="panel-head">
         <div>
           <h2 className="panel-title" id="pagante-titulo">
-            Metas com SUS × só pagante
+            Metas com SUS × só convênios e particular
           </h2>
           <p className="panel-sub">
-            O cumprimento da mesma meta contando todos os atendimentos e contando só o pagante (convênio que não é SUS e particular). Em porcentagem da
+            O cumprimento da mesma meta contando todos os atendimentos e contando só convênios e particular (sem o SUS e sem o Cetrus). Em porcentagem da
             meta, sem valores em R$.
           </p>
         </div>
@@ -236,7 +236,7 @@ export function ComparacaoPagante({
 
       <div className="convenio-legenda" aria-hidden="true">
         <span data-tipo="pg-total">Com SUS</span>
-        <span data-tipo="pg-pagante">Só pagante</span>
+        <span data-tipo="pg-pagante">Só convênios e particular</span>
         {esperado > 0 && esperado < 100 && <span data-tipo="pg-esperado">Esperado até agora ({pctTexto(esperado)})</span>}
       </div>
 

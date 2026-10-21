@@ -212,6 +212,8 @@ históricos ganharam o evento "Correção de registro"; a linha original não fo
 **19/10/2026, `20261019120000_despesas_planilha.sql` (+ `..120100_..._base.sql` e `..120200_..._historico.sql`):** aplicadas pelo `apply_migration` (as tabelas, sem `drop`) e pelo
 `execute_sql` (os dados de seed: 78 itens, 59 ligações categoria → item, 33 linhas de fornecedor e 659 valores mensais de out/2025 a ago/2026). Ver "Aba Planilha (Despesas)".
 
+**21/10/2026, `20261021100000_metas_valor.sql`:** aplicada pelo `apply_migration` (uma tabela e 4 policies, sem `drop`). Conferido no banco: admin grava e lê; visualizador só lê.
+
 **20/10/2026, `20261020120000_cadastra_relatorio_nps_13697.sql`:** aplicada pelo `apply_migration` (um `insert ... on conflict`, sem `drop`). Cadastra o #13697 (NPS) como ativo, coleta mensal desde set/2026; a primeira coleta
 trouxe 283 respostas (174 em set e 109 em out) e o filtro de período foi comprovado sozinho. Ver "Aba NPS × Google".
 
@@ -327,6 +329,8 @@ habitual × 1,3 + 7 dias** (nunca menos de 7; crítico 23 dias depois). Para nã
 A tabela "Prazo de envio de cada convênio" (Detalhes) mostra o prazo habitual, quantas faturas entraram e quando o painel avisa. O aviso não conta a
 fatura que está dentro do prazo habitual do convênio e diz isso no texto. O SUS ganhou também a seção **"SUS: mês a mês"** (Análise): os meses em que
 ele aparece, com faturas enviadas, a enviar e canceladas e os dias da emissão ao envio contra os demais convênios (`ACOMPANHAR_MES_A_MES`).
+**Cetrus (antes "SUS CURSO") não é SUS:** é um curso. A leitura das planilhas junta os dois nomes em `CETRUS` (`klingo_relatorios.nome_operadora`, vale para todos os
+painéis) e a análise do SUS só vale para o nome exato `SUS`.
 Teste: `tests/test_faturamento_sus.py`.
 
 **Avisos que podem ser aceitos** (`guia_pendencias.PERSISTENTES`: cortesia com valor zero, glosa conhecida, queda sazonal, meta
@@ -446,9 +450,11 @@ Fonte dos dados: relatório `13339` do Klingo (atendimentos por unidade,
 classe, especialidade, procedimento e operadora), sincronizado para
 `fact_relatorio_linha` como qualquer outro relatório. Fonte das metas e
 regras: **`Acompanhamento de META/metas.json`** — o mesmo arquivo do painel
-local; o site o lê direto. Para mudar uma meta, edite o arquivo e publique;
-`metas_por_mes` ajusta só um mês (`{"2026-11": {"csi1/densitometria": 520}}`).
-O calendário (seg–sáb, feriados, expediente 07h–18h, `primeiro_mes`) também
+local; o site o lê direto. É a meta de **base**; `metas_por_mes` ajusta só um mês (`{"2026-11": {"csi1/densitometria": 520}}`).
+**Para mudar uma meta, use Configurações > Metas** (só admin): escolha o mês e os valores; a mudança vale **desse mês em diante, até a próxima mudança**
+(os meses anteriores não mudam). Ficam na tabela `metas_valor` (migration `20261021100000`), vencem o `metas.json`, podem ser desfeitas na própria tela, e
+valem no site e no painel Atendimento (`gerar_dashboard.meta_do_mes` = `metaDoMes` do site, comparados em `tests/test_metas_alteracoes.py`). O painel Atendimento
+já gerado só reflete a mudança na próxima atualização dele. O calendário (seg–sáb, feriados, expediente 07h–18h, `primeiro_mes`) também
 vem dele; o dia de hoje conta só a parte do expediente que já passou.
 
 - A função `metas_atendimentos_mes(mês)` (migration `20261013120000_aba_metas`)
@@ -462,10 +468,12 @@ vem dele; o dia de hoje conta só a parte do expediente que já passou.
   rodou para o `13339`, a aba mostra "Nenhum atendimento".
 - Atendimentos que não entram em nenhuma meta aparecem em "fora de qualquer
   meta"; os que entram em mais de uma geram um aviso (ajuste as regras).
-- **Metas com SUS × só pagante** (logo abaixo do gráfico "SUS e não SUS"; `app/(app)/metas/ComparacaoPagante.tsx`). A meta é a mesma: a seção mostra
-  quanto dela estaria cumprida se só o pagante contasse (pagante = convênio informado que não é SUS, particular incluído; sem convênio informado não
-  entra em nenhum dos dois lados e é avisado). Barras duplas (geral, grupo e serviço), dois gráficos de linha (cumprimento acumulado com SUS × só
-  pagante × esperado, e participação do pagante em média de 7 dias) e uma leitura automática (`analisarPagante()`). **Só quantidade e porcentagem,
+- **Cetrus** (antes "SUS CURSO", um curso que não é SUS) é a terceira categoria dos atendimentos: **conta na meta e no total**, mas não entra como SUS nem como
+  "convênios e particular". Vale o nome `CETRUS` ou o antigo `SUS CURSO` (o banco guarda o que o Klingo mandou). O bloco "SUS, convênios e particular, e Cetrus" mostra os três.
+- **Metas com SUS × só convênios e particular** (`app/(app)/metas/ComparacaoPagante.tsx`). A meta é a mesma: a seção mostra quanto dela estaria cumprida
+  se só os convênios e o particular contassem (convênio informado que não é SUS nem Cetrus; sem convênio informado não entra em nenhum lado e é avisado).
+  Barras duplas (geral, grupo e serviço), dois gráficos de linha (cumprimento acumulado com SUS × só convênios e particular × esperado, e a participação deles
+  entre SUS + convênios e particular, média de 7 dias) e uma leitura automática (`analisarPagante()`). **Só quantidade e porcentagem,
   nunca R$**: as Metas não trazem receita, então não há valor a esconder de quem não tem "Dados financeiros". Os gráficos de linha vêm de
   `metas_atendimentos_por_dia(de, ate)` (migration `20261018100000`, mesma regra de contagem, uma linha por dia); sem ela aplicada no banco a seção
   aparece só com as barras e o aviso de que a evolução dia a dia não está disponível.

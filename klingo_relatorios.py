@@ -182,6 +182,27 @@ def ler_abas(pasta: Path) -> dict[str, pd.DataFrame]:
     return pd.read_excel(caminho, sheet_name=None)
 
 
+# "SUS CURSO" era o nome com que o Klingo trazia o Cetrus, um curso que NAO e SUS. O Klingo passa a trazer "CETRUS"; o historico gravado ainda tem o
+# nome velho, entao a leitura junta os dois sob "CETRUS" (a planilha/banco guardam o que o Klingo mandou, sem mexer).
+OPERADORAS_RENOMEADAS = {"SUS CURSO": "CETRUS"}
+COLUNAS_OPERADORA = ("Operadora", "Operadora - Nome", "Convênio")
+
+
+def nome_operadora(nome) -> str:
+    """Nome da operadora/convenio como os paineis devem mostrar: o apelido antigo vira o nome certo, o resto fica como veio."""
+    if nome is None or (isinstance(nome, float) and np.isnan(nome)):
+        return nome
+    texto = str(nome)
+    return OPERADORAS_RENOMEADAS.get(" ".join(texto.upper().split()), texto)
+
+
+def renomear_operadoras(df: pd.DataFrame) -> pd.DataFrame:
+    for c in COLUNAS_OPERADORA:
+        if c in df:
+            df[c] = df[c].map(nome_operadora)
+    return df
+
+
 def carregar(pasta: Path) -> dict[str, pd.DataFrame]:
     """As abas ja com numeros e datas convertidos (para os dashboards). Aba ausente -> DataFrame vazio."""
     defn = ler_definicao(pasta)
@@ -197,7 +218,7 @@ def carregar(pasta: Path) -> dict[str, pd.DataFrame]:
         for c in list(rel.get("datas", {})) + [COL_EM]:
             if c in df:
                 df[c] = pd.to_datetime(df[c], errors="coerce")
-        saida[rel["aba"]] = df
+        saida[rel["aba"]] = renomear_operadoras(df)
     return saida
 
 

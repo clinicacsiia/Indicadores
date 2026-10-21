@@ -10,13 +10,20 @@ import { NovoUsuarioForm } from "./NovoUsuarioForm";
 import { SolicitacaoForm } from "./SolicitacaoForm";
 import { UsuarioForm } from "./UsuarioForm";
 import { ExtrairForm } from "./ExtrairForm";
+import { MetasForm } from "./MetasForm";
+import { removerMudancaMeta } from "./actions";
+import { mesesParaMudarMeta, metasConfig, SERVICOS_METAS } from "@/lib/metas/config";
+import { agoraSaoPaulo, agruparAlteracoes, metaDoMes } from "@/lib/metas/calculo";
 
 export const metadata: Metadata = { title: "Configurações" };
 
 type Props = { searchParams: Promise<{ aba?: string }> };
 
-type Aba = "pedidos" | "usuarios" | "novo" | "extrair";
-const ehAba = (a: string | undefined): a is Aba => a === "pedidos" || a === "usuarios" || a === "novo" || a === "extrair";
+type Aba = "pedidos" | "usuarios" | "novo" | "extrair" | "metas";
+const ehAba = (a: string | undefined): a is Aba =>
+  a === "pedidos" || a === "usuarios" || a === "novo" || a === "extrair" || a === "metas";
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const rotuloMes = (mes: string) => `${MESES[Number(mes.slice(5)) - 1]}/${mes.slice(0, 4)}`;
 const hrefAba = (aba: Aba) => `/configuracoes?aba=${aba}`;
 
 export default async function ConfiguracoesPage({ searchParams }: Props) {
@@ -59,8 +66,31 @@ export default async function ConfiguracoesPage({ searchParams }: Props) {
     { id: "pedidos", rotulo: "Pedidos de acesso", n: pendentes.length, alerta: pendentes.length > 0 },
     { id: "usuarios", rotulo: "Usuários", n: usuarios.length },
     { id: "novo", rotulo: "Novo usuário" },
+    { id: "metas", rotulo: "Metas" },
     { id: "extrair", rotulo: "Extrair" },
   ];
+
+  // Aba Metas: a meta que vale em cada mês (com as mudanças já feitas) e a lista dessas mudanças.
+  let mudancas: { servico: string; a_partir_de: string; meta: number }[] = [];
+  let erroMetas = false;
+  if (aba === "metas") {
+    const { data, error: erro } = await supabase.from("metas_valor").select("servico, a_partir_de, meta").order("a_partir_de", { ascending: false });
+    if (erro) {
+      console.error("Falha ao carregar as mudanças de meta:", erro.message);
+      erroMetas = true;
+    }
+    mudancas = data ?? [];
+  }
+  const mesAtual = agoraSaoPaulo().hoje.slice(0, 7);
+  const mesesMetas = aba === "metas" ? mesesParaMudarMeta(mesAtual) : [];
+  const cfgMetas = { ...metasConfig, alteracoes: agruparAlteracoes(mudancas) };
+  const vigentes = Object.fromEntries(
+    mesesMetas.map((m) => [m, Object.fromEntries(SERVICOS_METAS.map((s) => [s.chave, metaDoMes(cfgMetas, s.chave, s.padrao, m)]))])
+  );
+  const nomeServico = (chave: string) => {
+    const s = SERVICOS_METAS.find((x) => x.chave === chave);
+    return s ? `${s.nome} (${s.grupo})` : chave;
+  };
 
   return (
     <>
@@ -189,6 +219,54 @@ export default async function ConfiguracoesPage({ searchParams }: Props) {
             </div>
           </div>
           <NovoUsuarioForm />
+        </section>
+      )}
+
+      {aba === "metas" && (
+        <section className="panel" aria-labelledby="titulo-metas">
+          <div className="panel-head" style={{ paddingBottom: 12 }}>
+            <div>
+              <h2 className="panel-title" id="titulo-metas">Metas mensais</h2>
+              <p className="panel-sub">
+                Mude a meta de um serviço a partir de um mês. Se você não mudar de novo, ela segue valendo nos meses seguintes. Os meses anteriores não são
+                alterados. Sem nenhuma mudança, vale a meta de base do arquivo metas.json.
+              </p>
+            </div>
+          </div>
+          {erroMetas && (
+            <div className="notice" role="alert">
+              <IconAlerta />
+              Não foi possível ler as mudanças de meta. Se for a primeira vez, confira se a migration das metas já foi aplicada.
+            </div>
+          )}
+          <MetasForm
+            servicos={SERVICOS_METAS.map(({ chave, grupo, nome }) => ({ chave, grupo, nome }))}
+            meses={mesesMetas.map((m) => ({ valor: m, rotulo: rotuloMes(m) }))}
+            mesInicial={mesAtual}
+            vigentes={vigentes}
+          />
+          {mudancas.length > 0 && (
+            <div className="metas-config-historico">
+              <h3 className="field-label">Mudanças registradas</h3>
+              <ul className="user-list">
+                {mudancas.map((m) => {
+                  const mes = String(m.a_partir_de).slice(0, 7);
+                  return (
+                    <li key={`${m.servico}-${mes}`} className="metas-config-mudanca">
+                      <span>
+                        <strong>{nomeServico(m.servico)}</strong>: {m.meta} a partir de {rotuloMes(mes)}
+                      </span>
+                      <form action={removerMudancaMeta}>
+                        <input type="hidden" name="servico" value={m.servico} />
+                        <input type="hidden" name="mes" value={mes} />
+                        <button type="submit" className="btn">Desfazer</button>
+                      </form>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 

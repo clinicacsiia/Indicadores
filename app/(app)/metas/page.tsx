@@ -3,11 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
 import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
-import { metasConfig } from "@/lib/metas/config";
+import { metasConfig as metasBase } from "@/lib/metas/config";
 import { INICIO_KLINGO, primeiroMesValido } from "@/lib/inicio-klingo";
 import { ComparacaoPagante } from "./ComparacaoPagante";
 import {
   agoraSaoPaulo,
+  agruparAlteracoes,
   analisarPagante,
   calcularPeriodo,
   fimDoMes,
@@ -85,28 +86,49 @@ function Barra({ pct, esperado, situacao }: { pct: number; esperado: number; sit
   );
 }
 
-function BarraConvenio({ sus, naoSus, semConvenio }: { sus: number; naoSus: number; semConvenio: number }) {
-  const total = sus + naoSus + semConvenio;
+function BarraConvenio({ sus, naoSus, cetrus, semConvenio }: { sus: number; naoSus: number; cetrus: number; semConvenio: number }) {
+  const total = sus + naoSus + cetrus + semConvenio;
   const parte = (v: number) => `${(v / total) * 100}%`;
   return (
     <div className="convenio-bar" aria-hidden="true">
       {sus > 0 && <span className="convenio-seg" data-tipo="sus" style={{ width: parte(sus) }} />}
       {naoSus > 0 && <span className="convenio-seg" data-tipo="nao-sus" style={{ width: parte(naoSus) }} />}
+      {cetrus > 0 && <span className="convenio-seg" data-tipo="cetrus" style={{ width: parte(cetrus) }} />}
       {semConvenio > 0 && <span className="convenio-seg" data-tipo="sem" style={{ width: parte(semConvenio) }} />}
     </div>
   );
 }
 
-function LinhaConvenio({ nome, sus, naoSus, semConvenio, destaque }: { nome: string; sus: number; naoSus: number; semConvenio: number; destaque?: boolean }) {
-  const total = sus + naoSus + semConvenio;
+function LinhaConvenio({
+  nome,
+  sus,
+  naoSus,
+  cetrus,
+  semConvenio,
+  destaque,
+}: {
+  nome: string;
+  sus: number;
+  naoSus: number;
+  cetrus: number;
+  semConvenio: number;
+  destaque?: boolean;
+}) {
+  const total = sus + naoSus + cetrus + semConvenio;
   if (total === 0) return null;
   const pctSus = (sus / total) * 100;
   return (
     <li className="convenio-linha" data-destaque={destaque ? "" : undefined}>
       <span className="convenio-nome">{nome}</span>
-      <BarraConvenio sus={sus} naoSus={naoSus} semConvenio={semConvenio} />
+      <BarraConvenio sus={sus} naoSus={naoSus} cetrus={cetrus} semConvenio={semConvenio} />
       <span className="convenio-num">
-        <b>{inteiro.format(sus)}</b> SUS <span className="meta-sep">·</span> <b>{inteiro.format(naoSus)}</b> não SUS
+        <b>{inteiro.format(sus)}</b> SUS <span className="meta-sep">·</span> <b>{inteiro.format(naoSus)}</b> convênios e particular
+        {cetrus > 0 && (
+          <>
+            <span className="meta-sep"> · </span>
+            <b>{inteiro.format(cetrus)}</b> Cetrus
+          </>
+        )}
         <span className="meta-sep"> · </span>
         {pctTexto(pctSus)} SUS
         {semConvenio > 0 && ` · ${inteiro.format(semConvenio)} sem convênio`}
@@ -130,7 +152,8 @@ function LinhaMeta({ item, esperado, convenio }: { item: ResultadoItem; esperado
       <td>{item.projecao !== null ? inteiro.format(item.projecao) : "—"}</td>
       {convenio && (
         <td>
-          {inteiro.format(item.sus)} <span className="meta-sep">/</span> {inteiro.format(item.naoSus)}
+          {inteiro.format(item.sus)} <span className="meta-sep">/</span> {inteiro.format(item.naoSus)} <span className="meta-sep">/</span>{" "}
+          {inteiro.format(item.cetrus)}
         </td>
       )}
       <td>
@@ -166,7 +189,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
 
   const agora = agoraSaoPaulo();
   const mesAtual = agora.hoje.slice(0, 7);
-  const primeiroMesMetas = primeiroMesValido(metasConfig.primeiro_mes); // nunca antes do uso do Klingo, mesmo que o metas.json peça
+  const primeiroMesMetas = primeiroMesValido(metasBase.primeiro_mes); // nunca antes do uso do Klingo, mesmo que o metas.json peça
   const primeiroMes = primeiroMesMetas > mesAtual ? mesAtual : primeiroMesMetas;
   const meses = mesesDisponiveis(primeiroMes, mesAtual);
 
@@ -198,6 +221,10 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const nomePeriodo = mesUnico ? "mês" : "período";
 
   const supabase = await createClient();
+  // Metas mudadas em Configurações (valem do mês escolhido em diante). Se a leitura falhar, vale o metas.json.
+  const { data: mudancas, error: erroMetas } = await supabase.from("metas_valor").select("servico, a_partir_de, meta");
+  if (erroMetas) console.error("Falha ao carregar as mudanças de meta:", erroMetas.message);
+  const metasConfig = { ...metasBase, alteracoes: agruparAlteracoes(mudancas ?? []) };
   // A função aplica a permissão "Pode ver Metas" e já entrega os atendimentos do mês contados.
   const { data: bruto, error } = mesUnico
     ? await supabase.rpc("metas_atendimentos_mes", { p_mes: mesUnico })
@@ -211,7 +238,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const temDados = linhas.length > 0;
   const resultado = temDados ? calcularPeriodo(metasConfig, de, ate, linhas, agora) : null;
 
-  // Comparação com SUS × só pagante: a evolução dia a dia vem de outra função (mesmas regras de contagem, separada por dia).
+  // Comparação com SUS × só convênios e particular: a evolução dia a dia vem de outra função (mesmas regras de contagem, separada por dia).
   // Se ela falhar ou ainda não existir no banco, a comparação aparece sem os gráficos de linha.
   let serie: ReturnType<typeof serieDiaria> | null = null;
   if (resultado?.convenioInformado) {
@@ -370,7 +397,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                       <th scope="col">Faltam</th>
                       <th scope="col">Por dia útil</th>
                       <th scope="col">Projeção</th>
-                      {resultado.convenioInformado && <th scope="col">SUS / outros</th>}
+                      {resultado.convenioInformado && <th scope="col">SUS / convênios e particular / Cetrus</th>}
                       <th scope="col">Situação</th>
                     </tr>
                   </thead>
@@ -408,14 +435,18 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
               <div className="panel-head">
                 <div>
                   <h2 className="panel-title" id="convenio-titulo">
-                    SUS e não SUS
+                    SUS, convênios e particular, e Cetrus
                   </h2>
-                  <p className="panel-sub">Quanto dos atendimentos que contam nas metas foi pelo SUS e quanto foi por outro convênio ou particular.</p>
+                  <p className="panel-sub">
+                    Quanto dos atendimentos que contam nas metas foi pelo SUS, quanto foi por convênios e particular e quanto foi do Cetrus, um
+                    curso que não é SUS.
+                  </p>
                 </div>
               </div>
               <div className="convenio-legenda" aria-hidden="true">
                 <span data-tipo="sus">SUS</span>
-                <span data-tipo="nao-sus">Não SUS</span>
+                <span data-tipo="nao-sus">Convênios e particular</span>
+                {resultado.convenio.cetrus > 0 && <span data-tipo="cetrus">Cetrus</span>}
                 {resultado.convenio.semConvenio > 0 && <span data-tipo="sem">Sem convênio informado</span>}
               </div>
               <ul className="convenio-lista">
@@ -426,6 +457,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                     nome={g.nome}
                     sus={g.itens.reduce((s, i) => s + i.sus, 0)}
                     naoSus={g.itens.reduce((s, i) => s + i.naoSus, 0)}
+                    cetrus={g.itens.reduce((s, i) => s + i.cetrus, 0)}
                     semConvenio={g.itens.reduce((s, i) => s + i.semConvenio, 0)}
                   />
                 ))}

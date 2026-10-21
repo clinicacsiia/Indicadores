@@ -542,10 +542,10 @@ def qualidade(a_completo: pd.DataFrame) -> list[dict]:
     itens = a_completo["Item"].nunique()
     q.append({"nivel": "info", "titulo": "O mesmo exame aparece com nomes diferentes",
               "texto": f"{nomes} nomes de procedimento viram {itens} exames depois de unificar os nomes equivalentes (tabelas de convênios diferentes e nomes cortados). A lista de equivalências fica em equivalencias.py."})
-    sus = a_completo[a_completo["Operadora"].str.upper() == "SUS CURSO"]
-    if len(sus):
-        q.append({"nivel": "info", "titulo": "Convênio SUS CURSO está incluído",
-                  "texto": f"São {br(len(sus))} linhas e {brl(sus['ValorT'].sum())} no total. Na análise anterior (pasta “Relatório Visão atendimento 13280 a 13285”) esse convênio era retirado dos números; aqui ele entra, porque também entra na receita do Faturamento."})
+    cetrus = a_completo[a_completo["Operadora"].str.upper().isin(["CETRUS", "SUS CURSO"])]   # o Klingo trazia o Cetrus como "SUS CURSO"
+    if len(cetrus):
+        q.append({"nivel": "info", "titulo": "Convênio Cetrus (antes “SUS CURSO”) está incluído",
+                  "texto": f"São {br(len(cetrus))} linhas e {brl(cetrus['ValorT'].sum())} no total. Na análise anterior (pasta “Relatório Visão atendimento 13280 a 13285”) esse convênio era retirado dos números; aqui ele entra, porque também entra na receita do Faturamento."})
     return q
 
 

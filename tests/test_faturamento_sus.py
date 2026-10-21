@@ -12,6 +12,7 @@ sys.path.insert(0, str(RAIZ))
 sys.path.insert(0, str(RAIZ / "Faturamento"))
 
 import gerar_faturamento as gf  # noqa: E402
+import klingo_relatorios as k  # noqa: E402
 
 HOJE = date(2026, 10, 14)
 
@@ -71,10 +72,28 @@ class PrazoTipicoTest(unittest.TestCase):
 
     def test_quem_tem_a_analise_mes_a_mes(self):
         self.assertTrue(gf.acompanhado_mes_a_mes("SUS"))
-        self.assertTrue(gf.acompanhado_mes_a_mes("sus curso"))
-        self.assertFalse(gf.acompanhado_mes_a_mes("SUSEP SAUDE"))    # so o nome inteiro ou "SUS ..."
+        self.assertFalse(gf.acompanhado_mes_a_mes("sus curso"))      # "SUS CURSO" e o Cetrus, um curso: nao e SUS
+        self.assertFalse(gf.acompanhado_mes_a_mes("CETRUS"))
+        self.assertFalse(gf.acompanhado_mes_a_mes("SUSEP SAUDE"))    # so o nome inteiro
         self.assertFalse(gf.acompanhado_mes_a_mes("PETROBRAS"))
         self.assertFalse(gf.acompanhado_mes_a_mes(None))
+
+
+class CetrusTest(unittest.TestCase):
+    def test_sus_curso_e_cetrus(self):
+        self.assertEqual(k.nome_operadora("SUS CURSO"), "CETRUS")
+        self.assertEqual(k.nome_operadora("  sus   curso "), "CETRUS")
+        self.assertEqual(k.nome_operadora("CETRUS"), "CETRUS")
+        self.assertEqual(k.nome_operadora("SUS"), "SUS")
+        self.assertEqual(k.nome_operadora("PETROBRAS"), "PETROBRAS")
+        self.assertIsNone(k.nome_operadora(None))
+
+    def test_faturas_do_cetrus_nao_entram_no_sus(self):
+        # com o nome antigo ("SUS CURSO") ou o novo ("CETRUS"), o convenio vira CETRUS e fica fora da analise do SUS
+        for nome in ("SUS CURSO", "CETRUS"):
+            f = gf.preparar_faturas(pd.DataFrame([fatura(1, nome, "Enviada", 10, 1000.0, enviada_ha=5), fatura(2, "AMIL", "A Enviar", 1, 250.0)]))
+            self.assertEqual(set(f["_op"]), {"CETRUS", "AMIL"})
+            self.assertEqual(gf.montar_sus(f, f[f["_st"].isin(gf.ENVIADAS)], pd.Timestamp(HOJE), {}), {"tem": False})
 
 
 class MontarFaturasTest(unittest.TestCase):

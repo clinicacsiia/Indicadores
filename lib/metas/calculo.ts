@@ -14,6 +14,9 @@ export type Regra = {
 export type MetaItem = { id: string; nome: string; meta: number; regra: Regra };
 export type MetaGrupo = { id: string; nome: string; unidade: string; itens: MetaItem[] };
 
+/** Mudança de meta feita em Configurações: vale do mês `mes` (AAAA-MM) em diante, até a próxima mudança do mesmo serviço. */
+export type AlteracaoMeta = { mes: string; meta: number };
+
 export type MetasConfig = {
   primeiro_mes: string;
   dias_semana_atendimento: number[]; // 0 = segunda ... 6 = domingo
@@ -21,6 +24,8 @@ export type MetasConfig = {
   feriados: string[];
   grupos: MetaGrupo[];
   metas_por_mes: Record<string, Record<string, number>>;
+  /** Mudanças feitas em Configurações, por serviço ("grupo/item"). Vencem o metas.json. */
+  alteracoes?: Record<string, AlteracaoMeta[]>;
 };
 
 /** Atendimentos já contados, como a função metas_atendimentos_mes() os devolve. */
@@ -41,10 +46,13 @@ export type ResultadoItem = {
   meta: number;
   realizado: number;
   sus: number;
+  /** "Convênios e particular": convênio informado que não é SUS nem Cetrus (a conta interna se chama pagante). */
   naoSus: number;
+  /** Cetrus (antes "SUS CURSO"): um curso, uma terceira categoria — conta na meta, mas não é SUS nem pagante. */
+  cetrus: number;
   semConvenio: number;
   pct: number;
-  /** Cumprimento da mesma meta contando só o pagante (convênio informado que não é SUS). */
+  /** Cumprimento da mesma meta contando só convênios e particular (convênio informado que não é SUS nem Cetrus). */
   pctPagante: number;
   situacaoPagante: Situacao;
   faltam: number;
@@ -82,7 +90,7 @@ export type ResultadoMes = {
   totalForaDasMetas: number;
   convenioInformado: boolean;
   /** Atendimentos que contam em alguma meta, separados pelo convênio (cada atendimento uma vez só). */
-  convenio: { sus: number; naoSus: number; semConvenio: number };
+  convenio: { sus: number; naoSus: number; cetrus: number; semConvenio: number };
   geral: {
     pct: number;
     situacao: Situacao;
@@ -133,9 +141,13 @@ type Preparada = {
   procedimento: string;
   classes: Set<string>;
   sus: boolean;
+  cetrus: boolean;
   semConvenio: boolean;
   original: LinhaAtendimento;
 };
+
+/** O Cetrus (curso) era trazido pelo Klingo como "SUS CURSO"; o histórico ainda tem esse nome, o novo é "CETRUS". */
+const NOMES_CETRUS = new Set(["CETRUS", "SUS CURSO"]);
 
 function preparar(l: LinhaAtendimento): Preparada {
   const convenio = norm(l.operadora);
@@ -144,7 +156,9 @@ function preparar(l: LinhaAtendimento): Preparada {
     especialidade: norm(l.especialidade),
     procedimento: norm(l.procedimento),
     classes: lerClasses(l.classes),
+    // Só o nome exato "SUS" é SUS. O Cetrus ("SUS CURSO" no histórico) é um curso: terceira categoria, nem SUS nem pagante.
     sus: convenio === "SUS",
+    cetrus: NOMES_CETRUS.has(convenio),
     semConvenio: convenio === "",
     original: l,
   };
@@ -298,11 +312,25 @@ function contextoDoPeriodo(cfg: MetasConfig, de: string, ate: string): ContextoP
   return { uteis, mesesDoPeriodo, fracaoDoMes };
 }
 
+/** Meta de um serviço num mês: a última mudança feita até esse mês (e que segue valendo nos meses seguintes); sem mudança, a do metas.json. */
+export function metaDoMes(cfg: MetasConfig, chave: string, padrao: number, mes: string): number {
+  let ultima: AlteracaoMeta | undefined;
+  for (const a of cfg.alteracoes?.[chave] ?? []) if (a.mes <= mes && (!ultima || a.mes > ultima.mes)) ultima = a;
+  return ultima ? ultima.meta : Number(cfg.metas_por_mes?.[mes]?.[chave] ?? padrao);
+}
+
+/** Linhas da tabela metas_valor ({ servico, a_partir_de }) agrupadas por serviço, no formato de MetasConfig.alteracoes. */
+export function agruparAlteracoes(linhas: { servico: string; a_partir_de: string; meta: number }[]): Record<string, AlteracaoMeta[]> {
+  const porServico: Record<string, AlteracaoMeta[]> = {};
+  for (const l of linhas) (porServico[l.servico] ??= []).push({ mes: String(l.a_partir_de).slice(0, 7), meta: Number(l.meta) });
+  return porServico;
+}
+
 /** Meta de um serviço no período: a de cada mês (metas_por_mes ou a padrão) pela parte do mês que o período cobre. */
 function metaDoPeriodo(cfg: MetasConfig, g: MetaGrupo, it: MetaItem, ctx: ContextoPeriodo): number {
   return Math.round(
     ctx.mesesDoPeriodo.reduce(
-      (soma, m) => soma + Number(cfg.metas_por_mes?.[m]?.[`${g.id}/${it.id}`] ?? it.meta) * (ctx.fracaoDoMes.get(m) ?? 0),
+      (soma, m) => soma + metaDoMes(cfg, `${g.id}/${it.id}`, it.meta, m) * (ctx.fracaoDoMes.get(m) ?? 0),
       0
     )
   );
@@ -352,18 +380,20 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
       const filtro = criarFiltro(g.unidade, it.regra);
       let realizado = 0;
       let sus = 0;
+      let cetrus = 0;
       let semConvenio = 0;
       preparadas.forEach((l, i) => {
         if (!filtro(l)) return;
         contagem[i] += 1;
         realizado += l.original.qtd;
         if (l.sus) sus += l.original.qtd;
+        if (l.cetrus) cetrus += l.original.qtd;
         if (l.semConvenio) semConvenio += l.original.qtd;
       });
       const meta = metaDoPeriodo(cfg, g, it, ctx);
       const pct = meta ? (realizado / meta) * 100 : 0;
       const situacao = situacaoDe(pct, esperado);
-      const pagante = realizado - sus - semConvenio;
+      const pagante = realizado - sus - cetrus - semConvenio;
       const pctPagante = meta ? (pagante / meta) * 100 : 0;
       const situacaoPagante = situacaoDe(pctPagante, esperado);
       const faltam = Math.max(meta - realizado, 0);
@@ -374,6 +404,7 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
         realizado,
         sus,
         naoSus: pagante,
+        cetrus,
         semConvenio,
         pct,
         pctPagante,
@@ -439,10 +470,11 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
   });
   const fora = [...foraMapa.values()].sort((a, b) => b.qtd - a.qtd);
 
-  const convenio = { sus: 0, naoSus: 0, semConvenio: 0 };
+  const convenio = { sus: 0, naoSus: 0, cetrus: 0, semConvenio: 0 };
   preparadas.forEach((l, i) => {
     if (contagem[i] === 0) return;
     if (l.sus) convenio.sus += l.original.qtd;
+    else if (l.cetrus) convenio.cetrus += l.original.qtd;
     else if (l.semConvenio) convenio.semConvenio += l.original.qtd;
     else convenio.naoSus += l.original.qtd;
   });
@@ -478,7 +510,7 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
 }
 
 // ───────── comparação com e sem SUS ─────────
-// "Pagante" = atendimento com convênio informado que não é SUS (outros convênios e particular). A meta é a mesma: a comparação mostra
+// "Pagante" = atendimento com convênio informado que não é SUS nem Cetrus (outros convênios e particular); o Cetrus conta na meta mas fica fora das duas leituras. A meta é a mesma: a comparação mostra
 // quanto dela estaria cumprida se só o pagante contasse. Tudo em quantidade e porcentagem (as Metas não trazem valores em R$).
 
 export type LinhaAtendimentoDia = LinhaAtendimento & { dia: string };
@@ -533,11 +565,11 @@ export function serieDiaria(cfg: MetasConfig, de: string, ate: string, linhas: L
       if (!item.filtro(l)) continue;
       contou = true;
       item.total[i] += linha.qtd;
-      if (!l.sus && !l.semConvenio) item.pagante[i] += linha.qtd;
+      if (!l.sus && !l.cetrus && !l.semConvenio) item.pagante[i] += linha.qtd;
     }
     if (contou) {
       if (l.sus) susDia[i] += linha.qtd;
-      else if (!l.semConvenio) paganteDia[i] += linha.qtd;
+      else if (!l.cetrus && !l.semConvenio) paganteDia[i] += linha.qtd;
     }
   }
 
@@ -612,20 +644,21 @@ const lista = (nomes: string[]) => (nomes.length <= 1 ? nomes.join("") : `${nome
 export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): Achado[] {
   const achados: Achado[] = [];
   const itens = res.grupos.flatMap((g) => g.itens);
-  const contados = res.convenio.sus + res.convenio.naoSus + res.convenio.semConvenio;
+  const contados = res.convenio.sus + res.convenio.naoSus + res.convenio.cetrus + res.convenio.semConvenio;
   if (!itens.length || contados === 0) return achados;
   const nomePeriodo = res.fechado ? "O período fechou" : "Até agora";
 
   // 1. O quadro geral.
   const dif = res.geral.pct - res.geral.pctPagante;
+  const naoPagante = ["SUS", ...(res.convenio.cetrus > 0 ? ["Cetrus"] : [])].join(" e ");
   const piorou = ordem[res.geral.situacaoPagante] < ordem[res.geral.situacao];
   achados.push({
     tom: piorou ? "atencao" : "info",
     texto:
-      `${nomePeriodo} com ${pctT(res.geral.pct)} das metas cumpridas. Contando só o pagante, são ${pctT(res.geral.pctPagante)}: ` +
-      `o SUS responde por ${ppT(dif)} do cumprimento` +
+      `${nomePeriodo} com ${pctT(res.geral.pct)} das metas cumpridas. Contando só convênios e particular, são ${pctT(res.geral.pctPagante)}: ` +
+      `${naoPagante === "SUS" ? "o SUS responde" : `${naoPagante} respondem`} por ${ppT(dif)} do cumprimento` +
       (piorou
-        ? `, e sem ele o geral passaria de "${ROTULO[res.geral.situacao]}" para "${ROTULO[res.geral.situacaoPagante]}".`
+        ? `, e sem ${naoPagante === "SUS" ? "ele" : "eles"} o geral passaria de "${ROTULO[res.geral.situacao]}" para "${ROTULO[res.geral.situacaoPagante]}".`
         : "."),
   });
 
@@ -636,8 +669,8 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       tom: d >= 0 ? "ok" : "atencao",
       texto:
         d >= 0
-          ? `O pagante está ${ppT(d)} acima do esperado até hoje (${pctT(res.esperadoPct)}): sozinho ele já acompanha o ritmo das metas.`
-          : `O pagante está ${ppT(d)} abaixo do esperado até hoje (${pctT(res.esperadoPct)}); com o SUS a diferença é de ${ppT(res.geral.pct - res.esperadoPct)}${res.geral.pct >= res.esperadoPct ? " a favor" : " abaixo"}.`,
+          ? `Convênios e particular estão ${ppT(d)} acima do esperado até hoje (${pctT(res.esperadoPct)}): sozinhos já acompanham o ritmo das metas.`
+          : `Convênios e particular estão ${ppT(d)} abaixo do esperado até hoje (${pctT(res.esperadoPct)}); contando todos os atendimentos a diferença é de ${ppT(res.geral.pct - res.esperadoPct)}${res.geral.pct >= res.esperadoPct ? " a favor" : " abaixo"}.`,
     });
   }
 
@@ -651,7 +684,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       const pPagante = proj("projecaoPagante");
       achados.push({
         tom: pPagante >= 100 ? "ok" : "info",
-        texto: `No ritmo médio atual, o pagante deve chegar a cerca de ${pctT(pPagante)} das metas no fim do período (com o SUS: ${pctT(pTotal)}).`,
+        texto: `No ritmo médio atual, convênios e particular devem chegar a cerca de ${pctT(pPagante)} das metas no fim do período (com todos os atendimentos: ${pctT(pTotal)}).`,
       });
     }
   }
@@ -667,7 +700,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
   if (soPagante.length)
     achados.push({
       tom: "ok",
-      texto: `${soPagante.length === 1 ? "Meta batida" : "Metas batidas"} só com pagante: ${lista(soPagante.map((i) => i.nome))}.`,
+      texto: `${soPagante.length === 1 ? "Meta batida" : "Metas batidas"} só com convênios e particular: ${lista(soPagante.map((i) => i.nome))}.`,
     });
 
   // 5. Quem mais depende do SUS.
@@ -681,7 +714,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       tom: ordem[d.i.situacaoPagante] < ordem[d.i.situacao] ? "atencao" : "info",
       texto:
         `${d.i.nome} depende do SUS: ${pctT(d.partSus * 100)} do que foi feito. ` +
-        `Só pagante, o cumprimento cai de ${pctT(d.i.pct)} para ${pctT(d.i.pctPagante)}.`,
+        `Só com convênios e particular, o cumprimento cai de ${pctT(d.i.pct)} para ${pctT(d.i.pctPagante)}.`,
     });
 
   // 6. Como as linhas estão se comportando.
@@ -697,8 +730,8 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
         achados.push({
           tom: ganhando ? "ok" : "atencao",
           texto:
-            `Nos últimos ${JANELA_PARTICIPACAO} dias a linha do pagante avançou ${ppT(ganhoPagante)} e a do esperado ${ppT(ganhoEsperado)}: ` +
-            (ganhando ? "o pagante está recuperando terreno." : "o pagante está perdendo terreno para o ritmo esperado."),
+            `Nos últimos ${JANELA_PARTICIPACAO} dias a linha de convênios e particular avançou ${ppT(ganhoPagante)} e a do esperado ${ppT(ganhoEsperado)}: ` +
+            (ganhando ? "convênios e particular estão recuperando terreno." : "convênios e particular estão perdendo terreno para o ritmo esperado."),
         });
       }
       // participação: últimos 7 dias contra os 7 anteriores
@@ -721,11 +754,18 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
         const forma = Math.abs(d) < 2 ? "estável" : d > 0 ? "subindo" : "caindo";
         achados.push({
           tom: forma === "caindo" ? "atencao" : forma === "subindo" ? "ok" : "info",
-          texto: `A participação do pagante está ${forma}: ${pctT(a)} nos últimos ${JANELA_PARTICIPACAO} dias contra ${pctT(b)} nos ${JANELA_PARTICIPACAO} anteriores.`,
+          texto: `A participação de convênios e particular está ${forma}: ${pctT(a)} nos últimos ${JANELA_PARTICIPACAO} dias contra ${pctT(b)} nos ${JANELA_PARTICIPACAO} anteriores.`,
         });
       }
     }
   }
+
+  // 6b. O Cetrus é uma terceira categoria: conta na meta, mas não é SUS nem pagante.
+  if (res.convenio.cetrus > 0)
+    achados.push({
+      tom: "info",
+      texto: `${fmt0.format(res.convenio.cetrus)} atendimentos (${pctT((res.convenio.cetrus / contados) * 100)}) são do Cetrus, um curso: contam nas metas, mas não entram como SUS nem como convênios e particular.`,
+    });
 
   // 7. Atendimentos sem convênio informado ficam de fora das duas leituras.
   if (res.convenio.semConvenio > 0 && res.convenio.semConvenio / contados >= 0.01) {
@@ -735,8 +775,8 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
     achados.push({
       tom: "info",
       texto:
-        `${fmt0.format(res.convenio.semConvenio)} atendimentos (${pctT((res.convenio.semConvenio / contados) * 100)}) estão sem convênio informado e não entram como pagante nem como SUS` +
-        (teto >= 0.1 ? `; se todos fossem pagantes, o pagante subiria até ${ppT(teto)}.` : "."),
+        `${fmt0.format(res.convenio.semConvenio)} atendimentos (${pctT((res.convenio.semConvenio / contados) * 100)}) estão sem convênio informado e não entram como convênios e particular nem como SUS` +
+        (teto >= 0.1 ? `; se todos fossem de convênios ou particular, essa leitura subiria até ${ppT(teto)}.` : "."),
     });
   }
 

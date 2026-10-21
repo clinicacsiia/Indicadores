@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { PAINEIS, PERMISSAO_FINANCEIRA } from "@/lib/paineis";
 import { BLOQUEIO_PENDENTE, DOMINIO_INTERNO } from "@/lib/acesso";
+import { metasConfig, mesesParaMudarMeta, SERVICOS_METAS } from "@/lib/metas/config";
+import { agoraSaoPaulo, agruparAlteracoes, metaDoMes } from "@/lib/metas/calculo";
 
 // RLS (policy "profiles_update_admin") é quem realmente garante que só admin
 // grava aqui, mesmo que estas actions sejam chamadas diretamente.
@@ -255,4 +257,83 @@ export async function aprovarSolicitacao(
 
   revalidatePath("/configuracoes");
   return { ok: true, mensagem: "Acesso aprovado." };
+}
+
+// ───────── Metas ─────────
+// A mudança vale do mês escolhido em diante, até a próxima mudança do mesmo serviço. Quem realmente garante que só admin grava é a RLS
+// (policies metas_valor_*); a conferência aqui é só para dar a mensagem certa.
+
+async function lerMudancasMetas() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("metas_valor").select("servico, a_partir_de, meta");
+  if (error) console.error("Falha ao ler as mudanças de meta:", error.message);
+  return { supabase, error, linhas: data ?? [] };
+}
+
+export async function salvarMetas(_prev: UsuarioAdminState, formData: FormData): Promise<UsuarioAdminState> {
+  const perfil = await getCurrentProfile();
+  if (perfil?.role !== "admin") return { error: "Apenas administradores podem fazer isso." };
+
+  const mes = String(formData.get("mes") ?? "");
+  if (!mesesParaMudarMeta(agoraSaoPaulo().hoje.slice(0, 7)).includes(mes)) return { error: "Escolha um mês da lista." };
+
+  const novos = new Map<string, number>();
+  for (const s of SERVICOS_METAS) {
+    const texto = String(formData.get(`meta_${s.chave}`) ?? "").trim();
+    if (!/^\d{1,6}$/.test(texto)) return { error: `A meta de ${s.nome} (${s.grupo}) precisa ser um número inteiro, de 0 a 999999.` };
+    novos.set(s.chave, Number(texto));
+  }
+
+  const { supabase, error, linhas } = await lerMudancasMetas();
+  if (error) return { error: "Não foi possível ler as metas agora. Tente novamente em instantes." };
+
+  const dia = `${mes}-01`;
+  const atual = { ...metasConfig, alteracoes: agruparAlteracoes(linhas) };
+  // Sem a linha deste mês, o serviço valeria o que vinha dos meses anteriores (ou do metas.json): voltar a esse valor apaga a linha.
+  const semEsteMes = { ...metasConfig, alteracoes: agruparAlteracoes(linhas.filter((l) => String(l.a_partir_de).slice(0, 7) !== mes)) };
+
+  const gravar: { servico: string; a_partir_de: string; meta: number }[] = [];
+  const apagar: string[] = [];
+  for (const s of SERVICOS_METAS) {
+    const novo = novos.get(s.chave) as number;
+    if (novo === metaDoMes(atual, s.chave, s.padrao, mes)) continue; // não mudou
+    if (novo === metaDoMes(semEsteMes, s.chave, s.padrao, mes)) apagar.push(s.chave);
+    else gravar.push({ servico: s.chave, a_partir_de: dia, meta: novo });
+  }
+  if (gravar.length + apagar.length === 0) return { mensagem: "Nenhuma meta foi alterada." };
+
+  if (gravar.length) {
+    const { error: e } = await supabase.from("metas_valor").upsert(gravar, { onConflict: "servico,a_partir_de" });
+    if (e) {
+      console.error("Falha ao gravar metas:", e.message);
+      return { error: "Não foi possível salvar as metas." };
+    }
+  }
+  if (apagar.length) {
+    const { error: e } = await supabase.from("metas_valor").delete().eq("a_partir_de", dia).in("servico", apagar);
+    if (e) {
+      console.error("Falha ao apagar metas:", e.message);
+      return { error: "Não foi possível salvar as metas." };
+    }
+  }
+
+  revalidatePath("/metas");
+  revalidatePath("/configuracoes");
+  const n = gravar.length + apagar.length;
+  return { ok: true, mensagem: `${n} ${n === 1 ? "meta alterada" : "metas alteradas"}. Valem a partir do mês escolhido e seguem nos meses seguintes.` };
+}
+
+/** Desfaz uma mudança de meta: o serviço volta a valer o que vinha antes dela. */
+export async function removerMudancaMeta(formData: FormData): Promise<void> {
+  const perfil = await getCurrentProfile();
+  if (perfil?.role !== "admin") return;
+  const servico = String(formData.get("servico") ?? "");
+  const mes = String(formData.get("mes") ?? "");
+  if (!SERVICOS_METAS.some((s) => s.chave === servico) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("metas_valor").delete().eq("servico", servico).eq("a_partir_de", `${mes}-01`);
+  if (error) console.error("Falha ao desfazer a mudança de meta:", error.message);
+  revalidatePath("/metas");
+  revalidatePath("/configuracoes");
 }

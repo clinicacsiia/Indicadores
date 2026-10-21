@@ -1280,6 +1280,40 @@ select {
   }
 }
 
+/* Configurações > Metas */
+.metas-config {
+  display: grid;
+  gap: 16px;
+  padding: 4px 20px 20px;
+  max-width: 560px;
+}
+.metas-config-grupo {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.metas-config-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 12px;
+}
+.metas-config-historico {
+  display: grid;
+  gap: 8px;
+  padding: 0 20px 20px;
+}
+.metas-config-mudanca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 0;
+}
+
 /* ───────── Carregando ───────── */
 
 .skeleton {
@@ -1610,6 +1644,10 @@ select {
 .convenio-legenda [data-tipo="nao-sus"],
 .convenio-seg[data-tipo="nao-sus"] {
   --tipo-cor: var(--s-agendados);
+}
+.convenio-legenda [data-tipo="cetrus"],
+.convenio-seg[data-tipo="cetrus"] {
+  --tipo-cor: var(--s-cetrus, #8a6bbf);
 }
 .convenio-legenda [data-tipo="sem"],
 .convenio-seg[data-tipo="sem"] {

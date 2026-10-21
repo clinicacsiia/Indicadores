@@ -35,6 +35,7 @@ def norm(texto) -> str:
     return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().upper().strip()
 
 
+NOMES_CETRUS = {"CETRUS", "SUS CURSO"}   # o Klingo trazia o Cetrus como "SUS CURSO"; o nome novo e "CETRUS"
 COLUNAS_DADOS = ["Exames Realizados", "Unidade", "Procedimento - Classes", "Especialidade", "Data do Atendimento", "Procedimento", "Mês"]   # mais "Convênio", opcional (SUS x não-SUS)
 
 
@@ -51,11 +52,38 @@ def carregar_dados() -> pd.DataFrame:
     df["_uni"] = df["Unidade"].map(norm)
     df["_esp"] = df["Especialidade"].map(norm)
     df["_proc"] = df["Procedimento"].map(norm)
+    # So o nome exato "SUS" e SUS. O Cetrus (no historico "SUS CURSO") e um curso: terceira categoria, nem SUS nem pagante.
     df["_sus"] = df["Convênio"].map(norm) == "SUS" if "Convênio" in df.columns else False
+    df["_cetrus"] = df["Convênio"].map(norm).isin(NOMES_CETRUS) if "Convênio" in df.columns else False
     df["_conv"] = df["Convênio"].map(norm) != "" if "Convênio" in df.columns else False   # False = linha sem convênio informado
     df["_classes"] = df["Procedimento - Classes"].map(
         lambda c: {t.strip().upper() for t in str(c).split(",") if t.strip()} if isinstance(c, str) else set())
     return df
+
+
+def carregar_config() -> dict:
+    """O metas.json e, na nuvem, as mudancas de meta feitas em Configuracoes (tabela metas_valor): valem do mes escolhido em diante."""
+    cfg = json.loads(METAS.read_text(encoding="utf-8-sig"))   # -sig: Bloco de Notas/PowerShell gravam UTF-8 com BOM
+    if arm.ativo():
+        try:
+            linhas = arm.ler_tabela("metas_valor", "servico.asc,a_partir_de.asc")
+        except arm.ErroArmazenamento as e:
+            print(f">>> AVISO: não consegui ler as mudanças de meta ({e}); usei só o metas.json", flush=True)
+            return cfg
+        cfg["alteracoes"] = {}
+        for l in linhas:
+            cfg["alteracoes"].setdefault(l["servico"], []).append({"mes": str(l["a_partir_de"])[:7], "meta": int(l["meta"])})
+    return cfg
+
+
+def meta_do_mes(cfg: dict, chave: str, padrao, ym: str) -> int:
+    """Meta de um servico ("grupo/item") num mes: a ultima mudanca feita ate esse mes (e que segue nos meses seguintes); sem mudanca, a do metas.json.
+    Mesma regra do site (metaDoMes em lib/metas/calculo.ts)."""
+    ultima = None
+    for a in cfg.get("alteracoes", {}).get(chave, []):
+        if a["mes"] <= ym and (ultima is None or a["mes"] > ultima["mes"]):
+            ultima = a
+    return int(ultima["meta"]) if ultima else int(cfg.get("metas_por_mes", {}).get(ym, {}).get(chave, padrao))
 
 
 def mascara(df: pd.DataFrame, unidade: str, regra: dict) -> pd.Series:
@@ -143,7 +171,6 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
             decorridos += fracao_do_dia(agora, cfg)
     restantes = total_uteis - decorridos
     esperado = decorridos / total_uteis * 100 if total_uteis else 0.0
-    ajustes_mes = cfg.get("metas_por_mes", {})
 
     contagem = pd.Series(0, index=df_mes.index)
     grupos, soma_meta, soma_cap, itens_total, itens_ok = [], 0, 0, 0, 0
@@ -157,14 +184,15 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
             realizado = int(m.sum())
             sus = int((m & df_mes["_sus"]).sum())
             sem_conv = int((m & ~df_mes["_conv"]).sum())
-            meta = round(sum(int(ajustes_mes.get(y, {}).get(f"{g['id']}/{it['id']}", it["meta"])) * fracao_mes[y] for y in yms))
+            cetrus = int((m & df_mes["_cetrus"]).sum())
+            meta = round(sum(meta_do_mes(cfg, f"{g['id']}/{it['id']}", it["meta"], y) * fracao_mes[y] for y in yms))
             if not per:
                 por_item_dia.append((meta, m.groupby(dia_do_mes[m]).size().reindex(range(1, monthrange(ano, mes)[1] + 1), fill_value=0).cumsum()))
             pct = realizado / meta * 100 if meta else 0.0
             st = status_de(pct, esperado)
             faltam = max(meta - realizado, 0)
             itens.append({
-                "id": it["id"], "nome": it["nome"], "meta": meta, "realizado": realizado, "sus": sus, "nao_sus": realizado - sus - sem_conv, "sem_conv": sem_conv,
+                "id": it["id"], "nome": it["nome"], "meta": meta, "realizado": realizado, "sus": sus, "cetrus": cetrus, "nao_sus": realizado - sus - cetrus - sem_conv, "sem_conv": sem_conv,
                 "pct": pct, "faltam": faltam, "status": st,
                 "por_dia": math.ceil(faltam / restantes) if faltam and restantes >= 0.5 else None,
                 "projecao": round(realizado / decorridos * total_uteis) if decorridos >= 0.5 and not fechado else None,
@@ -228,7 +256,7 @@ def montar_periodo(per: pc.Periodo, df: pd.DataFrame, ym_de_cada: pd.Series, cfg
 
 def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = False):
     """Escreve o painel. `de`/`ate` ("AAAA-MM") = periodo pedido no filtro; com `devolver_html` devolve a pagina (texto) em vez de gravar."""
-    cfg = json.loads(METAS.read_text(encoding="utf-8-sig"))   # -sig: Bloco de Notas/PowerShell gravam UTF-8 com BOM
+    cfg = carregar_config()
     df = carregar_dados()
     agora = datetime.now()
     avisos: list[str] = []
