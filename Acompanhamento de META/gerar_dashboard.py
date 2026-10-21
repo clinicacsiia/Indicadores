@@ -51,6 +51,7 @@ def carregar_dados() -> pd.DataFrame:
     df["_uni"] = df["Unidade"].map(norm)
     df["_esp"] = df["Especialidade"].map(norm)
     df["_proc"] = df["Procedimento"].map(norm)
+    # So o nome exato "SUS" e SUS: "SUS CURSO" (hoje "CETRUS") e um curso, conta como nao SUS.
     df["_sus"] = df["Convênio"].map(norm) == "SUS" if "Convênio" in df.columns else False
     df["_conv"] = df["Convênio"].map(norm) != "" if "Convênio" in df.columns else False   # False = linha sem convênio informado
     df["_classes"] = df["Procedimento - Classes"].map(

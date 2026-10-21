@@ -144,6 +144,7 @@ function preparar(l: LinhaAtendimento): Preparada {
     especialidade: norm(l.especialidade),
     procedimento: norm(l.procedimento),
     classes: lerClasses(l.classes),
+    // Só o nome exato "SUS" é SUS. "SUS CURSO" (hoje "CETRUS") é um curso, não SUS: conta como não SUS (pagante).
     sus: convenio === "SUS",
     semConvenio: convenio === "",
     original: l,

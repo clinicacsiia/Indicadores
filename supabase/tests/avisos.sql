@@ -321,7 +321,7 @@ declare a public.aviso;
 begin
   perform pg_temp.como('00000000-0000-0000-0000-00000000000a');
   perform pg_temp.sync('faturamento', 800, jsonb_build_array(pg_temp.alerta('fat_espera_envio', '', 'atencao', 25)));
-  perform public.fechar_aviso((pg_temp.aviso('faturamento', '|fat_espera_envio')).id, 'Todas as faturas evidenciadas são do SUS CURSO exceto Petrobras que o envio é dia 20/10/2026');
+  perform public.fechar_aviso((pg_temp.aviso('faturamento', '|fat_espera_envio')).id, 'Todas as faturas evidenciadas são do Cetrus exceto Petrobras que o envio é dia 20/10/2026');
   reset role;
 end $$;
 \i supabase/migrations/20261017110000_aviso_informacao_e_previsao.sql

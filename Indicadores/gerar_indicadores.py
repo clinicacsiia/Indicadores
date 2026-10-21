@@ -121,7 +121,7 @@ def preparar_faturas(fat: pd.DataFrame) -> pd.DataFrame:
     if not tem_colunas(fat, "Fatura - Status", "Fatura - Valor", "Fatura - Data Inicial"):
         return fat.iloc[0:0]
     f = fat.copy()
-    f["_op"] = f["Operadora - Nome"].fillna("(sem operadora)").astype(str)
+    f["_op"] = f["Operadora - Nome"].fillna("(sem operadora)").astype(str).map(k.nome_operadora)   # "SUS CURSO" = Cetrus
     f["_st"] = f["Fatura - Status"]
     f["_valor"] = f["Fatura - Valor"]
     f["_comp"] = ym_de(f["Fatura - Data Inicial"])

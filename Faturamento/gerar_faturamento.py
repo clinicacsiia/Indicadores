@@ -41,7 +41,7 @@ ESPERA_CRITICA = 30
 MIN_AMOSTRAS = 3               # a partir de quantas faturas enviadas o tipico e a media sem os casos isolados (com menos, vale o que ja aconteceu)
 RECORRENCIA = 2                # quantos casos muito acima do tipico viram rotina (e entram na media); um so e caso isolado e fica de fora
 MARGEM_PRAZO = (0.30, 7)       # prazo de aviso = tipico * 1,30 + 7 dias
-ACOMPANHAR_MES_A_MES = ("SUS",)  # convenios com a analise mes a mes no painel (nome exato ou "SUS ..."); o prazo deles tambem e o aprendido
+ACOMPANHAR_MES_A_MES = ("SUS",)  # convenios com a analise mes a mes no painel (so o nome exato: "SUS CURSO" e o Cetrus, que nao e SUS); o prazo deles tambem e o aprendido
 LIMITE_FALTA_FATURAR = 0.10    # produzido ainda sem fatura acima de 10% num mes fechado
 LIMITE_CANCELAMENTO = 0.20     # mais de 20% das faturas emitidas canceladas
 MIN_FATURAS_CANCEL = 5         # so compara a taxa de cancelamento de convenios com ao menos 5 faturas
@@ -132,7 +132,7 @@ def preparar_faturas(fat: pd.DataFrame) -> pd.DataFrame:
     if not len(fat):
         return fat
     f = fat.copy()
-    f["_op"] = f["Operadora - Nome"].fillna("(sem operadora)").astype(str)
+    f["_op"] = f["Operadora - Nome"].fillna("(sem operadora)").astype(str).map(k.nome_operadora)   # "SUS CURSO" = Cetrus
     f["_st"] = f["Fatura - Status"]
     f["_valor"] = f["Fatura - Valor"]
     f["_comp"] = f["Fatura - Data Inicial"].dt.strftime("%Y-%m")  # competencia = mes em que comeca o periodo faturado
@@ -147,9 +147,8 @@ def faturas_do_klingo(f: pd.DataFrame) -> pd.DataFrame:
 
 
 def acompanhado_mes_a_mes(op) -> bool:
-    """O convenio tem a analise mes a mes (SUS)? Casa com o nome exato ou que comece com ele ("SUS CURSO")."""
-    nome = norm(op)
-    return any(nome == c or nome.startswith(c + " ") for c in ACOMPANHAR_MES_A_MES)
+    """O convenio tem a analise mes a mes (SUS)? So o nome exato: "SUS CURSO" e o Cetrus (um curso), nao e SUS."""
+    return norm(k.nome_operadora(op)) in ACOMPANHAR_MES_A_MES
 
 
 def prazo_tipico(dias) -> tuple[float | None, int]:

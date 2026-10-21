@@ -327,6 +327,11 @@ habitual × 1,3 + 7 dias** (nunca menos de 7; crítico 23 dias depois). Para nã
 A tabela "Prazo de envio de cada convênio" (Detalhes) mostra o prazo habitual, quantas faturas entraram e quando o painel avisa. O aviso não conta a
 fatura que está dentro do prazo habitual do convênio e diz isso no texto. O SUS ganhou também a seção **"SUS: mês a mês"** (Análise): os meses em que
 ele aparece, com faturas enviadas, a enviar e canceladas e os dias da emissão ao envio contra os demais convênios (`ACOMPANHAR_MES_A_MES`).
+**Cetrus (antigo "SUS CURSO") não é SUS.** "SUS CURSO" era o nome com que o Klingo trazia o Cetrus, um curso; o Klingo passa a trazer `CETRUS`. A leitura
+das planilhas (`klingo_relatorios.carregar`, via `nome_operadora`) junta os dois sob **CETRUS** em todos os painéis, sem mexer no que está gravado. Só o
+nome exato `SUS` é SUS: a análise "SUS: mês a mês" (`acompanhado_mes_a_mes`) não aceita mais "SUS ..." e o Cetrus é um convênio comum, com prazo próprio
+aprendido. Nas **Metas** (`lib/metas/calculo.ts` e `Acompanhamento de META/gerar_dashboard.py`) ele sempre foi contado como não SUS (pagante), e continua.
+Para renomear outro apelido, edite `OPERADORAS_RENOMEADAS` em `klingo_relatorios.py`.
 Teste: `tests/test_faturamento_sus.py`.
 
 **Avisos que podem ser aceitos** (`guia_pendencias.PERSISTENTES`: cortesia com valor zero, glosa conhecida, queda sazonal, meta
