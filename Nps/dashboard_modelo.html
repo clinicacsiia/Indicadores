@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPS × Google</title>
+<style>
+__CSS__
+  .mes-pick select { max-width: 280px; }
+  .mes-pick[hidden] { display: none; }
+  .sub-aviso { font-size: 13px; color: var(--ink2); margin: 10px 0 0; border-left: 2px solid var(--neutro-2); padding-left: 10px; }
+  .leituras { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+  .leituras li { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: baseline; font-size: 15px; }
+  .leituras .chip { min-width: 0; }
+  .cmp { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .cmp th:first-child { width: 44%; }
+  .cmp td, .cmp th { overflow-wrap: anywhere; }
+  .cmp th, .cmp td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--grid); font-size: 14px; vertical-align: top; }
+  .cmp th { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .cmp td.n, .cmp th.n { text-align: right; }
+  .cmp td small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .cmp tr.sub td { color: var(--ink2); }
+  .passos { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
+  .estrelas { color: var(--s2); letter-spacing: 1px; white-space: nowrap; }
+  .voz { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
+  .voz li { border-left: 3px solid var(--neutro-3); padding: 2px 0 2px 12px; }
+  .voz li[data-classe="det"] { border-left-color: var(--serious); }
+  .voz li[data-classe="neut"] { border-left-color: var(--neutro-2); }
+  .voz .cab { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; color: var(--muted); align-items: baseline; }
+  .voz .cab b { color: var(--ink); font-size: 13px; }
+  .voz .txt { margin: 3px 0 0; font-size: 14.5px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+  .voz .sem-texto { color: var(--muted); font-style: italic; }
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+  .tag { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink2); }
+  details.mais { margin-top: 12px; }
+  details.mais > summary { cursor: pointer; font-size: 13.5px; color: var(--accent); }
+  .filtro-tema { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 0; font-size: 13.5px; }
+  .filtro-tema select { max-width: 260px; }
+  .meta-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 24px; margin-top: 8px; }
+  .meta-card > div { background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .meta-card b { display: block; font-size: 22px; font-family: var(--font-display); }
+  .meta-card span { font-size: 13px; color: var(--ink2); }
+  @media (max-width: 640px) { .leituras li { grid-template-columns: 1fr; gap: 2px; } .cmp th, .cmp td { padding: 8px 6px; font-size: 13px; } }
+  @media print {
+    header .acoes, .aviso, details.ajuda, .btn, #tip, .filtro-tema { display: none !important; }
+    .kpi, .barra, tr, .voz li { break-inside: avoid; }
+    thead { display: table-header-group; }
+    h1, h2, h3 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head top">
+    <div class="page-head-text">
+      <span class="eyebrow">Clínica CSI</span>
+      <h1 class="page-title">NPS × Google</h1>
+      <div class="sub page-lede" id="sub"></div>
+    </div>
+    <div class="acoes">
+      <button class="btn" id="btn-imprimir" type="button" title="Imprime (ou salva em PDF) o que está na tela">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg>
+        <span>Imprimir</span>
+      </button>
+      <button class="btn" id="btn-atualizar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span id="btn-texto">Atualizar agora</span>
+      </button>
+    </div>
+  </header>
+  <section class="toolbar" id="toolbar" aria-label="Filtros">
+      <label class="mes-pick">Mês <select id="mes"></select></label>
+  </section>
+  <div class="aviso" id="aviso" hidden></div>
+  <main id="conteudo"></main>
+
+  <details class="ajuda">
+    <summary>Como ler este painel</summary>
+    <div class="corpo">
+      <ul>
+        <li><b>Fonte do NPS:</b> o relatório <b>NPS - Notas por Marcação (#13697)</b> do Klingo: uma linha por marcação que respondeu, com nota de 0 a 10, comentário, profissional, procedimento e unidade (sem o nome do paciente). O mês é o da <b>resposta</b> (é assim que o Klingo filtra o relatório); a hora e o dia da semana analisados são os do <b>agendamento</b>. O Klingo só começou em setembro/2026 e o que vem de antes não entra.</li>
+        <li><b>Como se calcula o NPS:</b> % de <b>promotores</b> (notas 9 e 10) menos % de <b>detratores</b> (0 a 6). Os <b>neutros</b> (7 e 8) não entram na conta, mas contam no total. Vai de −100 a +100. Acima de 50 é considerado muito bom e acima de 75, excelente; a meta desta clínica é <span data-par="meta_nps"></span> (ajustável em <b>Nps\parametros.json</b>).</li>
+        <li><b>Margem de erro (±):</b> o NPS é calculado sobre quem respondeu, não sobre todos os pacientes. Com poucas respostas ele balança por acaso: 30 respostas podem dar um NPS de 60 que, na verdade, é 40 ou 80. O painel diz “dentro da margem de erro” quando uma diferença pode ser só acaso (confiança de 95%). Grupos com menos de <span data-par="minimo_grupo"></span> respostas aparecem em cinza e ficam fora dos rankings.</li>
+        <li><b>Contribuição ao NPS:</b> (promotores − detratores) do grupo ÷ todas as respostas × 100. A soma de todos os grupos é exatamente o NPS geral, então mostra quem sustenta e quem puxa o NPS para baixo.</li>
+        <li><b>Temas dos comentários:</b> o painel procura palavras (lista em <b>Nps\parametros.json</b>) nos comentários e conta em quantos aparece cada assunto. “Pontos de NPS” = quanto o NPS subiria se os detratores que falam do assunto tivessem dado 9 ou 10. É uma leitura de palavras, não de sentido: confira a lista de comentários. Só entram respostas com comentário.</li>
+        <li><b>Google Maps:</b> a nota e as avaliações vêm da API oficial do Google (Places). Ela entrega a nota média, o total de avaliações e até <b>5 avaliações</b> por consulta (as que o Google julga mais relevantes). O painel guarda o resumo de cada dia e as avaliações que viu, então o <b>histórico só existe a partir do dia em que a coleta foi ligada</b>, e a lista de avaliações é uma amostra, não todas. Para ligar: variável <b>GOOGLE_PLACES_API_KEY</b> na Vercel.</li>
+        <li><b>Comparar NPS e Google:</b> são perguntas diferentes (“você nos recomendaria?” de 0 a 10, contra estrelas de 1 a 5) feitas a públicos diferentes (quem foi atendido, contra quem decide avaliar). Por isso a comparação é por tendência: nota média do NPS ÷ 2 contra as estrelas; e, como aproximação, o “NPS equivalente” do Google (5 estrelas = promotor, 4 = neutro, 1 a 3 = detrator). Se os dois se afastam, vale olhar quem está avaliando em cada lugar.</li>
+        <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e leitura automática), <b>NPS × Google</b> (a comparação), <b>Análise</b> (onde o NPS é bom e onde cai), <b>Voz do cliente</b> (os comentários) e <b>Detalhes</b> (tabelas completas, recolhidas).</li>
+      </ul>
+    </div>
+  </details>
+</div>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+__JS_BASE__
+</script>
+<script>
+const D = JSON.parse($('dados').textContent);
+const P = D.params, GG = D.google, DIAS_SEMANA = D.dias_semana;
+const CHAVES = chavesMeses(D);
+const VAZIO = '<span style="color:var(--muted)">—</span>';
+const COR = { prom: 'var(--s1)', neut: 'var(--neutro-2)', det: 'var(--serious)' };   // o laranja do detrator e semantico: o s2 seria apagado pelo barras() como cor decorativa
+const ORDEM_NIVEL = { critico: 0, atencao: 1, info: 2, ok: 3 };
+const nps0 = v => v == null ? '—' : num(v, 0);
+const mg = v => v == null ? '' : `±${num(v, 0)}`;
+const classeNps = v => v == null ? '' : v < 0 ? 'ruim' : '';
+const estrelas = n => '<span class="estrelas" aria-label="' + n + ' estrelas">' + '★'.repeat(n) + '☆'.repeat(5 - n) + '</span>';
+const rotTema = id => (P.temas && P.temas[id]) || id;
+const curto = (t, n = 60) => t.length > n ? t.slice(0, n - 1) + '…' : t;
+let TEMA_SEL = '';
+
+document.querySelectorAll('[data-par]').forEach(el => { el.textContent = P[el.dataset.par]; });
+$('sub').textContent = `O que os pacientes dizem à clínica (NPS do Klingo) e o que dizem ao mundo (nota do Google Maps) · dados de ${D.dados_em}`;
+
+// a diferenca entre dois NPS e maior que o acaso? (margens ja sao de 95%: o erro da diferenca e a raiz da soma dos quadrados)
+const confiavel = (a, b) => a && b && a.nps != null && b.nps != null && a.margem != null && b.margem != null ? Math.abs(a.nps - b.nps) > Math.sqrt(a.margem ** 2 + b.margem ** 2) : null;
+const faixa = v => v == null ? '' : v >= P.meta_nps ? 'dentro da meta' : v >= 50 ? 'zona de qualidade' : v >= 0 ? 'zona de aperfeiçoamento' : 'zona crítica';
+
+// ====================== RESUMO ======================
+function kpisHtml(m, prev) {
+  const k = m.kpis, pk = prev && prev.kpis ? prev.kpis : null, antes = m.periodo ? 'o período anterior' : 'o mês anterior', g = m.google || {};
+  const dif = pk && k.nps != null && pk.nps != null ? k.nps - pk.nps : null, real = confiavel(k, pk);
+  const cmpNps = dif == null ? (m.fechado ? (m.periodo ? 'Período fechado' : 'Mês fechado') : 'Mês em andamento')
+    : comp(dif, `pontos contra ${antes}` + (real === false ? ' · <i>dentro da margem de erro</i>' : ''), { d: 0, fmt: v => num(v, 0) });
+  const cam = m.meta;
+  const googleKpi = g.nota != null
+    ? kpi('Nota no Google Maps', `${num(g.nota, 1)} <small>★</small>`, { sub: `<b>${num(g.total)}</b> avaliações${g.novas != null ? ` · <b>${g.novas >= 0 ? '+' : ''}${num(g.novas)}</b> no período` : ''}<br>em ${dataBR(g.dia)}` })
+    : kpi('Nota no Google Maps', '—', { sub: !GG.disponivel ? 'Disponível só no site' : !GG.configurado ? 'Ainda não ligado: veja “NPS × Google”' : 'Ainda sem coleta: clique em Atualizar agora' });
+  return `<div class="kpis">
+    ${kpi(`NPS em ${esc(m.rotulo)}`, nps0(k.nps), { destaque: 1, classe: classeNps(k.nps), comp: cmpNps,
+      sub: `margem de erro <b>${mg(k.margem)}</b> · ${faixa(k.nps)}${cam ? (cam.ja ? '' : ` · faltam <b>${num(cam.faltam_pontos, 0)}</b> para a meta de ${P.meta_nps}`) : ''}` })}
+    ${kpi('Respostas', num(k.n), { comp: pk && pk.por_dia ? comp(varPct(k.por_dia, pk.por_dia), 'por dia contra ' + antes) : '', sub: `<b>${num(k.por_dia, 1)}</b> por dia em ${num(k.dias)} dias · <b>${pct(k.pct_comentarios, 0)}</b> comentaram` })}
+    ${kpi('Detratores (nota 0 a 6)', pct(k.pct_det, 0), { comp: pk ? comp(k.pct_det - pk.pct_det, 'contra ' + antes, { inverso: true, unidade: 'pp' }) : '', sub: `<b>${num(k.det)}</b> pessoas · promotores <b>${pct(k.pct_prom, 0)}</b>` })}
+    ${kpi('Nota média (0 a 10)', num(k.media, 1), { comp: pk ? comp(k.media - pk.media, 'contra ' + antes, { fmt: v => num(v, 1) }) : '', sub: `equivale a <b>${num(k.media / 2, 1)}</b> estrelas na escala do Google` })}
+    ${googleKpi}
+  </div>
+  <div style="margin-top:20px"><h3>Quem respondeu</h3>${empilhada([
+    { rotulo: 'Promotores (9–10)', valor: k.prom, cor: COR.prom }, { rotulo: 'Neutros (7–8)', valor: k.neut, cor: COR.neut }, { rotulo: 'Detratores (0–6)', valor: k.det, cor: COR.det }])}</div>`;
+}
+
+function leiturasHtml(m) {
+  if (!m.leituras || !m.leituras.length) return '';
+  const itens = [...m.leituras].sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
+  return `<section><h2>O que os números dizem</h2><p class="nota">Leitura automática do período. Do mais urgente para o menos urgente.</p><ul class="leituras">${itens.map(l => `<li>${chip(l.nivel)}<span>${l.texto}</span></li>`).join('')}</ul></section>`;
+}
+
+// ====================== NPS x GOOGLE ======================
+function passosGoogle() {
+  if (!GG.disponivel) return `<p class="sub-aviso">A nota do Google só é coletada no site (precisa do banco de dados). No programa do computador da clínica este painel mostra só o NPS.</p>`;
+  if (GG.configurado && GG.tem_dados) return '';
+  const motivo = GG.configurado ? 'A chave do Google já está na Vercel, mas ainda não houve nenhuma coleta. Clique em <b>Atualizar agora</b> (no alto da página).' : 'A coleta do Google ainda não foi ligada. São 4 passos, uma vez só:';
+  return `<div class="card" style="margin-top:14px"><h3>Ligar a nota do Google Maps</h3><p class="nota">${motivo}</p>` + (GG.configurado ? '' : `<ol class="passos">
+    <li>No <b>Google Cloud Console</b>, crie (ou escolha) um projeto, ative a <b>Places API (New)</b> e crie uma <b>chave de API</b> em Credenciais. Restrinja a chave a essa API. O Google exige o faturamento ativo no projeto, mas a clínica fica dentro do crédito gratuito: o painel faz poucas consultas por dia.</li>
+    <li>Na <b>Vercel</b> (Settings → Environment Variables), crie <b>GOOGLE_PLACES_API_KEY</b> com a chave e refaça o deploy. Não coloque a chave em nenhum arquivo do projeto.</li>
+    <li>Opcional: se o painel não achar o perfil certo, crie também <b>GOOGLE_PLACE_ID</b> com o identificador do perfil (começa com “ChIJ”).</li>
+    <li>Abra este painel e clique em <b>Atualizar agora</b>. A partir daí o resumo do Google é guardado todos os dias e o histórico começa a se formar.</li></ol>`) + '</div>';
+}
+
+function tabelaComparacao(m) {
+  const k = m.kpis, c = m.comparavel || k, g = m.google || {}, eq = g.equivalente;
+  const escopo = P.unidades_no_google && P.unidades_no_google.length ? `<small>só unidades que o Google cobre: ${esc(P.unidades_no_google.map(u => u.replace('CLÍNICA DE SAÚDE E IMAGEM - ', '')).join(', '))}</small>` : '';
+  const semG = (g.nota == null);
+  const gv = (v, f = x => x) => v == null ? VAZIO : f(v);
+  return `<div class="tab-wrap"><table class="cmp"><thead><tr><th>Medida</th><th class="n">Clínica (NPS)</th><th class="n">Google Maps</th></tr></thead><tbody>
+    <tr><td>Nota na escala de 5 estrelas<small>NPS: nota média ÷ 2</small></td><td class="n"><b>${c.estrelas == null ? '—' : num(c.estrelas, 2)}</b>${escopo}</td><td class="n"><b>${semG ? '—' : num(g.nota, 1)}</b>${semG ? '' : `<small>${num(g.total)} avaliações</small>`}</td></tr>
+    <tr><td>Nota máxima<small>NPS: promotores (9–10) · Google: 5 estrelas</small></td><td class="n">${pct(c.pct_prom, 0)}<small>${num(c.prom)} de ${num(c.n)}</small></td><td class="n">${eq ? pct(eq.pct_5, 0) : VAZIO}<small>${eq ? `${num(eq.prom)} de ${num(eq.n)} avaliações do período` : g.n_avaliacoes ? `só ${num(g.n_avaliacoes)} avaliações vistas (mínimo ${P.minimo_google_equivalencia})` : ''}</small></td></tr>
+    <tr><td>Nota baixa<small>NPS: detratores (0–6) · Google: 1 a 3 estrelas</small></td><td class="n">${pct(c.pct_det, 0)}<small>${num(c.det)} de ${num(c.n)}</small></td><td class="n">${eq ? pct(eq.pct_baixas, 0) : VAZIO}<small>${eq ? `${num(eq.det)} de ${num(eq.n)} avaliações do período` : ''}</small></td></tr>
+    <tr><td>NPS (no Google, equivalente aproximado)</td><td class="n"><b class="${classeNps(c.nps)}">${nps0(c.nps)}</b> <small style="display:inline">${mg(c.margem)}</small></td><td class="n">${eq ? `<b>${nps0(eq.nps)}</b> <small style="display:inline">${mg(eq.margem)}</small>` : VAZIO}</td></tr>
+    <tr class="sub"><td>Volume no período</td><td class="n">${num(c.n)} respostas</td><td class="n">${g.novas != null ? `${g.novas >= 0 ? '+' : ''}${num(g.novas)} avaliações` : g.n_avaliacoes ? `${num(g.n_avaliacoes)} avaliações vistas` : VAZIO}</td></tr>
+  </tbody></table></div>`;
+}
+
+function graficoComparacao() {
+  const S = D.serie.filter(s => s.estrelas_comparavel != null || s.google_nota != null);
+  if (S.length < 3) return '';   // com 1 ou 2 meses a linha nao diz nada: a tabela mes a mes basta
+  const idx = new Map(S.map((s, i) => [s.ym, i]));
+  const serie = (nome, campo, cor, extra = {}) => ({ nome, cor, pontos: S.map(s => ({ x: idx.get(s.ym), y: s[campo] })), rotuloFim: true, ...extra });
+  const g = linhas({ W: 760, H: 240, mr: 120, fmt: v => num(v, 2), xRot: S.map(s => ({ x: idx.get(s.ym), t: rotuloMesCurto(s.ym) })), aria: 'Estrelas do NPS e do Google, mês a mês', teto: 5.4,
+    tipX: x => { const s = S[x]; return `${rotuloMes(s.ym)}\nNPS ÷ 2: ${s.estrelas_comparavel == null ? '—' : num(s.estrelas_comparavel, 2)} (${num(s.n)} respostas)\nGoogle: ${s.google_nota == null ? 'sem coleta' : num(s.google_nota, 1) + ' (' + num(s.google_total) + ' avaliações)'}`; },
+    series: [serie('Google', 'google_nota', 'var(--s2)'), serie('NPS ÷ 2', 'estrelas_comparavel', 'var(--accent)', { principal: true })] });
+  return `<h3 style="margin-top:22px">Estrelas, mês a mês</h3>${g}`;
+}
+
+function googleAvaliacoes(m) {
+  const g = m.google || {};
+  if (!g.avaliacoes || !g.avaliacoes.length) return `<p class="vazio" style="margin-top:14px">${GG.tem_dados ? 'Nenhuma avaliação do Google foi vista neste período (a API mostra só 5 por consulta).' : ''}</p>`;
+  const baixas = (g.temas_baixas || []).length ? `<div style="margin-top:14px"><h3>O que aparece nas avaliações de 1 a 3 estrelas</h3>${barras(g.temas_baixas.map(t => ({ rotulo: t.rotulo, valor: t.det, texto: num(t.det), extra: t.det === 1 ? 'avaliação' : 'avaliações', cor: COR.det })), '', '34%')}</div>` : '';
+  const itens = g.avaliacoes.map(a => `<li data-classe="${a.nota <= 3 ? 'det' : a.nota === 4 ? 'neut' : 'prom'}"><div class="cab"><b>${estrelas(a.nota)}</b><span>${dataBR(a.d)}</span></div>${a.texto ? `<p class="txt">${esc(a.texto)}</p>` : '<p class="txt sem-texto">Só a nota, sem texto.</p>'}${a.temas.length ? `<div class="tags">${a.temas.map(t => `<span class="tag">${esc(rotTema(t))}</span>`).join('')}</div>` : ''}</li>`).join('');
+  return `${baixas}<div style="margin-top:14px"><h3>Avaliações do Google vistas no período <small style="font-weight:400;color:var(--muted)">(${num(g.n_avaliacoes)}; a API entrega até 5 por consulta, então é uma amostra)</small></h3><ul class="voz">${itens}</ul></div>`;
+}
+
+function npsXGoogle(m) {
+  const g = m.google || {};
+  const base = g.base_dia ? `<p class="sub-aviso">O histórico do Google começa em <b>${dataBR(GG.primeiro_dia)}</b>, quando a coleta foi ligada: antes disso o Google não informa a nota de cada dia. “Novas avaliações” é a diferença do total desde ${dataBR(g.base_dia)}.</p>` : '';
+  const porMes = D.serie.length ? tabela([{ t: 'Mês' }, { t: 'Respostas NPS', n: 1 }, { t: 'NPS', n: 1 }, { t: 'NPS ÷ 2 (estrelas)', n: 1 }, { t: 'Google (estrelas)', n: 1 }, { t: 'Avaliações no Google', n: 1 }],
+    [...D.serie].reverse().map(s => [rotuloMes(s.ym), num(s.n), `<span class="${classeNps(s.nps)}">${nps0(s.nps)}</span> <small style="color:var(--muted)">${mg(s.margem)}</small>`, s.estrelas_comparavel == null ? VAZIO : num(s.estrelas_comparavel, 2),
+      s.google_nota == null ? VAZIO : num(s.google_nota, 1), s.google_total == null ? VAZIO : num(s.google_total)])) : '';
+  return `<section><h2>Clínica × Google</h2><p class="nota">A nota que os pacientes dão à clínica quando ela pergunta (NPS) contra a que dão ao mundo (Google Maps). São perguntas e públicos diferentes: use para acompanhar a tendência e ver onde os dois se afastam, não para esperar números iguais (veja “Como ler este painel”).</p>
+    ${tabelaComparacao(m)}${base}${passosGoogle()}${graficoComparacao()}
+    <div style="margin-top:20px">${acordeao('Mês a mês: NPS e Google lado a lado', porMes)}</div>${googleAvaliacoes(m)}</section>`;
+}
+
+// ====================== ANALISE ======================
+function distribuicaoNotas(m) {
+  const dist = m.distribuicao, tot = soma(dist);
+  const itens = dist.map((n, i) => ({ rotulo: String(i), valor: n, texto: num(n), extra: tot ? pct(n / tot * 100, 0) : '', cor: i >= 9 ? COR.prom : i >= 7 ? COR.neut : COR.det,
+    tip: `Nota ${i}\n${num(n)} respostas (${tot ? pct(n / tot * 100, 1) : '—'})\n${i >= 9 ? 'Promotor' : i >= 7 ? 'Neutro' : 'Detrator'}` }));
+  return `<section><h2>Distribuição das notas</h2><p class="nota">Quantas respostas houve em cada nota. A cor mostra a classe: azul = promotor, cinza = neutro, laranja = detrator.</p>${barras(itens, 'Sem respostas.', '10%', { porPagina: 11 })}</section>`;
+}
+
+function ranking(grupos, m, o = {}) {
+  const ok = grupos.filter(g => !g.poucos).sort((a, b) => b.nps - a.nps || b.n - a.n);
+  const poucos = grupos.filter(g => g.poucos);
+  const itens = ok.map(g => ({ rotulo: g.nome, valor: Math.max(g.nps, 0), marca: Math.max(m.kpis.nps, 0), texto: nps0(g.nps), extra: `${num(g.n)} resp.`,
+    cor: g.nps < 0 ? 'var(--crit)' : undefined, tip: `${g.nome}\nNPS ${nps0(g.nps)} (${mg(g.margem)}) em ${num(g.n)} respostas\nPromotores ${pct(g.pct_prom, 0)} · neutros ${pct(g.pct_neut, 0)} · detratores ${pct(g.pct_det, 0)}\nContribuição ao NPS geral: ${num(g.contribuicao, 1)} pontos\nA linha marca o NPS geral` }));
+  const nota = poucos.length ? `<p class="sub-aviso">${num(poucos.length)} ${o.nomeP || 'itens'} com menos de ${P.minimo_grupo} respostas (${num(soma(poucos, g => g.n))} no total) ficaram fora do ranking: poucas respostas enganam. Estão em Detalhes.</p>` : '';
+  return barras(itens, o.vazio || 'Nenhum grupo com respostas suficientes.', o.rot || '38%', { max: 100, porPagina: o.porPagina || 10 }) + nota;
+}
+
+function porUnidade(m) {
+  if (!m.unidades.length) return '';
+  return `<section><h2>Por unidade</h2><p class="nota">NPS de cada unidade. A linha vertical marca o NPS de toda a clínica. Entre parênteses, quanto a unidade soma ao NPS geral.</p>
+    ${ranking(m.unidades, m, { nomeP: 'unidades', rot: '30%' })}</section>`;
+}
+
+function temasHtml(m) {
+  const T = m.temas.filter(t => t.id !== 'elogio');
+  if (!T.length) return `<section><h2>O que os comentários dizem</h2><p class="vazio">Nenhum comentário com assunto reconhecido neste período.</p></section>`;
+  const det = [...T].sort((a, b) => b.det - a.det || b.n - a.n).filter(t => t.det);
+  const prom = [...m.temas].sort((a, b) => b.prom - a.prom || b.n - a.n).filter(t => t.prom).slice(0, 8);
+  const gDet = barras(det.map(t => ({ rotulo: t.rotulo, valor: t.det, texto: num(t.det), extra: `${pct(t.pct_det_com_comentario, 0)} · ${num(t.pontos, 1)} pts`, cor: COR.det,
+    tip: `${t.rotulo}\nCitado por ${num(t.det)} detratores (${pct(t.pct_det_com_comentario, 0)} dos que comentaram)\nSe virassem promotores, o NPS subiria ${num(t.pontos, 1)} pontos\nTambém citado por ${num(t.neut)} neutros e ${num(t.prom)} promotores` })), 'Nenhum detrator falou de um assunto reconhecido.', '40%');
+  const gProm = barras(prom.map(t => ({ rotulo: t.rotulo, valor: t.prom, texto: num(t.prom), cor: COR.prom, tip: `${t.rotulo}\nCitado por ${num(t.prom)} promotores` })), 'Sem comentários de promotores.', '40%');
+  return `<section><h2>O que os comentários dizem</h2><p class="nota">Em quantos comentários aparece cada assunto. À direita de cada barra: a parte dos detratores que comentaram e quantos pontos de NPS isso vale. Um comentário pode falar de vários assuntos.</p>
+    <div class="grid2"><div><h3>O que os detratores dizem</h3>${gDet}</div><div><h3>O que os promotores elogiam</h3>${gProm}</div></div></section>`;
+}
+
+function quandoAgendou(m) {
+  const base = m.kpis.pct_det;
+  const sem = m.semana.map(s => ({ rotulo: DIAS_SEMANA[s.d], valor: s.pct_det || 0, marca: base, texto: pct(s.pct_det, 0), extra: `${num(s.n)} resp.`, cor: s.poucos ? 'var(--neutro-2)' : undefined,
+    tip: `${DIAS_SEMANA[s.d]}\n${pct(s.pct_det, 1)} de detratores em ${num(s.n)} respostas\nNPS ${nps0(s.nps)} (${mg(s.margem)})${s.poucos ? '\nPoucas respostas: não tire conclusão' : ''}` }));
+  const hor = m.horas.map(h => ({ rotulo: String(h.h).padStart(2, '0') + 'h', valor: h.pct_det || 0, marca: base, texto: pct(h.pct_det, 0), extra: `${num(h.n)} resp.`, cor: h.poucos ? 'var(--neutro-2)' : undefined,
+    tip: `Agendados às ${String(h.h).padStart(2, '0')}h\n${pct(h.pct_det, 1)} de detratores em ${num(h.n)} respostas\nNPS ${nps0(h.nps)} (${mg(h.margem)})${h.poucos ? '\nPoucas respostas: não tire conclusão' : ''}` }));
+  const max = Math.max(100, ...sem.map(i => i.valor), ...hor.map(i => i.valor));
+  return `<section><h2>Quando foi o agendamento</h2><p class="nota">Que parte de quem respondeu deu nota de detrator (0 a 6), pelo dia da semana e pela hora em que estava <b>agendado</b>. A linha marca a média geral (${pct(base, 0)}); barras cinza têm menos de ${P.minimo_grupo} respostas. Cruze com a aba <b>Tempo</b>: se a hora com mais detratores é a da maior espera, o motivo é provavelmente o atraso.</p>
+    <div class="grid2"><div><h3>Dia da semana</h3>${barras(sem, 'Sem dados.', '24%', { max })}</div><div><h3>Hora do agendamento</h3>${barras(hor, 'Sem dados.', '16%', { max, porPagina: 16 })}</div></div></section>`;
+}
+
+function porProfissional(m) {
+  return `<section><h2>Por profissional e por procedimento</h2><p class="nota">NPS de cada um (só com ao menos ${P.minimo_grupo} respostas). A linha marca o NPS geral. Barra vermelha = NPS negativo.</p>
+    <div class="grid2"><div><h3>Profissionais</h3>${ranking(m.profissionais, m, { nomeP: 'profissionais' })}</div><div><h3>Procedimentos</h3>${ranking(m.procedimentos, m, { nomeP: 'procedimentos' })}</div></div></section>`;
+}
+
+function ondeAgir(m) {
+  const k = m.kpis;
+  if (!k.det) return '';
+  const lista = (grupos, nome) => grupos.filter(g => g.det >= 2).sort((a, b) => b.det - a.det || b.n - a.n).slice(0, 10).map(g => ({ rotulo: g.nome, valor: g.det, texto: num(g.det), extra: `${pct(g.pct_det_total, 0)} dos detratores · ${pct(g.pct_respostas, 0)} das respostas`, cor: COR.det,
+    tip: `${g.nome}\n${num(g.det)} detratores de ${num(g.n)} respostas (${pct(g.pct_det, 0)})\nConcentra ${pct(g.pct_det_total, 0)} dos detratores com ${pct(g.pct_respostas, 0)} das respostas` }));
+  const p = lista(m.profissionais, 'profissional'), pr = lista(m.procedimentos, 'procedimento');
+  if (!p.length && !pr.length) return '';
+  return `<section><h2>Onde estão os detratores</h2><p class="nota">Quem concentra mais notas baixas (ao menos 2). Compare a parte dos detratores com a parte das respostas: se a primeira é bem maior, o grupo pesa mais do que o tamanho dele explica.</p>
+    <div class="grid2"><div><h3>Profissionais</h3>${barras(p, 'Nenhum profissional com 2 ou mais detratores.', '36%')}</div><div><h3>Procedimentos</h3>${barras(pr, 'Nenhum procedimento com 2 ou mais detratores.', '36%')}</div></div></section>`;
+}
+
+function aoDiaADia(m) {
+  if (!m.dias || m.dias.length < 3) return '';
+  return `<section><h2>Dia a dia</h2><p class="nota">Pelo dia em que o paciente respondeu. Um dia sozinho tem poucas respostas: olhe a tendência, não cada ponto.</p>
+    <div class="grid2"><div>${miniLinha('Respostas por dia', m.dias, 'n', { cor: 'var(--neutro)' })}</div><div>${miniLinha('Detratores por dia', m.dias, 'det', { cor: COR.det })}</div></div></section>`;
+}
+
+function metaHtml(m) {
+  const c = m.meta, k = m.kpis;
+  if (!c) return '';
+  if (c.ja) return `<section><h2>Meta de NPS</h2><div class="meta-card"><div><b>${nps0(k.nps)}</b><span>NPS de agora: já está na meta de ${P.meta_nps}. Mantenha o que está funcionando.</span></div></div></section>`;
+  return `<section><h2>Caminho até a meta</h2><p class="nota">Meta: NPS <b>${P.meta_nps}</b> (ajustável em Nps\\parametros.json). Hoje: <b>${nps0(k.nps)}</b>, faltam <b>${num(c.faltam_pontos, 0)}</b> pontos. Duas maneiras de chegar lá, com as respostas do período:</p>
+    <div class="meta-card"><div><b>${c.converter_cabe ? num(c.converter) : '—'}</b><span>${c.converter_cabe ? `detratores que precisariam virar promotores (de ${num(k.det)} que há)` : `nem converter todos os ${num(k.det)} detratores bastaria: é preciso também ganhar promotores`}</span></div>
+    <div><b>${c.novas == null ? '—' : num(c.novas)}</b><span>respostas novas, todas de promotores, que seriam necessárias além das ${num(k.n)} de agora</span></div></div></section>`;
+}
+
+// ====================== VOZ DO CLIENTE ======================
+function itemVoz(x, classe) {
+  const onde = [x.unidade, x.profissional, x.procedimento].filter(Boolean).map(esc).join(' · ');
+  return `<li data-classe="${classe}"><div class="cab"><b>Nota ${x.nota}</b><span>${x.d ? dataBR(x.d) : ''}</span><span>${onde}</span></div>` +
+    (x.texto ? `<p class="txt">${esc(x.texto)}</p>` : '<p class="txt sem-texto">Não deixou comentário.</p>') +
+    (x.temas.length ? `<div class="tags">${x.temas.map(t => `<span class="tag">${esc(rotTema(t))}</span>`).join('')}</div>` : '') + '</li>';
+}
+function listaVoz(itens, classe, vazio) {
+  const f = itens.filter(x => !TEMA_SEL || x.temas.includes(TEMA_SEL));
+  if (!f.length) return `<p class="vazio">${vazio}</p>`;
+  const AQUI = 12;
+  const primeiros = `<ul class="voz">${f.slice(0, AQUI).map(x => itemVoz(x, classe)).join('')}</ul>`;
+  return primeiros + (f.length > AQUI ? `<details class="mais"><summary>Ver mais ${num(f.length - AQUI)}</summary><ul class="voz">${f.slice(AQUI).map(x => itemVoz(x, classe)).join('')}</ul></details>` : '');
+}
+function vozDoCliente(m) {
+  const temas = m.temas.filter(t => t.id !== 'elogio').map(t => t.id);
+  const filtro = temas.length ? `<div class="filtro-tema"><label for="tema-sel">Mostrar só quem fala de</label><select id="tema-sel" class="input"><option value="">todos os assuntos</option>${temas.map(t => `<option value="${t}"${t === TEMA_SEL ? ' selected' : ''}>${esc(rotTema(t))}</option>`).join('')}</select></div>` : '';
+  const dets = m.detratores_lista, comTexto = dets.filter(x => x.texto);
+  const mais = dets.length >= 200 ? ' (mostrando os 200 mais recentes)' : '';
+  return `<section><h2>Detratores: o que disseram</h2><p class="nota">Quem deu de 0 a 6${mais}. ${num(comTexto.length)} de ${num(m.kpis.det)} deixaram comentário. Os comentários podem trazer nomes e detalhes de pacientes: não os compartilhe fora da clínica.</p>${filtro}
+    <div id="voz-det">${listaVoz(comTexto, 'det', 'Nenhum detrator comentou sobre este assunto.')}</div></section>
+    <section><h2>Neutros: o que faltou para o 9 ou 10</h2><p class="nota">Quem deu 7 ou 8 e comentou: o grupo mais barato de ganhar. ${num(m.neutros_lista.length)} comentários${m.neutros_lista.length >= 80 ? ' (os 80 mais recentes)' : ''}.</p>
+    <div id="voz-neut">${listaVoz(m.neutros_lista, 'neut', 'Nenhum neutro comentou sobre este assunto.')}</div></section>`;
+}
+document.addEventListener('change', e => {
+  if (e.target.id !== 'tema-sel') return;
+  TEMA_SEL = e.target.value;
+  const m = D.meses[window.PERIODO_CHAVE || D.mes_padrao];
+  if (!m || !m.kpis) return;
+  $('voz-det').innerHTML = listaVoz(m.detratores_lista.filter(x => x.texto), 'det', 'Nenhum detrator comentou sobre este assunto.');
+  $('voz-neut').innerHTML = listaVoz(m.neutros_lista, 'neut', 'Nenhum neutro comentou sobre este assunto.');
+});
+
+// ====================== DETALHES ======================
+function detalhes(m) {
+  const colsG = nome => [{ t: nome }, { t: 'Respostas', n: 1 }, { t: 'NPS', n: 1 }, { t: 'Margem', n: 1 }, { t: 'Nota média', n: 1 }, { t: 'Promotores', n: 1 }, { t: 'Neutros', n: 1 }, { t: 'Detratores', n: 1 }, { t: '% detratores', n: 1 }, { t: 'Contribuição ao NPS', n: 1 }];
+  const linhaG = g => [esc(g.nome) + (g.poucos ? ' <small style="color:var(--muted)">(poucas respostas)</small>' : ''), num(g.n), `<span class="${classeNps(g.nps)}">${nps0(g.nps)}</span>`, mg(g.margem), num(g.media, 1), num(g.prom), num(g.neut), num(g.det), pct(g.pct_det, 0), num(g.contribuicao, 1)];
+  const tab = (nome, lista) => tabela(colsG(nome), lista.map(linhaG));
+  const sem = tabela([{ t: 'Dia' }, { t: 'Respostas', n: 1 }, { t: 'NPS', n: 1 }, { t: '% detratores', n: 1 }], m.semana.map(s => [DIAS_SEMANA[s.d], num(s.n), nps0(s.nps), pct(s.pct_det, 0)]));
+  const hor = tabela([{ t: 'Hora' }, { t: 'Respostas', n: 1 }, { t: 'NPS', n: 1 }, { t: '% detratores', n: 1 }], m.horas.map(h => [String(h.h).padStart(2, '0') + 'h', num(h.n), nps0(h.nps), pct(h.pct_det, 0)]));
+  const dias = m.dias && m.dias.length ? tabela([{ t: 'Dia' }, { t: 'Respostas', n: 1 }, { t: 'NPS', n: 1 }, { t: 'Detratores', n: 1 }, { t: 'Nota média', n: 1 }], m.dias.map(d => [dataBR(d.d), num(d.n), nps0(d.nps), num(d.det), num(d.media, 1)])) : '';
+  const tem = tabela([{ t: 'Assunto' }, { t: 'Comentários', n: 1 }, { t: 'Promotores', n: 1 }, { t: 'Neutros', n: 1 }, { t: 'Detratores', n: 1 }, { t: '% dos detratores', n: 1 }, { t: 'Pontos de NPS', n: 1 }],
+    m.temas.map(t => [esc(t.rotulo), num(t.n), num(t.prom), num(t.neut), num(t.det), pct(t.pct_det_com_comentario, 0), num(t.pontos, 1)]));
+  return acordeao('Por unidade', tab('Unidade', m.unidades)) + acordeao('Por profissional', tab('Profissional', m.profissionais), { dica: `${m.profissionais.length} profissionais` }) +
+    acordeao('Por procedimento', tab('Procedimento', m.procedimentos), { dica: `${m.procedimentos.length} procedimentos` }) + acordeao('Dia da semana', sem) + acordeao('Hora do agendamento', hor) +
+    (dias ? acordeao('Dia a dia', dias, { dica: `${m.dias.length} dias` }) : '') + acordeao('Assuntos dos comentários', `<p class="nota">Palavras que o painel procura: lista em Nps\\parametros.json.</p>${tem}`);
+}
+
+function render(ym) {
+  const m = D.meses[ym];
+  if (!m || !m.kpis) { $('conteudo').innerHTML = `<div class="card"><h2>Sem respostas de NPS em ${esc(m ? m.rotulo : ym)}</h2><p class="nota">O relatório não trouxe respostas neste período.</p></div>`; return; }
+  const prev = anteriorDe(D, CHAVES, ym);
+  $('conteudo').innerHTML =
+    tier('Resumo', m.periodo ? 'Os números do período' : 'Os números do mês', kpisHtml(m, prev) + leiturasHtml(m)) +
+    tier('NPS × Google', 'A nota que a clínica recebe de quem atende e a que recebe no Google Maps', npsXGoogle(m)) +
+    tier('Análise', 'Notas, unidades, assuntos, profissionais, horários e meta', distribuicaoNotas(m) + porUnidade(m) + temasHtml(m) + quandoAgendou(m) + porProfissional(m) + ondeAgir(m) + aoDiaADia(m) + metaHtml(m)) +
+    tier('Voz do cliente', 'O que os detratores e os neutros escreveram', vozDoCliente(m)) +
+    tier('Detalhes', 'Tabelas completas (clique para abrir)', `<section>${detalhes(m)}</section>`);
+}
+
+if (!CHAVES.length || !D.tem_dados) {
+  $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há respostas de NPS</h2><p class="nota">O painel usa o relatório <b>NPS - Notas por Marcação (#13697)</b> do Klingo. Clique em <b>Atualizar agora</b> para buscá-lo no banco.</p></div>';
+  $('mes').disabled = true;
+} else {
+  iniciarPeriodo(D, render);
+}
+$('btn-imprimir').addEventListener('click', () => print());
+let abertosParaImprimir = [];
+addEventListener('beforeprint', () => { abertosParaImprimir = [...document.querySelectorAll('details.acord:not([open]), details.mais:not([open])')]; abertosParaImprimir.forEach(d => { d.open = true; }); });
+addEventListener('afterprint', () => { abertosParaImprimir.forEach(d => { d.open = false; }); abertosParaImprimir = []; });
+iniciarAtualizacao(D.versao);
+</script>
+</body>
+</html>

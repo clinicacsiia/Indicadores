@@ -1,0 +1,18 @@
+{
+  "titulo": "NPS",
+  "arquivo": "NPS.xlsx",
+  "primeiro_mes": "2026-09",
+  "relatorios": [
+    {
+      "id": 13697,
+      "aba": "NPS",
+      "descricao": "Relatório NPS - Notas por Marcação: uma linha por marcação que respondeu à pesquisa, com a data e hora do agendamento, a nota de 0 a 10, a classificação (Promotor 9-10, Neutro 7-8, Detrator 0-6), a data da resposta, o comentário, o profissional, o procedimento e a unidade. Não traz o nome do paciente. Baixado mês a mês pela data da resposta (conferido nos dados reais); os 2 últimos meses são baixados de novo a cada atualização, para pegar respostas e comentários que chegam depois",
+      "periodo": "periodo0",
+      "revisar_meses": 2,
+      "chave": ["Id da Marcação"],
+      "ordenar": ["Data Agendado Para", "Id da Marcação"],
+      "numeros": ["NPS - Nota"],
+      "datas": {"Data Agendado Para": "dd/mm/yyyy hh:mm", "NPS - Data de Resposta": "dd/mm/yyyy"}
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "_ajuda": "Ajustes do painel NPS × Google. Pode editar à vontade: o painel se refaz sozinho.",
+  "meta_nps": 75,
+  "_meta_nps_ajuda": "NPS que a clínica quer alcançar (de -100 a 100). Acima de 50 já é considerado excelente; acima de 75, de classe mundial.",
+  "minimo_grupo": 5,
+  "_minimo_grupo_ajuda": "Menos respostas que isso num profissional, procedimento, dia ou hora: o grupo aparece, mas sem entrar nos rankings (poucas respostas enganam).",
+  "minimo_google_equivalencia": 10,
+  "_minimo_google_equivalencia_ajuda": "Quantas avaliações do Google são necessárias no período para calcular o NPS equivalente delas.",
+  "unidades_no_google": null,
+  "_unidades_no_google_ajuda": "Lista com os nomes das unidades (como vêm do Klingo) que a página do Google Maps cobre. null = todas. Use para tirar do NPS comparável uma unidade que tem perfil próprio no Google.",
+  "google_cid": "13831494129270129913",
+  "_google_cid_ajuda": "Identificador (CID) do perfil da Clínica CSI no Google Maps, tirado do link que a clínica passou (0xbff356a0d00c04f9). Serve para achar o perfil certo; se a Vercel tiver GOOGLE_PLACE_ID, ele vale mais.",
+  "google_busca": "Clínica CSI",
+  "temas": {
+    "espera": {"rotulo": "Espera e atraso", "palavras": ["esper", "demor", "atras", "aguard", "fila", "lent[oa]", "cumpr\\w* o horario", "horario (marcado|agendado)", "senha", "horas? (de|para)", "tempo (de|para|pra|muito)"]},
+    "recepcao": {"rotulo": "Recepção e cordialidade", "palavras": ["recep", "atendente", "empatia", "frieza", "grosser", "ignor", "simpati", "cortes", "respeito", "falta de educacao", "bom dia", "acolh", "balcao"]},
+    "profissional": {"rotulo": "Médico e equipe técnica", "palavras": ["medic", "doutor", "dr\\b", "dra\\b", "dr\\.", "dra\\.", "profission", "pediatra", "tecnic", "enfermei", "assistente", "fisioterap", "psicolog", "neuro", "especialista"]},
+    "agendamento": {"rotulo": "Agendamento e contato", "palavras": ["agend", "whats", "remarc", "marcacao", "desmarc", "encaixe", "telefone", "contato", "ligar", "ligaram"]},
+    "resultado": {"rotulo": "Resultado e laudo", "palavras": ["resultado", "laudo", "imagens?", "portal", "entrega"]},
+    "estrutura": {"rotulo": "Estrutura e conforto", "palavras": ["estrutur", "limp", "banheiro", "ambiente", "confort", "estacionamento", "acessib", "ar condicionado", "frio", "equipad", "espaco", "localizacao", "higien", "sala de espera"]},
+    "preco": {"rotulo": "Preço, convênio e cobrança", "palavras": ["preco", "valor", "cobr", "caro", "convenio", "plano", "pagamento", "particular", "reembolso"]},
+    "informacao": {"rotulo": "Informação e orientação", "palavras": ["informa", "explic", "orient", "comunic", "avis", "retorno", "esclarec"]},
+    "sistema": {"rotulo": "Sistema e tecnologia", "palavras": ["sistema", "fora do ar", "aplicativo", "\\bapp\\b", "\\bsite\\b", "internet"]},
+    "elogio": {"rotulo": "Elogio geral", "negacao": true, "palavras": ["excelente", "otim", "maravilh", "parabens", "recomend", "amei", "adorei", "perfeit", "impecavel", "nota 10", "muito bom", "atencios", "satisf"]}
+  }
+}
