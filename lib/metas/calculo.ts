@@ -41,13 +41,13 @@ export type ResultadoItem = {
   meta: number;
   realizado: number;
   sus: number;
-  /** Pagante: convênio informado que não é SUS nem Cetrus (outros convênios e particular). */
+  /** "Convênios e particular": convênio informado que não é SUS nem Cetrus (a conta interna se chama pagante). */
   naoSus: number;
   /** Cetrus (antes "SUS CURSO"): um curso, uma terceira categoria — conta na meta, mas não é SUS nem pagante. */
   cetrus: number;
   semConvenio: number;
   pct: number;
-  /** Cumprimento da mesma meta contando só o pagante (convênio informado que não é SUS). */
+  /** Cumprimento da mesma meta contando só convênios e particular (convênio informado que não é SUS nem Cetrus). */
   pctPagante: number;
   situacaoPagante: Situacao;
   faltam: number;
@@ -636,10 +636,10 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
   achados.push({
     tom: piorou ? "atencao" : "info",
     texto:
-      `${nomePeriodo} com ${pctT(res.geral.pct)} das metas cumpridas. Contando só o pagante, são ${pctT(res.geral.pctPagante)}: ` +
+      `${nomePeriodo} com ${pctT(res.geral.pct)} das metas cumpridas. Contando só convênios e particular, são ${pctT(res.geral.pctPagante)}: ` +
       `${naoPagante === "SUS" ? "o SUS responde" : `${naoPagante} respondem`} por ${ppT(dif)} do cumprimento` +
       (piorou
-        ? `, e sem ele o geral passaria de "${ROTULO[res.geral.situacao]}" para "${ROTULO[res.geral.situacaoPagante]}".`
+        ? `, e sem ${naoPagante === "SUS" ? "ele" : "eles"} o geral passaria de "${ROTULO[res.geral.situacao]}" para "${ROTULO[res.geral.situacaoPagante]}".`
         : "."),
   });
 
@@ -650,8 +650,8 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       tom: d >= 0 ? "ok" : "atencao",
       texto:
         d >= 0
-          ? `O pagante está ${ppT(d)} acima do esperado até hoje (${pctT(res.esperadoPct)}): sozinho ele já acompanha o ritmo das metas.`
-          : `O pagante está ${ppT(d)} abaixo do esperado até hoje (${pctT(res.esperadoPct)}); com o SUS a diferença é de ${ppT(res.geral.pct - res.esperadoPct)}${res.geral.pct >= res.esperadoPct ? " a favor" : " abaixo"}.`,
+          ? `Convênios e particular estão ${ppT(d)} acima do esperado até hoje (${pctT(res.esperadoPct)}): sozinhos já acompanham o ritmo das metas.`
+          : `Convênios e particular estão ${ppT(d)} abaixo do esperado até hoje (${pctT(res.esperadoPct)}); com o SUS a diferença é de ${ppT(res.geral.pct - res.esperadoPct)}${res.geral.pct >= res.esperadoPct ? " a favor" : " abaixo"}.`,
     });
   }
 
@@ -665,7 +665,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       const pPagante = proj("projecaoPagante");
       achados.push({
         tom: pPagante >= 100 ? "ok" : "info",
-        texto: `No ritmo médio atual, o pagante deve chegar a cerca de ${pctT(pPagante)} das metas no fim do período (com o SUS: ${pctT(pTotal)}).`,
+        texto: `No ritmo médio atual, convênios e particular devem chegar a cerca de ${pctT(pPagante)} das metas no fim do período (com todos os atendimentos: ${pctT(pTotal)}).`,
       });
     }
   }
@@ -681,7 +681,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
   if (soPagante.length)
     achados.push({
       tom: "ok",
-      texto: `${soPagante.length === 1 ? "Meta batida" : "Metas batidas"} só com pagante: ${lista(soPagante.map((i) => i.nome))}.`,
+      texto: `${soPagante.length === 1 ? "Meta batida" : "Metas batidas"} só com convênios e particular: ${lista(soPagante.map((i) => i.nome))}.`,
     });
 
   // 5. Quem mais depende do SUS.
@@ -695,7 +695,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       tom: ordem[d.i.situacaoPagante] < ordem[d.i.situacao] ? "atencao" : "info",
       texto:
         `${d.i.nome} depende do SUS: ${pctT(d.partSus * 100)} do que foi feito. ` +
-        `Só pagante, o cumprimento cai de ${pctT(d.i.pct)} para ${pctT(d.i.pctPagante)}.`,
+        `Só com convênios e particular, o cumprimento cai de ${pctT(d.i.pct)} para ${pctT(d.i.pctPagante)}.`,
     });
 
   // 6. Como as linhas estão se comportando.
@@ -711,8 +711,8 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
         achados.push({
           tom: ganhando ? "ok" : "atencao",
           texto:
-            `Nos últimos ${JANELA_PARTICIPACAO} dias a linha do pagante avançou ${ppT(ganhoPagante)} e a do esperado ${ppT(ganhoEsperado)}: ` +
-            (ganhando ? "o pagante está recuperando terreno." : "o pagante está perdendo terreno para o ritmo esperado."),
+            `Nos últimos ${JANELA_PARTICIPACAO} dias a linha de convênios e particular avançou ${ppT(ganhoPagante)} e a do esperado ${ppT(ganhoEsperado)}: ` +
+            (ganhando ? "convênios e particular estão recuperando terreno." : "convênios e particular estão perdendo terreno para o ritmo esperado."),
         });
       }
       // participação: últimos 7 dias contra os 7 anteriores
@@ -735,7 +735,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
         const forma = Math.abs(d) < 2 ? "estável" : d > 0 ? "subindo" : "caindo";
         achados.push({
           tom: forma === "caindo" ? "atencao" : forma === "subindo" ? "ok" : "info",
-          texto: `A participação do pagante está ${forma}: ${pctT(a)} nos últimos ${JANELA_PARTICIPACAO} dias contra ${pctT(b)} nos ${JANELA_PARTICIPACAO} anteriores.`,
+          texto: `A participação de convênios e particular está ${forma}: ${pctT(a)} nos últimos ${JANELA_PARTICIPACAO} dias contra ${pctT(b)} nos ${JANELA_PARTICIPACAO} anteriores.`,
         });
       }
     }
@@ -745,7 +745,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
   if (res.convenio.cetrus > 0)
     achados.push({
       tom: "info",
-      texto: `${fmt0.format(res.convenio.cetrus)} atendimentos (${pctT((res.convenio.cetrus / contados) * 100)}) são do Cetrus, um curso: contam nas metas, mas não entram como SUS nem como pagante.`,
+      texto: `${fmt0.format(res.convenio.cetrus)} atendimentos (${pctT((res.convenio.cetrus / contados) * 100)}) são do Cetrus, um curso: contam nas metas, mas não entram como SUS nem como convênios e particular.`,
     });
 
   // 7. Atendimentos sem convênio informado ficam de fora das duas leituras.
@@ -756,8 +756,8 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
     achados.push({
       tom: "info",
       texto:
-        `${fmt0.format(res.convenio.semConvenio)} atendimentos (${pctT((res.convenio.semConvenio / contados) * 100)}) estão sem convênio informado e não entram como pagante nem como SUS` +
-        (teto >= 0.1 ? `; se todos fossem pagantes, o pagante subiria até ${ppT(teto)}.` : "."),
+        `${fmt0.format(res.convenio.semConvenio)} atendimentos (${pctT((res.convenio.semConvenio / contados) * 100)}) estão sem convênio informado e não entram como convênios e particular nem como SUS` +
+        (teto >= 0.1 ? `; se todos fossem de convênios ou particular, essa leitura subiria até ${ppT(teto)}.` : "."),
     });
   }
 

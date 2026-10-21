@@ -121,7 +121,7 @@ function LinhaConvenio({
       <span className="convenio-nome">{nome}</span>
       <BarraConvenio sus={sus} naoSus={naoSus} cetrus={cetrus} semConvenio={semConvenio} />
       <span className="convenio-num">
-        <b>{inteiro.format(sus)}</b> SUS <span className="meta-sep">·</span> <b>{inteiro.format(naoSus)}</b> pagante
+        <b>{inteiro.format(sus)}</b> SUS <span className="meta-sep">·</span> <b>{inteiro.format(naoSus)}</b> convênios e particular
         {cetrus > 0 && (
           <>
             <span className="meta-sep"> · </span>
@@ -233,7 +233,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   const temDados = linhas.length > 0;
   const resultado = temDados ? calcularPeriodo(metasConfig, de, ate, linhas, agora) : null;
 
-  // Comparação com SUS × só pagante: a evolução dia a dia vem de outra função (mesmas regras de contagem, separada por dia).
+  // Comparação com SUS × só convênios e particular: a evolução dia a dia vem de outra função (mesmas regras de contagem, separada por dia).
   // Se ela falhar ou ainda não existir no banco, a comparação aparece sem os gráficos de linha.
   let serie: ReturnType<typeof serieDiaria> | null = null;
   if (resultado?.convenioInformado) {
@@ -392,7 +392,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                       <th scope="col">Faltam</th>
                       <th scope="col">Por dia útil</th>
                       <th scope="col">Projeção</th>
-                      {resultado.convenioInformado && <th scope="col">SUS / pagante / Cetrus</th>}
+                      {resultado.convenioInformado && <th scope="col">SUS / convênios e particular / Cetrus</th>}
                       <th scope="col">Situação</th>
                     </tr>
                   </thead>
@@ -430,17 +430,17 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
               <div className="panel-head">
                 <div>
                   <h2 className="panel-title" id="convenio-titulo">
-                    SUS, pagante e Cetrus
+                    SUS, convênios e particular, e Cetrus
                   </h2>
                   <p className="panel-sub">
-                    Quanto dos atendimentos que contam nas metas foi pelo SUS, quanto foi por outro convênio ou particular (pagante) e quanto foi do Cetrus, um
-                    curso que não é SUS nem pagante.
+                    Quanto dos atendimentos que contam nas metas foi pelo SUS, quanto foi por convênios e particular e quanto foi do Cetrus, um
+                    curso que não é SUS.
                   </p>
                 </div>
               </div>
               <div className="convenio-legenda" aria-hidden="true">
                 <span data-tipo="sus">SUS</span>
-                <span data-tipo="nao-sus">Pagante</span>
+                <span data-tipo="nao-sus">Convênios e particular</span>
                 {resultado.convenio.cetrus > 0 && <span data-tipo="cetrus">Cetrus</span>}
                 {resultado.convenio.semConvenio > 0 && <span data-tipo="sem">Sem convênio informado</span>}
               </div>

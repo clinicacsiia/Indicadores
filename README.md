@@ -331,9 +331,9 @@ ele aparece, com faturas enviadas, a enviar e canceladas e os dias da emissão a
 das planilhas (`klingo_relatorios.carregar`, via `nome_operadora`) junta os dois sob **CETRUS** em todos os painéis, sem mexer no que está gravado. Só o
 nome exato `SUS` é SUS: a análise "SUS: mês a mês" (`acompanhado_mes_a_mes`) não aceita mais "SUS ..." e o Cetrus é um convênio comum, com prazo próprio
 aprendido. Nas **Metas** (`lib/metas/calculo.ts` e `Acompanhamento de META/gerar_dashboard.py`) ele é uma **terceira categoria**: os atendimentos do Cetrus
-(`CETRUS` ou o antigo `SUS CURSO`) **contam na meta e no total**, mas não são SUS nem pagante. "Pagante" passa a ser só convênio informado que não é SUS nem Cetrus
-(particular incluído). O bloco "SUS, pagante e Cetrus", a coluna "SUS / pagante / Cetrus", a comparação "SUS × só pagante" (que deixa o Cetrus fora das duas
-pontas, inclusive na participação do pagante) e a leitura automática mostram o Cetrus à parte.
+(`CETRUS` ou o antigo `SUS CURSO`) **contam na meta e no total**, mas não são SUS nem pagante. Na tela essa categoria se chama **"convênios e particular"** (não "pagante": o Particular é só uma parte, entram também Unimed, Bradesco etc.): convênio informado que não é SUS nem Cetrus.
+O bloco "SUS, convênios e particular, e Cetrus", a coluna "SUS / convênios e particular / Cetrus", a comparação "SUS × só convênios e particular" (que deixa o Cetrus fora das duas
+pontas, inclusive na participação) e a leitura automática mostram o Cetrus à parte. No código a conta interna continua se chamando `pagante`/`naoSus`.
 Para renomear outro apelido, edite `OPERADORAS_RENOMEADAS` em `klingo_relatorios.py`.
 Teste: `tests/test_faturamento_sus.py`.
 
@@ -470,7 +470,7 @@ vem dele; o dia de hoje conta só a parte do expediente que já passou.
   rodou para o `13339`, a aba mostra "Nenhum atendimento".
 - Atendimentos que não entram em nenhuma meta aparecem em "fora de qualquer
   meta"; os que entram em mais de uma geram um aviso (ajuste as regras).
-- **Metas com SUS × só pagante** (logo abaixo do gráfico "SUS e não SUS"; `app/(app)/metas/ComparacaoPagante.tsx`). A meta é a mesma: a seção mostra
+- **Metas com SUS × só convênios e particular** (antes "só pagante"; logo abaixo do bloco "SUS, convênios e particular, e Cetrus"; `app/(app)/metas/ComparacaoPagante.tsx`). A meta é a mesma: a seção mostra
   quanto dela estaria cumprida se só o pagante contasse (pagante = convênio informado que não é SUS, particular incluído; sem convênio informado não
   entra em nenhum dos dois lados e é avisado). Barras duplas (geral, grupo e serviço), dois gráficos de linha (cumprimento acumulado com SUS × só
   pagante × esperado, e participação do pagante em média de 7 dias) e uma leitura automática (`analisarPagante()`). **Só quantidade e porcentagem,

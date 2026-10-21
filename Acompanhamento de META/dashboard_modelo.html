@@ -190,25 +190,25 @@ function ritmoPorMetaGraf(M) {
 function susPorMetaGraf() {
   const meses = [...CHAVES].reverse().filter(k => D.meses[k].convenio_ok);
   if (!meses.length) return '';
-  const COR_SUS = 'var(--accent)', COR_NAO = 'var(--neutro-3)', COR_CET = '#8a6bbf';   // Cetrus = terceira categoria (curso: nem SUS nem pagante)
+  const COR_SUS = 'var(--accent)', COR_NAO = 'var(--neutro-3)', COR_CET = '#8a6bbf';   // Cetrus = terceira categoria (curso: nem SUS nem convênios e particular)
   const blocos = D.meses[meses[meses.length - 1]].grupos.map(g => {
     const metas = g.itens.map(it => {
       const por = meses.map(k => { const i = D.meses[k].grupos.find(x => x.id === g.id).itens.find(x => x.id === it.id); return { k, s: i ? i.sus : 0, n: i ? i.nao_sus : 0, c: i ? (i.cetrus || 0) : 0 }; });
       const max = Math.max(...por.map(p => p.s + p.n + p.c), 1);
       const linhas = por.map(p => {
         const tot = p.s + p.n + p.c, w = v => (v / max * 100).toFixed(2);
-        const tip = `${it.nome} · ${D.meses[p.k].rotulo}\nSUS: ${int(p.s)}${tot ? ` (${pct(p.s / tot * 100, 0)})` : ''}\nPagante: ${int(p.n)}${p.c ? `\nCetrus: ${int(p.c)}` : ''}\nTotal: ${int(tot)}`;
+        const tip = `${it.nome} · ${D.meses[p.k].rotulo}\nSUS: ${int(p.s)}${tot ? ` (${pct(p.s / tot * 100, 0)})` : ''}\nConvênios e particular: ${int(p.n)}${p.c ? `\nCetrus: ${int(p.c)}` : ''}\nTotal: ${int(tot)}`;
         return `<div class="sus-lin"><span class="sus-mes">${esc(D.meses[p.k].rotulo)}</span>
           <div class="sus-barra" tabindex="0" data-tip="${esc(tip)}">${p.s ? `<i style="width:${w(p.s)}%;background:${COR_SUS}"></i>` : ''}${p.n ? `<i style="width:${w(p.n)}%;background:${COR_NAO}"></i>` : ''}${p.c ? `<i style="width:${w(p.c)}%;background:${COR_CET}"></i>` : ''}</div>
-          <span class="sus-num"><b>${int(p.s)}</b> SUS · ${int(p.n)} pagante${p.c ? ` · ${int(p.c)} Cetrus` : ''}</span></div>`;
+          <span class="sus-num"><b>${int(p.s)}</b> SUS · ${int(p.n)} convênios e particular${p.c ? ` · ${int(p.c)} Cetrus` : ''}</span></div>`;
       }).join('');
       return `<div class="sus-meta"><h3>${esc(it.nome)}</h3>${linhas}</div>`;
     }).join('');
     return `<h3 class="sus-grupo">${esc(g.nome)}</h3><div class="sus-grade">${metas}</div>`;
   }).join('');
-  return `<section><h2>SUS, pagante e Cetrus, por meta e por mês</h2>
-    <p class="nota">Cada barra é um mês da meta, dividida entre atendimentos SUS, pagante (outro convênio ou particular) e Cetrus (um curso, que não é SUS nem pagante). A escala é a mesma entre os meses de uma mesma meta.</p>
-    <div class="sus-leg"><span style="--c:${COR_SUS}"><i></i>SUS</span><span style="--c:${COR_NAO}"><i></i>Pagante</span><span style="--c:${COR_CET}"><i></i>Cetrus</span></div>${blocos}</section>`;
+  return `<section><h2>SUS, convênios e particular, e Cetrus, por meta e por mês</h2>
+    <p class="nota">Cada barra é um mês da meta, dividida entre atendimentos SUS, convênios e particular e Cetrus (um curso, que não é SUS). A escala é a mesma entre os meses de uma mesma meta.</p>
+    <div class="sus-leg"><span style="--c:${COR_SUS}"><i></i>SUS</span><span style="--c:${COR_NAO}"><i></i>Convênios e particular</span><span style="--c:${COR_CET}"><i></i>Cetrus</span></div>${blocos}</section>`;
 }
 
 
@@ -231,7 +231,7 @@ function susClassificacaoHtml(M) {
   return `<section><h2>Quais metas são SUS e quais não são</h2>
     <p class="nota">Pelo convênio dos atendimentos de ${esc(M.rotulo)}. <b>Só SUS</b> = todos pelo SUS · <b>Maioria SUS</b> = 50% ou mais · <b>Misto</b> = menos de 50% · <b>Sem SUS</b> = nenhum. O Cetrus (um curso) fica de fora desta conta.</p>
     <div class="hist-dest"><span><b class="grande">${nSus}</b> meta(s) com maioria SUS</span><span><b class="grande">${nNao}</b> meta(s) predominantemente sem SUS</span><span><b class="grande">${totTodos ? pct(totSus / totTodos * 100, 0) : '—'}</b> dos atendimentos das metas são SUS</span></div>
-    ${tabela([{ t: 'Meta' }, { t: 'Unidade' }, { t: 'Tipo' }, { t: 'SUS', n: 1 }, { t: 'Pagante', n: 1 }, { t: '% SUS', n: 1 }, { t: 'Meta cumprida', n: 1 }], linhas)}</section>`;
+    ${tabela([{ t: 'Meta' }, { t: 'Unidade' }, { t: 'Tipo' }, { t: 'SUS', n: 1 }, { t: 'Convênios e particular', n: 1 }, { t: '% SUS', n: 1 }, { t: 'Meta cumprida', n: 1 }], linhas)}</section>`;
 }
 
 // Histórico: quanto das metas foi batido em cada mês (mês anterior em destaque) e meta a meta
@@ -259,8 +259,8 @@ function historicoHtml(M, ant) {
 
 // ====================== DETALHES ======================
 // SUS x sem SUS: linhas gravadas antes da coluna Convênio existir não entram em nenhum dos dois (baixar o ano inteiro completa)
-const semConv = gr => { const n = soma(gr.itens, i => i.sem_conv); return n ? `<p class="nota">${int(n)} atendimento(s) deste mês estão sem convênio na planilha e não entram em SUS, Pagante nem Cetrus.</p>` : ''; };
-const colsSus = M => M.convenio_ok ? [{ t: 'SUS', n: 1 }, { t: 'Pagante', n: 1 }, { t: 'Cetrus', n: 1 }] : [];
+const semConv = gr => { const n = soma(gr.itens, i => i.sem_conv); return n ? `<p class="nota">${int(n)} atendimento(s) deste mês estão sem convênio na planilha e não entram em SUS, convênios e particular nem Cetrus.</p>` : ''; };
+const colsSus = M => M.convenio_ok ? [{ t: 'SUS', n: 1 }, { t: 'Convênios e particular', n: 1 }, { t: 'Cetrus', n: 1 }] : [];
 function detalhes(M) {
   const it = [];
   M.grupos.forEach(gr => {
