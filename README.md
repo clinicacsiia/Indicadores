@@ -327,14 +327,8 @@ habitual × 1,3 + 7 dias** (nunca menos de 7; crítico 23 dias depois). Para nã
 A tabela "Prazo de envio de cada convênio" (Detalhes) mostra o prazo habitual, quantas faturas entraram e quando o painel avisa. O aviso não conta a
 fatura que está dentro do prazo habitual do convênio e diz isso no texto. O SUS ganhou também a seção **"SUS: mês a mês"** (Análise): os meses em que
 ele aparece, com faturas enviadas, a enviar e canceladas e os dias da emissão ao envio contra os demais convênios (`ACOMPANHAR_MES_A_MES`).
-**Cetrus (antigo "SUS CURSO") não é SUS.** "SUS CURSO" era o nome com que o Klingo trazia o Cetrus, um curso; o Klingo passa a trazer `CETRUS`. A leitura
-das planilhas (`klingo_relatorios.carregar`, via `nome_operadora`) junta os dois sob **CETRUS** em todos os painéis, sem mexer no que está gravado. Só o
-nome exato `SUS` é SUS: a análise "SUS: mês a mês" (`acompanhado_mes_a_mes`) não aceita mais "SUS ..." e o Cetrus é um convênio comum, com prazo próprio
-aprendido. Nas **Metas** (`lib/metas/calculo.ts` e `Acompanhamento de META/gerar_dashboard.py`) ele é uma **terceira categoria**: os atendimentos do Cetrus
-(`CETRUS` ou o antigo `SUS CURSO`) **contam na meta e no total**, mas não são SUS nem pagante. Na tela essa categoria se chama **"convênios e particular"** (não "pagante": o Particular é só uma parte, entram também Unimed, Bradesco etc.): convênio informado que não é SUS nem Cetrus.
-O bloco "SUS, convênios e particular, e Cetrus", a coluna "SUS / convênios e particular / Cetrus", a comparação "SUS × só convênios e particular" (que deixa o Cetrus fora das duas
-pontas, inclusive na participação) e a leitura automática mostram o Cetrus à parte. No código a conta interna continua se chamando `pagante`/`naoSus`.
-Para renomear outro apelido, edite `OPERADORAS_RENOMEADAS` em `klingo_relatorios.py`.
+**Cetrus (antes "SUS CURSO") não é SUS:** é um curso. A leitura das planilhas junta os dois nomes em `CETRUS` (`klingo_relatorios.nome_operadora`, vale para todos os
+painéis) e a análise do SUS só vale para o nome exato `SUS`.
 Teste: `tests/test_faturamento_sus.py`.
 
 **Avisos que podem ser aceitos** (`guia_pendencias.PERSISTENTES`: cortesia com valor zero, glosa conhecida, queda sazonal, meta
@@ -470,10 +464,12 @@ vem dele; o dia de hoje conta só a parte do expediente que já passou.
   rodou para o `13339`, a aba mostra "Nenhum atendimento".
 - Atendimentos que não entram em nenhuma meta aparecem em "fora de qualquer
   meta"; os que entram em mais de uma geram um aviso (ajuste as regras).
-- **Metas com SUS × só convênios e particular** (antes "só pagante"; logo abaixo do bloco "SUS, convênios e particular, e Cetrus"; `app/(app)/metas/ComparacaoPagante.tsx`). A meta é a mesma: a seção mostra
-  quanto dela estaria cumprida se só o pagante contasse (pagante = convênio informado que não é SUS, particular incluído; sem convênio informado não
-  entra em nenhum dos dois lados e é avisado). Barras duplas (geral, grupo e serviço), dois gráficos de linha (cumprimento acumulado com SUS × só
-  pagante × esperado, e participação do pagante em média de 7 dias) e uma leitura automática (`analisarPagante()`). **Só quantidade e porcentagem,
+- **Cetrus** (antes "SUS CURSO", um curso que não é SUS) é a terceira categoria dos atendimentos: **conta na meta e no total**, mas não entra como SUS nem como
+  "convênios e particular". Vale o nome `CETRUS` ou o antigo `SUS CURSO` (o banco guarda o que o Klingo mandou). O bloco "SUS, convênios e particular, e Cetrus" mostra os três.
+- **Metas com SUS × só convênios e particular** (`app/(app)/metas/ComparacaoPagante.tsx`). A meta é a mesma: a seção mostra quanto dela estaria cumprida
+  se só os convênios e o particular contassem (convênio informado que não é SUS nem Cetrus; sem convênio informado não entra em nenhum lado e é avisado).
+  Barras duplas (geral, grupo e serviço), dois gráficos de linha (cumprimento acumulado com SUS × só convênios e particular × esperado, e a participação deles
+  entre SUS + convênios e particular, média de 7 dias) e uma leitura automática (`analisarPagante()`). **Só quantidade e porcentagem,
   nunca R$**: as Metas não trazem receita, então não há valor a esconder de quem não tem "Dados financeiros". Os gráficos de linha vêm de
   `metas_atendimentos_por_dia(de, ate)` (migration `20261018100000`, mesma regra de contagem, uma linha por dia); sem ela aplicada no banco a seção
   aparece só com as barras e o aviso de que a evolução dia a dia não está disponível.

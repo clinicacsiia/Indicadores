@@ -651,7 +651,7 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       texto:
         d >= 0
           ? `Convênios e particular estão ${ppT(d)} acima do esperado até hoje (${pctT(res.esperadoPct)}): sozinhos já acompanham o ritmo das metas.`
-          : `Convênios e particular estão ${ppT(d)} abaixo do esperado até hoje (${pctT(res.esperadoPct)}); com o SUS a diferença é de ${ppT(res.geral.pct - res.esperadoPct)}${res.geral.pct >= res.esperadoPct ? " a favor" : " abaixo"}.`,
+          : `Convênios e particular estão ${ppT(d)} abaixo do esperado até hoje (${pctT(res.esperadoPct)}); contando todos os atendimentos a diferença é de ${ppT(res.geral.pct - res.esperadoPct)}${res.geral.pct >= res.esperadoPct ? " a favor" : " abaixo"}.`,
     });
   }
 
