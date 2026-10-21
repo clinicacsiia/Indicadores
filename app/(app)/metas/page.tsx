@@ -85,28 +85,49 @@ function Barra({ pct, esperado, situacao }: { pct: number; esperado: number; sit
   );
 }
 
-function BarraConvenio({ sus, naoSus, semConvenio }: { sus: number; naoSus: number; semConvenio: number }) {
-  const total = sus + naoSus + semConvenio;
+function BarraConvenio({ sus, naoSus, cetrus, semConvenio }: { sus: number; naoSus: number; cetrus: number; semConvenio: number }) {
+  const total = sus + naoSus + cetrus + semConvenio;
   const parte = (v: number) => `${(v / total) * 100}%`;
   return (
     <div className="convenio-bar" aria-hidden="true">
       {sus > 0 && <span className="convenio-seg" data-tipo="sus" style={{ width: parte(sus) }} />}
       {naoSus > 0 && <span className="convenio-seg" data-tipo="nao-sus" style={{ width: parte(naoSus) }} />}
+      {cetrus > 0 && <span className="convenio-seg" data-tipo="cetrus" style={{ width: parte(cetrus) }} />}
       {semConvenio > 0 && <span className="convenio-seg" data-tipo="sem" style={{ width: parte(semConvenio) }} />}
     </div>
   );
 }
 
-function LinhaConvenio({ nome, sus, naoSus, semConvenio, destaque }: { nome: string; sus: number; naoSus: number; semConvenio: number; destaque?: boolean }) {
-  const total = sus + naoSus + semConvenio;
+function LinhaConvenio({
+  nome,
+  sus,
+  naoSus,
+  cetrus,
+  semConvenio,
+  destaque,
+}: {
+  nome: string;
+  sus: number;
+  naoSus: number;
+  cetrus: number;
+  semConvenio: number;
+  destaque?: boolean;
+}) {
+  const total = sus + naoSus + cetrus + semConvenio;
   if (total === 0) return null;
   const pctSus = (sus / total) * 100;
   return (
     <li className="convenio-linha" data-destaque={destaque ? "" : undefined}>
       <span className="convenio-nome">{nome}</span>
-      <BarraConvenio sus={sus} naoSus={naoSus} semConvenio={semConvenio} />
+      <BarraConvenio sus={sus} naoSus={naoSus} cetrus={cetrus} semConvenio={semConvenio} />
       <span className="convenio-num">
-        <b>{inteiro.format(sus)}</b> SUS <span className="meta-sep">·</span> <b>{inteiro.format(naoSus)}</b> não SUS
+        <b>{inteiro.format(sus)}</b> SUS <span className="meta-sep">·</span> <b>{inteiro.format(naoSus)}</b> pagante
+        {cetrus > 0 && (
+          <>
+            <span className="meta-sep"> · </span>
+            <b>{inteiro.format(cetrus)}</b> Cetrus
+          </>
+        )}
         <span className="meta-sep"> · </span>
         {pctTexto(pctSus)} SUS
         {semConvenio > 0 && ` · ${inteiro.format(semConvenio)} sem convênio`}
@@ -130,7 +151,8 @@ function LinhaMeta({ item, esperado, convenio }: { item: ResultadoItem; esperado
       <td>{item.projecao !== null ? inteiro.format(item.projecao) : "—"}</td>
       {convenio && (
         <td>
-          {inteiro.format(item.sus)} <span className="meta-sep">/</span> {inteiro.format(item.naoSus)}
+          {inteiro.format(item.sus)} <span className="meta-sep">/</span> {inteiro.format(item.naoSus)} <span className="meta-sep">/</span>{" "}
+          {inteiro.format(item.cetrus)}
         </td>
       )}
       <td>
@@ -370,7 +392,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                       <th scope="col">Faltam</th>
                       <th scope="col">Por dia útil</th>
                       <th scope="col">Projeção</th>
-                      {resultado.convenioInformado && <th scope="col">SUS / outros</th>}
+                      {resultado.convenioInformado && <th scope="col">SUS / pagante / Cetrus</th>}
                       <th scope="col">Situação</th>
                     </tr>
                   </thead>
@@ -408,14 +430,18 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
               <div className="panel-head">
                 <div>
                   <h2 className="panel-title" id="convenio-titulo">
-                    SUS e não SUS
+                    SUS, pagante e Cetrus
                   </h2>
-                  <p className="panel-sub">Quanto dos atendimentos que contam nas metas foi pelo SUS e quanto foi por outro convênio ou particular.</p>
+                  <p className="panel-sub">
+                    Quanto dos atendimentos que contam nas metas foi pelo SUS, quanto foi por outro convênio ou particular (pagante) e quanto foi do Cetrus, um
+                    curso que não é SUS nem pagante.
+                  </p>
                 </div>
               </div>
               <div className="convenio-legenda" aria-hidden="true">
                 <span data-tipo="sus">SUS</span>
-                <span data-tipo="nao-sus">Não SUS</span>
+                <span data-tipo="nao-sus">Pagante</span>
+                {resultado.convenio.cetrus > 0 && <span data-tipo="cetrus">Cetrus</span>}
                 {resultado.convenio.semConvenio > 0 && <span data-tipo="sem">Sem convênio informado</span>}
               </div>
               <ul className="convenio-lista">
@@ -426,6 +452,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                     nome={g.nome}
                     sus={g.itens.reduce((s, i) => s + i.sus, 0)}
                     naoSus={g.itens.reduce((s, i) => s + i.naoSus, 0)}
+                    cetrus={g.itens.reduce((s, i) => s + i.cetrus, 0)}
                     semConvenio={g.itens.reduce((s, i) => s + i.semConvenio, 0)}
                   />
                 ))}

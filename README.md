@@ -330,7 +330,10 @@ ele aparece, com faturas enviadas, a enviar e canceladas e os dias da emissão a
 **Cetrus (antigo "SUS CURSO") não é SUS.** "SUS CURSO" era o nome com que o Klingo trazia o Cetrus, um curso; o Klingo passa a trazer `CETRUS`. A leitura
 das planilhas (`klingo_relatorios.carregar`, via `nome_operadora`) junta os dois sob **CETRUS** em todos os painéis, sem mexer no que está gravado. Só o
 nome exato `SUS` é SUS: a análise "SUS: mês a mês" (`acompanhado_mes_a_mes`) não aceita mais "SUS ..." e o Cetrus é um convênio comum, com prazo próprio
-aprendido. Nas **Metas** (`lib/metas/calculo.ts` e `Acompanhamento de META/gerar_dashboard.py`) ele sempre foi contado como não SUS (pagante), e continua.
+aprendido. Nas **Metas** (`lib/metas/calculo.ts` e `Acompanhamento de META/gerar_dashboard.py`) ele é uma **terceira categoria**: os atendimentos do Cetrus
+(`CETRUS` ou o antigo `SUS CURSO`) **contam na meta e no total**, mas não são SUS nem pagante. "Pagante" passa a ser só convênio informado que não é SUS nem Cetrus
+(particular incluído). O bloco "SUS, pagante e Cetrus", a coluna "SUS / pagante / Cetrus", a comparação "SUS × só pagante" (que deixa o Cetrus fora das duas
+pontas, inclusive na participação do pagante) e a leitura automática mostram o Cetrus à parte.
 Para renomear outro apelido, edite `OPERADORAS_RENOMEADAS` em `klingo_relatorios.py`.
 Teste: `tests/test_faturamento_sus.py`.
 

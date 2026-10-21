@@ -41,7 +41,10 @@ export type ResultadoItem = {
   meta: number;
   realizado: number;
   sus: number;
+  /** Pagante: convênio informado que não é SUS nem Cetrus (outros convênios e particular). */
   naoSus: number;
+  /** Cetrus (antes "SUS CURSO"): um curso, uma terceira categoria — conta na meta, mas não é SUS nem pagante. */
+  cetrus: number;
   semConvenio: number;
   pct: number;
   /** Cumprimento da mesma meta contando só o pagante (convênio informado que não é SUS). */
@@ -82,7 +85,7 @@ export type ResultadoMes = {
   totalForaDasMetas: number;
   convenioInformado: boolean;
   /** Atendimentos que contam em alguma meta, separados pelo convênio (cada atendimento uma vez só). */
-  convenio: { sus: number; naoSus: number; semConvenio: number };
+  convenio: { sus: number; naoSus: number; cetrus: number; semConvenio: number };
   geral: {
     pct: number;
     situacao: Situacao;
@@ -133,9 +136,13 @@ type Preparada = {
   procedimento: string;
   classes: Set<string>;
   sus: boolean;
+  cetrus: boolean;
   semConvenio: boolean;
   original: LinhaAtendimento;
 };
+
+/** O Cetrus (curso) era trazido pelo Klingo como "SUS CURSO"; o histórico ainda tem esse nome, o novo é "CETRUS". */
+const NOMES_CETRUS = new Set(["CETRUS", "SUS CURSO"]);
 
 function preparar(l: LinhaAtendimento): Preparada {
   const convenio = norm(l.operadora);
@@ -144,8 +151,9 @@ function preparar(l: LinhaAtendimento): Preparada {
     especialidade: norm(l.especialidade),
     procedimento: norm(l.procedimento),
     classes: lerClasses(l.classes),
-    // Só o nome exato "SUS" é SUS. "SUS CURSO" (hoje "CETRUS") é um curso, não SUS: conta como não SUS (pagante).
+    // Só o nome exato "SUS" é SUS. O Cetrus ("SUS CURSO" no histórico) é um curso: terceira categoria, nem SUS nem pagante.
     sus: convenio === "SUS",
+    cetrus: NOMES_CETRUS.has(convenio),
     semConvenio: convenio === "",
     original: l,
   };
@@ -353,18 +361,20 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
       const filtro = criarFiltro(g.unidade, it.regra);
       let realizado = 0;
       let sus = 0;
+      let cetrus = 0;
       let semConvenio = 0;
       preparadas.forEach((l, i) => {
         if (!filtro(l)) return;
         contagem[i] += 1;
         realizado += l.original.qtd;
         if (l.sus) sus += l.original.qtd;
+        if (l.cetrus) cetrus += l.original.qtd;
         if (l.semConvenio) semConvenio += l.original.qtd;
       });
       const meta = metaDoPeriodo(cfg, g, it, ctx);
       const pct = meta ? (realizado / meta) * 100 : 0;
       const situacao = situacaoDe(pct, esperado);
-      const pagante = realizado - sus - semConvenio;
+      const pagante = realizado - sus - cetrus - semConvenio;
       const pctPagante = meta ? (pagante / meta) * 100 : 0;
       const situacaoPagante = situacaoDe(pctPagante, esperado);
       const faltam = Math.max(meta - realizado, 0);
@@ -375,6 +385,7 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
         realizado,
         sus,
         naoSus: pagante,
+        cetrus,
         semConvenio,
         pct,
         pctPagante,
@@ -440,10 +451,11 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
   });
   const fora = [...foraMapa.values()].sort((a, b) => b.qtd - a.qtd);
 
-  const convenio = { sus: 0, naoSus: 0, semConvenio: 0 };
+  const convenio = { sus: 0, naoSus: 0, cetrus: 0, semConvenio: 0 };
   preparadas.forEach((l, i) => {
     if (contagem[i] === 0) return;
     if (l.sus) convenio.sus += l.original.qtd;
+    else if (l.cetrus) convenio.cetrus += l.original.qtd;
     else if (l.semConvenio) convenio.semConvenio += l.original.qtd;
     else convenio.naoSus += l.original.qtd;
   });
@@ -479,7 +491,7 @@ export function calcularPeriodo(cfg: MetasConfig, de: string, ate: string, linha
 }
 
 // ───────── comparação com e sem SUS ─────────
-// "Pagante" = atendimento com convênio informado que não é SUS (outros convênios e particular). A meta é a mesma: a comparação mostra
+// "Pagante" = atendimento com convênio informado que não é SUS nem Cetrus (outros convênios e particular); o Cetrus conta na meta mas fica fora das duas leituras. A meta é a mesma: a comparação mostra
 // quanto dela estaria cumprida se só o pagante contasse. Tudo em quantidade e porcentagem (as Metas não trazem valores em R$).
 
 export type LinhaAtendimentoDia = LinhaAtendimento & { dia: string };
@@ -534,11 +546,11 @@ export function serieDiaria(cfg: MetasConfig, de: string, ate: string, linhas: L
       if (!item.filtro(l)) continue;
       contou = true;
       item.total[i] += linha.qtd;
-      if (!l.sus && !l.semConvenio) item.pagante[i] += linha.qtd;
+      if (!l.sus && !l.cetrus && !l.semConvenio) item.pagante[i] += linha.qtd;
     }
     if (contou) {
       if (l.sus) susDia[i] += linha.qtd;
-      else if (!l.semConvenio) paganteDia[i] += linha.qtd;
+      else if (!l.cetrus && !l.semConvenio) paganteDia[i] += linha.qtd;
     }
   }
 
@@ -613,18 +625,19 @@ const lista = (nomes: string[]) => (nomes.length <= 1 ? nomes.join("") : `${nome
 export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): Achado[] {
   const achados: Achado[] = [];
   const itens = res.grupos.flatMap((g) => g.itens);
-  const contados = res.convenio.sus + res.convenio.naoSus + res.convenio.semConvenio;
+  const contados = res.convenio.sus + res.convenio.naoSus + res.convenio.cetrus + res.convenio.semConvenio;
   if (!itens.length || contados === 0) return achados;
   const nomePeriodo = res.fechado ? "O período fechou" : "Até agora";
 
   // 1. O quadro geral.
   const dif = res.geral.pct - res.geral.pctPagante;
+  const naoPagante = ["SUS", ...(res.convenio.cetrus > 0 ? ["Cetrus"] : [])].join(" e ");
   const piorou = ordem[res.geral.situacaoPagante] < ordem[res.geral.situacao];
   achados.push({
     tom: piorou ? "atencao" : "info",
     texto:
       `${nomePeriodo} com ${pctT(res.geral.pct)} das metas cumpridas. Contando só o pagante, são ${pctT(res.geral.pctPagante)}: ` +
-      `o SUS responde por ${ppT(dif)} do cumprimento` +
+      `${naoPagante === "SUS" ? "o SUS responde" : `${naoPagante} respondem`} por ${ppT(dif)} do cumprimento` +
       (piorou
         ? `, e sem ele o geral passaria de "${ROTULO[res.geral.situacao]}" para "${ROTULO[res.geral.situacaoPagante]}".`
         : "."),
@@ -727,6 +740,13 @@ export function analisarPagante(res: ResultadoMes, serie: SerieDiaria | null): A
       }
     }
   }
+
+  // 6b. O Cetrus é uma terceira categoria: conta na meta, mas não é SUS nem pagante.
+  if (res.convenio.cetrus > 0)
+    achados.push({
+      tom: "info",
+      texto: `${fmt0.format(res.convenio.cetrus)} atendimentos (${pctT((res.convenio.cetrus / contados) * 100)}) são do Cetrus, um curso: contam nas metas, mas não entram como SUS nem como pagante.`,
+    });
 
   // 7. Atendimentos sem convênio informado ficam de fora das duas leituras.
   if (res.convenio.semConvenio > 0 && res.convenio.semConvenio / contados >= 0.01) {

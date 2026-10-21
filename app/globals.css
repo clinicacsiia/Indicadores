@@ -1611,6 +1611,10 @@ select {
 .convenio-seg[data-tipo="nao-sus"] {
   --tipo-cor: var(--s-agendados);
 }
+.convenio-legenda [data-tipo="cetrus"],
+.convenio-seg[data-tipo="cetrus"] {
+  --tipo-cor: var(--s-cetrus, #8a6bbf);
+}
 .convenio-legenda [data-tipo="sem"],
 .convenio-seg[data-tipo="sem"] {
   --tipo-cor: var(--s-neutra);

@@ -228,7 +228,7 @@ export function ComparacaoPagante({
             Metas com SUS × só pagante
           </h2>
           <p className="panel-sub">
-            O cumprimento da mesma meta contando todos os atendimentos e contando só o pagante (convênio que não é SUS e particular). Em porcentagem da
+            O cumprimento da mesma meta contando todos os atendimentos e contando só o pagante (outro convênio e particular, sem o SUS e sem o Cetrus). Em porcentagem da
             meta, sem valores em R$.
           </p>
         </div>

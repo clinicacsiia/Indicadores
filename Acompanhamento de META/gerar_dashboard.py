@@ -35,6 +35,7 @@ def norm(texto) -> str:
     return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().upper().strip()
 
 
+NOMES_CETRUS = {"CETRUS", "SUS CURSO"}   # o Klingo trazia o Cetrus como "SUS CURSO"; o nome novo e "CETRUS"
 COLUNAS_DADOS = ["Exames Realizados", "Unidade", "Procedimento - Classes", "Especialidade", "Data do Atendimento", "Procedimento", "Mês"]   # mais "Convênio", opcional (SUS x não-SUS)
 
 
@@ -51,8 +52,9 @@ def carregar_dados() -> pd.DataFrame:
     df["_uni"] = df["Unidade"].map(norm)
     df["_esp"] = df["Especialidade"].map(norm)
     df["_proc"] = df["Procedimento"].map(norm)
-    # So o nome exato "SUS" e SUS: "SUS CURSO" (hoje "CETRUS") e um curso, conta como nao SUS.
+    # So o nome exato "SUS" e SUS. O Cetrus (no historico "SUS CURSO") e um curso: terceira categoria, nem SUS nem pagante.
     df["_sus"] = df["Convênio"].map(norm) == "SUS" if "Convênio" in df.columns else False
+    df["_cetrus"] = df["Convênio"].map(norm).isin(NOMES_CETRUS) if "Convênio" in df.columns else False
     df["_conv"] = df["Convênio"].map(norm) != "" if "Convênio" in df.columns else False   # False = linha sem convênio informado
     df["_classes"] = df["Procedimento - Classes"].map(
         lambda c: {t.strip().upper() for t in str(c).split(",") if t.strip()} if isinstance(c, str) else set())
@@ -158,6 +160,7 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
             realizado = int(m.sum())
             sus = int((m & df_mes["_sus"]).sum())
             sem_conv = int((m & ~df_mes["_conv"]).sum())
+            cetrus = int((m & df_mes["_cetrus"]).sum())
             meta = round(sum(int(ajustes_mes.get(y, {}).get(f"{g['id']}/{it['id']}", it["meta"])) * fracao_mes[y] for y in yms))
             if not per:
                 por_item_dia.append((meta, m.groupby(dia_do_mes[m]).size().reindex(range(1, monthrange(ano, mes)[1] + 1), fill_value=0).cumsum()))
@@ -165,7 +168,7 @@ def montar_mes(df_mes: pd.DataFrame, ym: str, cfg: dict, agora: datetime, avisos
             st = status_de(pct, esperado)
             faltam = max(meta - realizado, 0)
             itens.append({
-                "id": it["id"], "nome": it["nome"], "meta": meta, "realizado": realizado, "sus": sus, "nao_sus": realizado - sus - sem_conv, "sem_conv": sem_conv,
+                "id": it["id"], "nome": it["nome"], "meta": meta, "realizado": realizado, "sus": sus, "cetrus": cetrus, "nao_sus": realizado - sus - cetrus - sem_conv, "sem_conv": sem_conv,
                 "pct": pct, "faltam": faltam, "status": st,
                 "por_dia": math.ceil(faltam / restantes) if faltam and restantes >= 0.5 else None,
                 "projecao": round(realizado / decorridos * total_uteis) if decorridos >= 0.5 and not fechado else None,
