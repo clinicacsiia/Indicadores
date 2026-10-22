@@ -2779,3 +2779,342 @@ select {
   .extrair-folha { break-after: page; }
   .extrair-folha:last-child { break-after: auto; }
 }
+
+/* ───────── CRM Ressonância ───────── */
+
+.crm-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  padding: 4px 20px 20px;
+}
+.crm-form-editar {
+  padding: 12px 0 4px;
+}
+.crm-largo {
+  grid-column: 1 / -1;
+}
+textarea.crm-texto {
+  min-height: 70px;
+  padding: 10px 12px;
+  resize: vertical;
+  font: inherit;
+}
+.crm-dica {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.crm-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+.crm-retorno {
+  color: var(--ok);
+  font-size: 14px;
+  font-weight: 500;
+}
+.crm-retorno[data-erro="true"] {
+  color: var(--danger);
+}
+.crm-aviso {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 14px;
+}
+.crm-periodos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.crm-periodo {
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+.crm-periodo:hover {
+  border-color: var(--ink-3);
+}
+.crm-periodo[aria-current="true"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.crm-duas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.crm-destaques {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 20px 18px 38px;
+  color: var(--ink);
+}
+.crm-funil {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 6px 20px 8px;
+  list-style: none;
+}
+.crm-funil li {
+  display: grid;
+  grid-template-columns: minmax(150px, 260px) 1fr minmax(120px, 190px);
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+.crm-funil-trilho {
+  height: 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.crm-funil-trilho > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--s-realizados);
+}
+.crm-funil-valor {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.crm-funil-valor small {
+  display: block;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .crm-funil li {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+.crm-nota {
+  margin: 0;
+  padding: 10px 20px 16px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.crm-vazio {
+  margin: 0;
+  padding: 4px 20px 20px;
+  color: var(--ink-3);
+}
+.crm-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.crm-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 20px;
+}
+.crm-item + .crm-item {
+  border-top: 1px solid var(--line);
+}
+.crm-item-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+p.crm-item-meta,
+.crm-item-meta {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.crm-item-texto {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.crm-detalhes > summary {
+  width: fit-content;
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.crm-detalhes[open] > summary {
+  margin-bottom: 4px;
+}
+
+/* CRM Ressonância — catálogo, roteiros e fila de trabalho */
+
+.crm-secao {
+  margin: 28px 0 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.crm-secao-sub {
+  margin: 2px 0 -4px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.crm-contador {
+  display: inline-block;
+  min-width: 22px;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+}
+.crm-link {
+  color: var(--brand);
+  font-weight: 600;
+}
+.btn-pequeno {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13.5px;
+}
+.crm-rapidas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.crm-identificacao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.crm-busca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 20px 16px;
+}
+.crm-busca .input {
+  flex: 1 1 260px;
+  width: auto;
+}
+
+/* Ficha do exame: o que a atendente precisa saber antes de passar o orçamento. */
+.crm-ficha {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.crm-ficha-titulo {
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.crm-ficha-lista {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crm-ficha-lista li {
+  display: grid;
+  grid-template-columns: minmax(96px, 130px) 1fr;
+  gap: 12px;
+  font-size: 13.5px;
+}
+.crm-ficha-lista span {
+  color: var(--ink-3);
+}
+.crm-ficha-lista b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 560px) {
+  .crm-ficha-lista li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* Roteiro: o passo a passo de cada motivo de perda. */
+.crm-roteiro {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--ink);
+  font-size: 13.5px;
+}
+.crm-roteiro strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.crm-roteiro ol,
+.crm-passos {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+.crm-passos {
+  font-size: 13px;
+}
+
+/* Barras simples (contatos por dia da semana). */
+.crm-barras {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 4px 20px 20px;
+  list-style: none;
+}
+.crm-barras li {
+  display: grid;
+  grid-template-columns: minmax(80px, 120px) 1fr 36px;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.crm-barras-trilho {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.crm-barras-trilho > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--s-realizados);
+}
+.crm-barras-valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: right;
+}

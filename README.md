@@ -512,6 +512,78 @@ vem dele; o dia de hoje conta só a parte do expediente que já passou.
 `sync-relatorios-dw` e, na aba Metas (como admin), clicar em "Atualizar" para
 o mês desejado (um mês por vez, máx. 31 dias).
 
+## Aba CRM Ressonância
+
+O caminho do paciente na Ressonância Magnética, registrado pela equipe de atendimento: procura → orçamento/autorização → agendamento →
+comparecimento → realização. Serve para achar os gargalos antes de gastar mais em captação. Migrations `20261022110000_crm_ressonancia.sql`,
+`20261022120000_crm_rm_catalogo.sql` e `20261022130000_crm_rm_alinha_nomenclatura.sql`.
+
+### Quem preenche, quem vê
+
+Duas chaves em `profiles.permissions`, as duas **desligadas** até o administrador marcar em Configurações (item "CRM Ressonância", também no
+pedido de acesso):
+
+- `crm_rm_preencher` — call center e recepção: registram e atualizam **só o que elas mesmas registraram**;
+- `crm_rm` — coordenação: vê os indicadores e todas as listas, e atualiza qualquer registro.
+
+Administrador tem as duas. Valores em R$ só para quem tem "Dados financeiros". O menu só aparece para quem tem uma das duas.
+
+### As cinco seções
+
+| Seção | Para quem | O que faz |
+| --- | --- | --- |
+| **Meu dia** | atendimento | A fila do dia: responder primeiro, retornos vencidos, confirmar os exames de até 2 dias, exames sem resultado, vagas que abriram (com quem está esperando vaga) e contatos parados. Cada item traz como achar a pessoa e botões de um clique. |
+| **Atender** | atendimento | Registra o contato e busca por `RM-0001`, código do Klingo, telefone ou exame. |
+| **Agenda** | atendimento | Um registro por horário reservado, com o código da marcação do Klingo. |
+| **Indicadores** | coordenação | Funil, perdas por motivo e tipo de gargalo, absenteísmo × confirmação, forma de pagamento, equipamento — e a seção **Marketing e captação**. |
+| **Guia** | todos | Catálogo de exames com preço praticado e sedação, convênios atendidos, dicionário das situações e o **passo a passo de cada motivo de perda**. |
+
+### Nomenclatura: tudo vem do Klingo
+
+A primeira versão usava uma lista inventada de exames ("Joelho", "Coluna lombar") e convênio em texto livre. Nada cruzava com o Klingo, a
+atendente adivinhava o preço e cada pessoa escrevia o convênio de um jeito. Agora:
+
+- `crm_rm_exame` — **63 exames** com o nome exato do Klingo, agrupados (Coluna, Articulações, Crânio...) só para os indicadores;
+- `crm_rm_convenio` — **23 convênios** com o nome exato, classificados em Particular / Convênio / SUS / **Cetrus** (o antigo "SUS CURSO", como no
+  resto do sistema). A forma de pagamento sai do convênio escolhido: a atendente não responde duas vezes a mesma coisa;
+- `crm_rm_semear_catalogo()` lê o relatório 52 do Klingo e repõe o que aparecer de novo, sem sobrescrever o que a clínica preencheu
+  (pacotes `PCTE ...` e `CONTRASTE ...` ficam de fora: não são exames);
+- `crm_rm_precos(meses)` devolve o preço que a clínica **realmente cobrou** em cada exame. É o que a ficha mostra na hora do orçamento —
+  RM de crânio simples ficou entre R$ 420 e 490, mas sob sedação entre R$ 2.150 e 2.350;
+- unidade fixa em `CLÍNICA DE SAÚDE E IMAGEM - RM/TC` (= grupo CSI 2 do `metas.json`, cuja meta é 1.090 ressonâncias/mês);
+- `canal` (por onde o **paciente** chegou, para marketing) é coisa diferente de `origem_registro` (quem **digitou**, com os mesmos nomes do campo
+  "Origem" do Klingo: TELEOPERADOR, RECEPCIONISTA, SAC/TEXTO...).
+
+**Preparo, contraste, duração e autorização nascem vazios de propósito**: são conteúdo clínico e administrativo da clínica, que preenche no Table
+Editor. Até lá a tela diz "não cadastrado — pergunte à equipe técnica" em vez de inventar orientação de preparo.
+
+### Indicadores de marketing
+
+Pacientes novos × recorrentes, perdas por preço (com o valor médio de quem perdeu contra o de quem fechou), antecedência média, demanda que a
+agenda não absorveu (por grupo de exame), canal de entrada com conversão/ticket/valor agendado, tempo até a primeira resposta por canal,
+exames mais procurados × feitos, convênios pedidos que não atendemos (vira pedido de credenciamento) e dia da semana em que os contatos chegam.
+
+**Cobertura do CRM** é o indicador que vem antes de todos: `crm_rm_realizados_klingo()` conta quantas ressonâncias o Klingo faturou no período e
+compara com o que foi registrado aqui. Se a equipe registra 56 de 1.400, os outros números falam de 4% da operação — e a tela diz isso em primeiro
+lugar, em vez de deixar a coordenação decidir em cima de uma amostra.
+
+### Privacidade
+
+Não existe campo de nome nem de dado clínico. A identificação é o **código do Klingo**; `telefone` é opcional, só dígitos, existe para a atendente
+conseguir retomar o contato e aparece **apenas nas listas de trabalho**, nunca nos indicadores. A segurança é do banco (RLS + `grant` por coluna):
+quem só preenche não lê o que os outros registraram, quem só vê não registra, e apagar é só do admin. Teste: `supabase/tests/crm_rm.sql`.
+
+### Dados de demonstração
+
+Linhas com `exemplo = true` (etiqueta "Exemplo"). Para tirar, no SQL Editor:
+`delete from public.crm_rm_agenda where exemplo; delete from public.crm_rm_contato where exemplo;`
+(pelo MCP não dá: ver a nota sobre comandos destrutivos no `CLAUDE.md`).
+
+### Ainda não faz
+
+Puxar do Klingo a agenda da RM (hoje a agenda é digitada). O caminho está mapeado: o relatório 7 traz o código da marcação, que liga tudo —
+falta o Klingo incluir a situação do atendimento e esse mesmo código nos relatórios 18 e 47.
+
 ## Data warehouse de relatórios
 
 Além do `sync-indicadores` original (que só lê o relatório `13397` e grava 4

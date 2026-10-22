@@ -5,6 +5,7 @@ import { Brand } from "@/app/components/Brand";
 import { NavLinks } from "@/app/components/NavLinks";
 import { IconSair } from "@/app/components/icons";
 import { PAINEIS, podeVerPainel } from "@/lib/paineis";
+import { podePreencherCrmRm, podeVerCrmRm } from "@/lib/crm-rm";
 import { APP_VERSION } from "@/lib/version";
 
 // RLS (can_view_painel) já limita aos painéis que a pessoa pode ver; o administrador conta todos.
@@ -61,7 +62,7 @@ export default async function AppLayout({
           <span className="version-tag">v{APP_VERSION}</span>
         </div>
 
-        <NavLinks isAdmin={isAdmin} paineis={paineis} avisos={avisos} pedidos={isAdmin ? pedidos : 0} />
+        <NavLinks isAdmin={isAdmin} paineis={paineis} crmRm={podeVerCrmRm(profile) || podePreencherCrmRm(profile)} avisos={avisos} pedidos={isAdmin ? pedidos : 0} />
 
         <div className="sidebar-user">
           <span className="avatar" aria-hidden="true">
