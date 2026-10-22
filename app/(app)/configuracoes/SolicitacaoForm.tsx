@@ -88,18 +88,18 @@ export function SolicitacaoForm({ id, usuario, nome, emailContato, desde, painei
 
         <div className="user-paineis" role="group" aria-labelledby={`pedido-qual-${id}`}>
           <span className="field-label user-paineis-titulo" id={`pedido-qual-${id}`}>
-            Qualidade (reclamações, ocorrências e elogios)
+            CRM Ressonância (funil da Ressonância Magnética)
           </span>
           <div className="user-switches">
             <label className="switch">
-              <input type="checkbox" name="qualidade_preencher"  />
+              <input type="checkbox" name="crm_rm_preencher"  />
               <span className="switch-track" aria-hidden="true" />
-              <span className="switch-text">Pode registrar (e ver o que registrou)</span>
+              <span className="switch-text">Pode registrar contatos e horários (vê só o que registrou)</span>
             </label>
             <label className="switch">
-              <input type="checkbox" name="qualidade"  />
+              <input type="checkbox" name="crm_rm"  />
               <span className="switch-track" aria-hidden="true" />
-              <span className="switch-text">Pode ver o indicador e marcar como resolvida</span>
+              <span className="switch-text">Pode ver os indicadores e todas as listas</span>
             </label>
           </div>
         </div>

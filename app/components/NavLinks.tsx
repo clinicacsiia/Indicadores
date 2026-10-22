@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconAviso, IconConfig, IconInicio, IconMetas, IconPainel, IconQualidade } from "./icons";
+import { IconAviso, IconConfig, IconInicio, IconMetas, IconPainel, IconCrm } from "./icons";
 import type { Painel } from "@/lib/paineis";
 
 type Props = {
   isAdmin: boolean;
   paineis: Painel[];
-  // Aba Qualidade: aparece só para quem pode ver o indicador ou preencher o formulário.
-  qualidade: boolean;
+  // Aba CRM Ressonância: aparece só para quem pode ver os indicadores ou preencher o formulário.
+  crmRm: boolean;
   // Avisos abertos que esta pessoa pode ver (e quantos são críticos), para o contador do menu.
   avisos: { abertos: number; criticos: number };
   // Pedidos de acesso aguardando aprovação (só o administrador vê), para o contador de Configurações.
   pedidos: number;
 };
 
-export function NavLinks({ isAdmin, paineis, qualidade, avisos, pedidos }: Props) {
+export function NavLinks({ isAdmin, paineis, crmRm, avisos, pedidos }: Props) {
   const pathname = usePathname();
 
   const links: {
@@ -39,7 +39,7 @@ export function NavLinks({ isAdmin, paineis, qualidade, avisos, pedidos }: Props
       textoContador: (n) => `${n} ${n === 1 ? "aviso aberto" : "avisos abertos"}`,
     },
     { href: "/metas", rotulo: "Metas", icone: <IconMetas />, ativo: pathname.startsWith("/metas") },
-    ...(qualidade ? [{ href: "/qualidade", rotulo: "Qualidade", icone: <IconQualidade />, ativo: pathname.startsWith("/qualidade") }] : []),
+    ...(crmRm ? [{ href: "/crm-rm", rotulo: "CRM Ressonância", icone: <IconCrm />, ativo: pathname.startsWith("/crm-rm") }] : []),
     ...paineis.map((p) => ({
       href: `/painel/${p.id}`,
       rotulo: p.nome,

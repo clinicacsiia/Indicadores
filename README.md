@@ -526,6 +526,23 @@ Reclamações, ocorrências e elogios que a equipe **lança à mão** (o Klingo 
   % resolvidas, tempo médio para resolver, gravidade alta aberta), por setor, por unidade e a lista com "Marcar como resolvida".
 - **Dados de demonstração:** linhas com `exemplo = true` (aparecem com a etiqueta "Exemplo"). Para tirar: `delete from public.ocorrencia where exemplo;`.
 
+## Aba CRM Ressonância
+
+Funil da Ressonância Magnética lançado à mão pela equipe (procura → orçamento/autorização → agendamento → comparecimento → realização), para achar os gargalos antes de
+investir em captação. Migration `20261022110000_crm_ressonancia.sql`. Substitui a planilha "CRM e Gargalos da Ressonância Magnética": mesmas nomenclaturas e dicionário.
+
+- **Quem preenche / quem vê:** duas chaves novas em `profiles.permissions`, as duas **desligadas** até o administrador marcar em Configurações (item "CRM Ressonância",
+  também no pedido de acesso). `crm_rm_preencher` = registra e atualiza o que ela mesma registrou (e só vê isso); `crm_rm` = vê os indicadores e todas as listas e atualiza
+  qualquer registro. Administrador tem as duas. Valores em R$ só aparecem para quem tem "Dados financeiros". O menu só aparece para quem tem uma das duas.
+- **Tabelas** (sem nome, CPF ou dado clínico; cada registro tem um código `RM-0001`): `crm_rm_contato` (uma linha por solicitação: canal, exame, particular/convênio, valor
+  informado, situação, motivo da perda, próxima ação, retorno) e `crm_rm_agenda` (uma linha por horário: status, confirmação, motivo da falta, vaga recuperada, valor
+  previsto/realizado, horas paradas, motivo operacional). A segurança está no banco (RLS + `grant` por coluna; só o admin apaga). Teste: `supabase/tests/crm_rm.sql`.
+- **Tela** (`app/(app)/crm-rm/`, `lib/crm-rm.ts`): abas **Indicadores** (funil, conversão, absenteísmo, perdas por motivo e tipo de gargalo, fila "Para retomar hoje", faltas ×
+  confirmação, particular × convênio, canais, equipamento), **CRM – Contatos**, **Agenda – RM** (formulário + lista com "Atualizar") e **Como preencher** (instruções e
+  dicionário). Período: 7, 30, 90 dias ou tudo.
+- **Dados de demonstração:** linhas com `exemplo = true` (etiqueta "Exemplo"). Para tirar: `delete from public.crm_rm_contato where exemplo; delete from public.crm_rm_agenda where exemplo;`.
+- **Ainda não faz:** puxar do Klingo os exames de RM agendados/realizados/faltosos (hoje a agenda é digitada).
+
 ## Data warehouse de relatórios
 
 Além do `sync-indicadores` original (que só lê o relatório `13397` e grava 4

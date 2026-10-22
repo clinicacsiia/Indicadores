@@ -2780,51 +2780,59 @@ select {
   .extrair-folha:last-child { break-after: auto; }
 }
 
-/* ───────── Qualidade ───────── */
+/* ───────── CRM Ressonância ───────── */
 
-.qual-form {
+.crm-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 16px;
   padding: 4px 20px 20px;
 }
-.qual-descricao,
-.qual-acoes {
+.crm-form-editar {
+  padding: 12px 0 4px;
+}
+.crm-largo {
   grid-column: 1 / -1;
 }
-textarea.qual-texto {
-  min-height: 96px;
+textarea.crm-texto {
+  min-height: 70px;
   padding: 10px 12px;
   resize: vertical;
   font: inherit;
 }
-.qual-acoes {
+.crm-dica {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.crm-acoes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 14px;
 }
-.qual-retorno {
+.crm-retorno {
   color: var(--ok);
   font-size: 14px;
   font-weight: 500;
 }
-.qual-retorno[data-erro="true"] {
+.crm-retorno[data-erro="true"] {
   color: var(--danger);
 }
-.qual-aviso {
+.crm-aviso {
   padding: 12px 16px;
   border-radius: var(--radius);
   background: var(--warn-soft);
   color: var(--warn);
   font-size: 14px;
 }
-.qual-meses {
+.crm-periodos {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.qual-mes {
+.crm-periodo {
+  text-decoration: none;
   padding: 6px 14px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
@@ -2833,88 +2841,120 @@ textarea.qual-texto {
   font-size: 14px;
   font-weight: 600;
 }
-.qual-mes:hover {
+.crm-periodo:hover {
   border-color: var(--ink-3);
 }
-.qual-mes[aria-current="true"] {
+.crm-periodo[aria-current="true"] {
   border-color: var(--brand);
   background: var(--brand-soft);
   color: var(--brand);
 }
-.qual-duas {
+.crm-duas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
   gap: 16px;
   align-items: start;
 }
-.qual-barras {
+.crm-destaques {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   margin: 0;
-  padding: 4px 20px 20px;
+  padding: 4px 20px 18px 38px;
+  color: var(--ink);
+}
+.crm-funil {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 6px 20px 8px;
   list-style: none;
 }
-.qual-barras li {
+.crm-funil li {
   display: grid;
-  grid-template-columns: minmax(96px, 150px) 1fr 32px;
+  grid-template-columns: minmax(150px, 260px) 1fr minmax(120px, 190px);
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   font-size: 14px;
 }
-.qual-barras-trilho {
-  height: 10px;
+.crm-funil-trilho {
+  height: 14px;
   border-radius: 999px;
   background: var(--surface-2);
   overflow: hidden;
 }
-.qual-barras-trilho > span {
+.crm-funil-trilho > span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--s-agendados);
+  background: var(--s-realizados);
 }
-.qual-barras-valor {
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-  text-align: right;
+.crm-funil-valor {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
 }
-.qual-lista {
+.crm-funil-valor small {
+  display: block;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .crm-funil li {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+.crm-nota {
+  margin: 0;
+  padding: 10px 20px 16px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.crm-vazio {
+  margin: 0;
+  padding: 4px 20px 20px;
+  color: var(--ink-3);
+}
+.crm-lista {
   margin: 0;
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--line);
 }
-.qual-item {
+.crm-item {
   display: grid;
   gap: 8px;
   padding: 14px 20px;
 }
-.qual-item + .qual-item {
+.crm-item + .crm-item {
   border-top: 1px solid var(--line);
 }
-.qual-item-topo {
+.crm-item-topo {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
 }
-.qual-item-meta,
-.qual-item-estado {
+p.crm-item-meta,
+.crm-item-meta {
+  margin: 0;
   color: var(--ink-3);
   font-size: 13px;
 }
-.qual-item-estado[data-resolvida="true"] {
-  color: var(--ok);
-  font-weight: 600;
-}
-.qual-item-texto {
+.crm-item-texto {
   margin: 0;
-  color: var(--ink);
   overflow-wrap: anywhere;
 }
-.qual-resolver {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
+.crm-detalhes > summary {
+  width: fit-content;
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.crm-detalhes[open] > summary {
+  margin-bottom: 4px;
 }

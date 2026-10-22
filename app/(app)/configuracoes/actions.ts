@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { PAINEIS, PERMISSAO_ATENDIMENTO_VISAO, PERMISSAO_FINANCEIRA, RESPONSAVEIS_ATENDIMENTO } from "@/lib/paineis";
-import { PERMISSAO_QUALIDADE_PREENCHER, PERMISSAO_QUALIDADE_VER } from "@/lib/qualidade";
+import { PERMISSAO_CRM_RM_PREENCHER, PERMISSAO_CRM_RM_VER } from "@/lib/crm-rm";
 import { BLOQUEIO_PENDENTE, DOMINIO_INTERNO } from "@/lib/acesso";
 import { metasConfig, mesesParaMudarMeta, SERVICOS_METAS } from "@/lib/metas/config";
 import { agoraSaoPaulo, agruparAlteracoes, metaDoMes } from "@/lib/metas/calculo";
@@ -61,8 +61,8 @@ export async function salvarUsuario(
   const acesso: Record<string, boolean | string> = {
     metas: formData.get("metas") === "on",
     [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
-    [PERMISSAO_QUALIDADE_VER]: formData.get(PERMISSAO_QUALIDADE_VER) === "on",
-    [PERMISSAO_QUALIDADE_PREENCHER]: formData.get(PERMISSAO_QUALIDADE_PREENCHER) === "on",
+    [PERMISSAO_CRM_RM_VER]: formData.get(PERMISSAO_CRM_RM_VER) === "on",
+    [PERMISSAO_CRM_RM_PREENCHER]: formData.get(PERMISSAO_CRM_RM_PREENCHER) === "on",
     // Painéis em Python: cada um é uma chave em profiles.permissions (o id do painel).
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
     ...visao.acesso,
@@ -255,8 +255,8 @@ export async function aprovarSolicitacao(
   const permissions: Record<string, boolean | string> = {
     metas: formData.get("metas") === "on",
     [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
-    [PERMISSAO_QUALIDADE_VER]: formData.get(PERMISSAO_QUALIDADE_VER) === "on",
-    [PERMISSAO_QUALIDADE_PREENCHER]: formData.get(PERMISSAO_QUALIDADE_PREENCHER) === "on",
+    [PERMISSAO_CRM_RM_VER]: formData.get(PERMISSAO_CRM_RM_VER) === "on",
+    [PERMISSAO_CRM_RM_PREENCHER]: formData.get(PERMISSAO_CRM_RM_PREENCHER) === "on",
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
     ...visao.acesso,
   };
