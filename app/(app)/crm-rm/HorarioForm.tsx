@@ -1,21 +1,32 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { EXAMES, FORMAS_PAGAMENTO, type Horario } from "@/lib/crm-rm";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { type ExameCatalogo, type Horario, type Preco } from "@/lib/crm-rm";
 import { atualizarHorario, registrarHorario, type CrmState } from "./actions";
-import { BotaoEnviar, Campo, CamposResultado, Retorno, Seletor } from "./campos";
+import { BotaoEnviar, Campo, CamposResultado, FichaDoExame, Retorno, Seletor, SeletorExame } from "./campos";
 
 const inicial: CrmState = {};
 
 export type OpcaoContato = { id: number; rotulo: string; exame: string; forma: string; valor: number | null };
 
-export function NovoHorarioForm({ hoje, contatos, verValores }: { hoje: string; contatos: OpcaoContato[]; verValores: boolean }) {
+export function NovoHorarioForm({
+  hoje,
+  contatos,
+  exames,
+  precos,
+  verValores,
+}: {
+  hoje: string;
+  contatos: OpcaoContato[];
+  exames: ExameCatalogo[];
+  precos: Preco[];
+  verValores: boolean;
+}) {
   const [state, action] = useActionState(registrarHorario, inicial);
   const [contato, setContato] = useState("");
   const [exame, setExame] = useState("");
   const [forma, setForma] = useState("Particular");
   const [previsto, setPrevisto] = useState("");
-  const [versao, setVersao] = useState(0);
   const ref = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -25,11 +36,10 @@ export function NovoHorarioForm({ hoje, contatos, verValores }: { hoje: string; 
       setExame("");
       setForma("Particular");
       setPrevisto("");
-      setVersao((v) => v + 1);
     }
   }, [state]);
 
-  // Escolher o contato já preenche exame, particular/convênio e valor previsto.
+  // Escolher o contato já preenche exame, forma de pagamento e valor previsto.
   const escolher = (id: string) => {
     setContato(id);
     const c = contatos.find((x) => String(x.id) === id);
@@ -39,6 +49,9 @@ export function NovoHorarioForm({ hoje, contatos, verValores }: { hoje: string; 
       if (c.valor !== null) setPrevisto(c.valor.toFixed(2).replace(".", ","));
     }
   };
+
+  const ficha = useMemo(() => exames.find((e) => e.nome === exame), [exames, exame]);
+  const preco = useMemo(() => precos.find((p) => p.exame === exame), [precos, exame]);
 
   return (
     <form ref={ref} action={action} className="crm-form" aria-label="Registrar horário reservado na Ressonância">
@@ -59,20 +72,23 @@ export function NovoHorarioForm({ hoje, contatos, verValores }: { hoje: string; 
         <input id="h-hora" name="horario" type="time" className="input" step={900} />
       </Campo>
       <Campo id="h-exame" rotulo="Exame">
-        <Seletor id="h-exame" name="exame" opcoes={EXAMES} valor={exame} onChange={setExame} vazio="Escolha" obrigatorio />
+        <SeletorExame id="h-exame" exames={exames} valor={exame} onChange={setExame} />
       </Campo>
-      <Campo id="h-forma" rotulo="Particular ou convênio">
-        <Seletor id="h-forma" name="forma_pagamento" opcoes={FORMAS_PAGAMENTO} valor={forma} onChange={setForma} obrigatorio />
+      <Campo id="h-forma" rotulo="Forma de pagamento">
+        <Seletor id="h-forma" name="forma_pagamento" opcoes={["Particular", "Convênio", "SUS", "Cetrus"]} valor={forma} onChange={setForma} obrigatorio />
       </Campo>
       <Campo id="h-previsto" rotulo="Valor previsto (R$)" dica="Quanto o exame deve render se for feito.">
         <input id="h-previsto" name="valor_previsto" className="input" inputMode="decimal" placeholder="0,00" value={previsto} onChange={(e) => setPrevisto(e.target.value)} />
       </Campo>
+      <Campo id="h-cod" rotulo="Código da marcação no Klingo" dica="Opcional agora, essencial quando a agenda for integrada.">
+        <input id="h-cod" name="codigo_marcacao" className="input" inputMode="numeric" maxLength={12} placeholder="ex.: 20621" />
+      </Campo>
+      <FichaDoExame exame={ficha} preco={preco} />
       <input type="hidden" name="status" value="Agendado" />
       <input type="hidden" name="confirmacao" value="Não contatado" />
-      <input type="hidden" name="vaga_recuperada" value="Não se aplica" />
       <div className="crm-acoes crm-largo">
         <BotaoEnviar texto="Registrar horário" ocupado="Registrando" />
-        <Retorno state={state} okTexto="Horário registrado. Depois do exame, atualize o status na lista." />
+        <Retorno state={state} okTexto="Horário registrado. Depois do exame, feche o resultado na aba Meu dia." />
         {!verValores && <span className="crm-dica">Os valores em R$ não aparecem nas listas para o seu perfil.</span>}
       </div>
     </form>

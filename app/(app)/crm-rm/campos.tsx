@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
-  CONFIRMACOES,
   MAX_OBS,
   MOTIVOS_FALTA,
   MOTIVOS_OPERACIONAIS,
@@ -14,23 +13,26 @@ import {
   SITUACOES_PERDA,
   STATUS_AGENDA,
   VAGA_RECUPERADA,
+  roteiroDoMotivo,
+  telefoneBonito,
   type Contato,
+  type ExameCatalogo,
   type Horario,
+  type Preco,
 } from "@/lib/crm-rm";
 import type { CrmState } from "./actions";
 
-export function Campo({ id, rotulo, dica, children }: { id: string; rotulo: string; dica?: string; children: React.ReactNode }) {
+export const dinheiro = (n: number | null | undefined) => (n === null || n === undefined ? "" : n.toFixed(2).replace(".", ","));
+export const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+export function Campo({ id, rotulo, dica, children }: { id: string; rotulo: string; dica?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="field">
       <label className="field-label" htmlFor={id}>
         {rotulo}
       </label>
       {children}
-      {dica && (
-        <span className="crm-dica" id={`${id}-dica`}>
-          {dica}
-        </span>
-      )}
+      {dica && <span className="crm-dica">{dica}</span>}
     </div>
   );
 }
@@ -71,10 +73,10 @@ export function Seletor({
   );
 }
 
-export function BotaoEnviar({ texto, ocupado }: { texto: string; ocupado: string }) {
+export function BotaoEnviar({ texto, ocupado, secundario }: { texto: string; ocupado: string; secundario?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="btn btn-primary" disabled={pending}>
+    <button type="submit" className={secundario ? "btn" : "btn btn-primary"} disabled={pending}>
       {pending && <span className="spinner" aria-hidden="true" />}
       {pending ? ocupado : texto}
     </button>
@@ -89,31 +91,143 @@ export function Retorno({ state, okTexto }: { state: CrmState; okTexto: string }
   );
 }
 
-const dinheiro = (n: number | null | undefined) => (n === null || n === undefined ? "" : n.toFixed(2).replace(".", ","));
+/** Lista de exames agrupada, com o nome exato do Klingo. */
+export function SeletorExame({
+  id,
+  exames,
+  valor,
+  onChange,
+}: {
+  id: string;
+  exames: ExameCatalogo[];
+  valor: string;
+  onChange: (v: string) => void;
+}) {
+  const grupos = [...new Set(exames.map((e) => e.grupo))].sort();
+  return (
+    <select id={id} name="exame" className="select" required value={valor} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Escolha o exame</option>
+      {grupos.map((g) => (
+        <optgroup key={g} label={g}>
+          {exames
+            .filter((e) => e.grupo === g)
+            .map((e) => (
+              <option key={e.id} value={e.nome}>
+                {e.nome}
+              </option>
+            ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
 
-// Situação, motivo, valor, próxima ação, retorno, responsável e observações: o que se atualiza a cada conversa com o paciente.
-export function CamposAcompanhamento({ pre, p, contato }: { pre: string; p?: Contato; contato?: boolean }) {
+/** O que a atendente precisa saber na hora: preço praticado, preparo, sedação e duração. */
+export function FichaDoExame({ exame, preco }: { exame: ExameCatalogo | undefined; preco: Preco | undefined }) {
+  if (!exame) return null;
+  const temPreco = preco && (preco.particular_mediana !== null || preco.convenio_medio !== null);
+  return (
+    <div className="crm-ficha crm-largo">
+      <strong className="crm-ficha-titulo">{exame.nome}</strong>
+      <ul className="crm-ficha-lista">
+        {temPreco ? (
+          <li>
+            <span>Preço praticado</span>
+            <b>
+              {preco?.particular_mediana !== null && preco?.particular_mediana !== undefined
+                ? `Particular ${brl(preco.particular_mediana)}${
+                    preco.particular_min !== null && preco.particular_max !== null && preco.particular_min !== preco.particular_max
+                      ? ` (de ${brl(preco.particular_min)} a ${brl(preco.particular_max)})`
+                      : ""
+                  }`
+                : "Particular: sem registro"}
+              {preco?.convenio_medio !== null && preco?.convenio_medio !== undefined ? ` · Convênio ${brl(preco.convenio_medio)} em média` : ""}
+            </b>
+          </li>
+        ) : (
+          <li>
+            <span>Preço praticado</span>
+            <b>Sem registro nos últimos meses — confirme com o faturamento</b>
+          </li>
+        )}
+        <li>
+          <span>Sedação</span>
+          <b>{exame.sedacao ? "Sim — avise o valor diferente e o preparo da anestesia" : "Não"}</b>
+        </li>
+        <li>
+          <span>Contraste</span>
+          <b>{exame.contraste ?? "Não cadastrado — pergunte à equipe técnica"}</b>
+        </li>
+        <li>
+          <span>Duração</span>
+          <b>{exame.duracao_min ? `${exame.duracao_min} minutos` : "Não cadastrada"}</b>
+        </li>
+        <li>
+          <span>Preparo</span>
+          <b>{exame.preparo ?? "Não cadastrado — pergunte à equipe técnica antes de orientar o paciente"}</b>
+        </li>
+        {exame.observacao && (
+          <li>
+            <span>Observação</span>
+            <b>{exame.observacao}</b>
+          </li>
+        )}
+      </ul>
+      <span className="crm-dica">O preço vem do que a clínica cobrou nos últimos 6 meses (Klingo). Serve de referência, não é tabela oficial.</span>
+    </div>
+  );
+}
+
+/** Passo a passo do motivo da perda, para quem está começando saber o que fazer. */
+export function Roteiro({ motivo }: { motivo: string }) {
+  const passos = roteiroDoMotivo(motivo);
+  if (!passos.length) return null;
+  return (
+    <div className="crm-roteiro crm-largo">
+      <strong>O que fazer quando o motivo é “{motivo}”</strong>
+      <ol>
+        {passos.map((p) => (
+          <li key={p}>{p}</li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** Situação, motivo, valor, próxima ação, retorno e identificação: o que muda a cada conversa. */
+export function CamposAcompanhamento({ pre, p }: { pre: string; p?: Contato }) {
   const [situacao, setSituacao] = useState<string>(p?.situacao ?? "Novo contato");
+  const [motivo, setMotivo] = useState<string>(p?.motivo_perda ?? "");
   const perdeu = (SITUACOES_PERDA as string[]).includes(situacao);
   const info = SITUACOES.find((s) => s.id === situacao);
   return (
     <>
-      <Campo id={`${pre}-situacao`} rotulo="Situação" dica={info ? `${info.significado}.` : undefined}>
+      <Campo id={`${pre}-situacao`} rotulo="Situação" dica={info ? `${info.significado}. ${info.acao}.` : undefined}>
         <Seletor id={`${pre}-situacao`} name="situacao" opcoes={SITUACOES.map((s) => s.id)} valor={situacao} onChange={setSituacao} obrigatorio />
       </Campo>
       {perdeu && (
         <Campo id={`${pre}-motivo`} rotulo="Motivo da perda" dica="Obrigatório quando não agendou ou desistiu.">
-          <Seletor id={`${pre}-motivo`} name="motivo_perda" opcoes={MOTIVOS_PERDA.map((m) => m.id)} valor={p?.motivo_perda ?? ""} vazio="Escolha" obrigatorio />
+          <Seletor id={`${pre}-motivo`} name="motivo_perda" opcoes={MOTIVOS_PERDA.map((m) => m.id)} valor={motivo} onChange={setMotivo} vazio="Escolha" obrigatorio />
         </Campo>
       )}
-      <Campo id={`${pre}-valor`} rotulo="Valor informado (R$)" dica="O que foi passado ao paciente. Em branco para convênio.">
+      <Campo id={`${pre}-valor`} rotulo="Valor informado (R$)" dica="O que foi passado ao paciente.">
         <input id={`${pre}-valor`} name="valor_informado" className="input" inputMode="decimal" placeholder="0,00" defaultValue={dinheiro(p?.valor_informado)} />
       </Campo>
-      <Campo id={`${pre}-acao`} rotulo="Próxima ação">
-        <Seletor id={`${pre}-acao`} name="proxima_acao" opcoes={PROXIMAS_ACOES} valor={p?.proxima_acao ?? ""} vazio="Nenhuma" />
+      {!perdeu && (
+        <>
+          <Campo id={`${pre}-acao`} rotulo="Próxima ação">
+            <Seletor id={`${pre}-acao`} name="proxima_acao" opcoes={PROXIMAS_ACOES} valor={p?.proxima_acao ?? ""} vazio="Nenhuma" />
+          </Campo>
+          <Campo id={`${pre}-retorno`} rotulo="Data do retorno" dica="Quando falar de novo. Vira a fila da aba Meu dia.">
+            <input id={`${pre}-retorno`} name="data_retorno" type="date" className="input" min={p?.data_contato} defaultValue={p?.data_retorno ?? ""} />
+          </Campo>
+        </>
+      )}
+      <Campo id={`${pre}-codigo`} rotulo="Código no Klingo" dica="Do paciente ou da marcação. É assim que você acha a pessoa depois.">
+        <input id={`${pre}-codigo`} name="codigo_klingo" className="input" maxLength={30} placeholder="ex.: 184323" defaultValue={p?.codigo_klingo ?? ""} />
       </Campo>
-      <Campo id={`${pre}-retorno`} rotulo="Data do retorno" dica="Quando falar de novo com o paciente.">
-        <input id={`${pre}-retorno`} name="data_retorno" type="date" className="input" min={p?.data_contato} defaultValue={p?.data_retorno ?? ""} />
+      <Campo id={`${pre}-tel`} rotulo="Telefone (opcional)" dica="Só para retomar o contato. Não aparece nos indicadores.">
+        <input id={`${pre}-tel`} name="telefone" className="input" inputMode="tel" maxLength={16} placeholder="(71) 99999-8888" defaultValue={telefoneBonito(p?.telefone ?? null)} />
       </Campo>
       <Campo id={`${pre}-resp`} rotulo="Responsável">
         <input id={`${pre}-resp`} name="responsavel" className="input" maxLength={60} placeholder="Quem atendeu" defaultValue={p?.responsavel ?? ""} />
@@ -128,33 +242,34 @@ export function CamposAcompanhamento({ pre, p, contato }: { pre: string; p?: Con
           className="input crm-texto"
           rows={2}
           maxLength={MAX_OBS}
-          placeholder={contato ? "Sem nome, CPF ou dado clínico do paciente." : "Sem dado que identifique o paciente."}
+          placeholder="O que o paciente pediu, o que ficou combinado. Sem dado clínico."
           defaultValue={p?.observacoes ?? ""}
         />
       </div>
+      {perdeu && motivo && <Roteiro motivo={motivo} />}
     </>
   );
 }
 
-// Status, confirmação, motivo, vaga recuperada, valor, horas paradas e motivo operacional: o que se atualiza depois do exame.
+/** Status, confirmação, motivo, vaga, valor e problema de sala: o que muda depois do exame. */
 export function CamposResultado({ pre, h }: { pre: string; h?: Horario }) {
   const [status, setStatus] = useState<string>(h?.status ?? "Agendado");
   const saiu = (SAI_DO_COMPARECIMENTO as string[]).includes(status);
   const info = STATUS_AGENDA.find((s) => s.id === status);
   return (
     <>
-      <Campo id={`${pre}-status`} rotulo="Status da agenda" dica={info ? `${info.significado}.` : undefined}>
+      <Campo id={`${pre}-status`} rotulo="Status da agenda" dica={info ? `${info.significado}. ${info.acao}.` : undefined}>
         <Seletor id={`${pre}-status`} name="status" opcoes={STATUS_AGENDA.map((s) => s.id)} valor={status} onChange={setStatus} obrigatorio />
       </Campo>
       <Campo id={`${pre}-conf`} rotulo="Confirmação prévia" dica="O que o paciente respondeu antes do exame.">
-        <Seletor id={`${pre}-conf`} name="confirmacao" opcoes={CONFIRMACOES} valor={h?.confirmacao ?? "Não contatado"} obrigatorio />
+        <Seletor id={`${pre}-conf`} name="confirmacao" opcoes={["Confirmou", "Não respondeu", "Solicitou reagendamento", "Não contatado"]} valor={h?.confirmacao ?? "Não contatado"} obrigatorio />
       </Campo>
       {saiu && (
         <>
           <Campo id={`${pre}-falta`} rotulo="Motivo da falta ou cancelamento">
             <Seletor id={`${pre}-falta`} name="motivo_falta" opcoes={MOTIVOS_FALTA} valor={h?.motivo_falta ?? ""} vazio="Não informado" />
           </Campo>
-          <Campo id={`${pre}-vaga`} rotulo="Vaga recuperada?" dica="Sim = outro paciente ocupou o horário.">
+          <Campo id={`${pre}-vaga`} rotulo="Vaga recuperada?" dica="Sim = outra pessoa ocupou o horário.">
             <Seletor id={`${pre}-vaga`} name="vaga_recuperada" opcoes={VAGA_RECUPERADA} valor={h?.vaga_recuperada ?? "Não se aplica"} obrigatorio />
           </Campo>
         </>
@@ -164,6 +279,9 @@ export function CamposResultado({ pre, h }: { pre: string; h?: Horario }) {
           <input id={`${pre}-real`} name="valor_realizado" className="input" inputMode="decimal" placeholder="0,00" defaultValue={dinheiro(h?.valor_realizado ?? h?.valor_previsto)} />
         </Campo>
       )}
+      <Campo id={`${pre}-cod`} rotulo="Código da marcação no Klingo" dica="Liga este horário ao sistema.">
+        <input id={`${pre}-cod`} name="codigo_marcacao" className="input" inputMode="numeric" maxLength={12} placeholder="ex.: 20621" defaultValue={h?.codigo_marcacao ?? ""} />
+      </Campo>
       <Campo id={`${pre}-horas`} rotulo="Horas paradas ou de atraso" dica="Tempo do equipamento sem exame neste horário.">
         <input id={`${pre}-horas`} name="horas_paradas" className="input" inputMode="decimal" placeholder="0" defaultValue={h?.horas_paradas ?? ""} />
       </Campo>

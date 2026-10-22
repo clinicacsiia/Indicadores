@@ -4,30 +4,41 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { veDadosFinanceiros } from "@/lib/paineis";
 import { hojeEmBrasilia } from "@/lib/avisos";
+import { metasConfig } from "@/lib/metas/config";
 import { IconAlerta } from "@/app/components/icons";
 import {
   CAMPOS_AGENDA,
   CAMPOS_CONTATO,
+  CAMPOS_CONVENIO,
+  CAMPOS_EXAME,
+  CHAVE_META_RM,
   MOTIVOS_PERDA,
   SITUACOES,
   SITUACOES_PERDA,
   STATUS_AGENDA,
   calcular,
+  calcularMarketing,
   codigoContato,
-  paraRetomar,
+  montarFila,
   podePreencherCrmRm,
   podeVerCrmRm,
+  tamanhoDaFila,
+  type ConvenioCatalogo,
   type Contato,
+  type ExameCatalogo,
   type Horario,
-  type Indicadores,
+  type Preco,
 } from "@/lib/crm-rm";
 import { EditarContatoForm, NovoContatoForm } from "./ContatoForm";
 import { EditarHorarioForm, NovoHorarioForm, type OpcaoContato } from "./HorarioForm";
+import { SecaoIndicadores } from "./SecaoIndicadores";
+import { SecaoMeuDia } from "./SecaoMeuDia";
+import { Identificacao, Nota, Painel, ResumoContato, ResumoHorario, Tabela, Vazio, brl, dataBR } from "./comuns";
 
 export const metadata: Metadata = { title: "CRM Ressonância" };
 
-type Props = { searchParams: Promise<{ aba?: string; dias?: string }> };
-type Aba = "indicadores" | "contatos" | "agenda" | "como";
+type Props = { searchParams: Promise<{ aba?: string; dias?: string; busca?: string }> };
+type Aba = "meu-dia" | "atender" | "agenda" | "indicadores" | "guia";
 
 const PERIODOS = [
   { dias: 7, rotulo: "7 dias" },
@@ -35,86 +46,25 @@ const PERIODOS = [
   { dias: 90, rotulo: "90 dias" },
   { dias: 0, rotulo: "Tudo" },
 ];
-const LIMITE = 2000;
+const LIMITE = 3000;
 const NA_LISTA = 40;
+/** A fila de trabalho não respeita o filtro de período: pendência velha continua sendo pendência. */
+const JANELA_FILA = 180;
 
-const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
-const pct = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`);
-const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const horas = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
-const hora = (h: string | null) => (h ? h.slice(0, 5) : "");
-
-function pilula(estado: string): string | undefined {
-  if (["Agendado", "Realizado"].includes(estado)) return "ritmo";
-  if (["Não agendou", "Desistiu", "Faltou"].includes(estado)) return "atrasado";
-  if (["Orçamento enviado", "Aguardando resposta", "Aguardando autorização"].includes(estado)) return "atencao";
-  return undefined;
-}
-
-function hrefDe(aba: Aba, dias: number) {
+function hrefDe(aba: Aba, dias: number, busca?: string) {
   const q = new URLSearchParams({ aba });
   if (dias !== 30) q.set("dias", String(dias));
+  if (busca) q.set("busca", busca);
   return `/crm-rm?${q.toString()}`;
 }
 
-// Leitura rápida dos gargalos do período, em linguagem simples (sem inventar causa: só aponta onde está o volume).
-function destaques(i: Indicadores): string[] {
-  const t: string[] = [];
-  const topo = i.perdasPorMotivo[0];
-  if (topo && i.perdidos >= 3) {
-    t.push(`Maior motivo de perda: ${topo.motivo} (${topo.n} de ${i.perdidos} contatos perdidos, ${pct(topo.pct)}). Gargalo ${topo.categoria === "Comercial" ? "comercial" : topo.categoria === "Agenda" ? "de agenda" : topo.categoria === "Convênio" ? "de convênio" : "a investigar"}.`);
-  }
-  const canais = i.porCanal.filter((c) => c.solicitacoes >= 5);
-  if (canais.length >= 2) {
-    const pior = [...canais].sort((a, b) => (a.conversao ?? 0) - (b.conversao ?? 0))[0];
-    t.push(`Canal que menos converte: ${pior.canal} (${pct(pior.conversao)} de ${pior.solicitacoes} solicitações agendaram).`);
-  }
-  const sem = i.faltasPorConfirmacao.filter((c) => c.confirmacao !== "Confirmou" && c.agendados >= 5);
-  const conf = i.faltasPorConfirmacao.find((c) => c.confirmacao === "Confirmou");
-  if (sem.length && conf && conf.taxa !== null) {
-    const pior = [...sem].sort((a, b) => (b.taxa ?? 0) - (a.taxa ?? 0))[0];
-    if ((pior.taxa ?? 0) > conf.taxa) t.push(`Quem está "${pior.confirmacao}" falta ${pct(pior.taxa)} das vezes; quem confirmou, ${pct(conf.taxa)}. A confirmação ativa tem espaço.`);
-  }
-  if (i.vagasElegiveis >= 3 && i.pctRecuperadas !== null) {
-    t.push(`${i.vagasElegiveis - i.vagasRecuperadas} de ${i.vagasElegiveis} vagas de faltas e cancelamentos ficaram sem ser reocupadas (${pct(100 - i.pctRecuperadas)}).`);
-  }
-  if (i.horasParadas > 0 && i.motivosOperacionais[0]) {
-    t.push(`Equipamento com ${horas(i.horasParadas)} paradas ou em atraso; mais frequente: ${i.motivosOperacionais[0].motivo}.`);
-  }
-  return t;
-}
-
-function Kpi({ rotulo, valor, meta, cor }: { rotulo: string; valor: string; meta?: string; cor?: string }) {
-  return (
-    <article className="kpi" style={cor ? ({ "--swatch": cor } as React.CSSProperties) : undefined}>
-      <h3 className="kpi-label">
-        <span className="swatch" aria-hidden="true" />
-        {rotulo}
-      </h3>
-      <p className="kpi-value">{valor}</p>
-      {meta && <p className="kpi-meta">{meta}</p>}
-    </article>
-  );
-}
-
-function Painel({ titulo, sub, id, children }: { titulo: string; sub?: string; id: string; children: React.ReactNode }) {
-  return (
-    <section className="panel" aria-labelledby={id}>
-      <div className="panel-head">
-        <div>
-          <h2 className="panel-title" id={id}>
-            {titulo}
-          </h2>
-          {sub && <p className="panel-sub">{sub}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
+const metaRM = () => {
+  const [grupoId, itemId] = CHAVE_META_RM.split("/");
+  return metasConfig.grupos.find((g) => g.id === grupoId)?.itens.find((i) => i.id === itemId)?.meta ?? null;
+};
 
 export default async function CrmRmPage({ searchParams }: Props) {
-  const { aba: abaParam, dias: diasParam } = await searchParams;
+  const { aba: abaParam, dias: diasParam, busca: buscaParam } = await searchParams;
   const profile = await getCurrentProfile();
   const pVer = podeVerCrmRm(profile);
   const pPreencher = podePreencherCrmRm(profile);
@@ -142,70 +92,96 @@ export default async function CrmRmPage({ searchParams }: Props) {
   }
 
   const abas: { id: Aba; rotulo: string }[] = [
+    ...(pPreencher ? [{ id: "meu-dia" as const, rotulo: "Meu dia" }] : []),
+    { id: "atender", rotulo: "Atender" },
+    { id: "agenda", rotulo: "Agenda" },
     ...(pVer ? [{ id: "indicadores" as const, rotulo: "Indicadores" }] : []),
-    { id: "contatos", rotulo: "CRM – Contatos" },
-    { id: "agenda", rotulo: "Agenda – RM" },
-    { id: "como", rotulo: "Como preencher" },
+    { id: "guia", rotulo: "Guia" },
   ];
   const aba: Aba = abas.some((a) => a.id === abaParam) ? (abaParam as Aba) : abas[0].id;
   const diasNum = Number(diasParam);
   const dias = PERIODOS.some((p) => p.dias === diasNum) && diasParam !== undefined ? diasNum : 30;
   const inicio = dias > 0 ? hojeEmBrasilia(-dias + 1) : "0000-01-01";
+  const busca = (buscaParam ?? "").trim().slice(0, 40);
 
   const supabase = await createClient();
-  let contatos: Contato[] = [];
-  let horarios: Horario[] = [];
-  let opcoesContato: OpcaoContato[] = [];
-  let falhou = false;
 
-  if (aba !== "como") {
-    // RLS: quem vê o CRM lê tudo; quem só preenche lê apenas o que registrou.
-    const [c, h] = await Promise.all([
-      supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).gte("data_contato", inicio).order("data_contato", { ascending: false }).order("id", { ascending: false }).limit(LIMITE),
-      supabase.from("crm_rm_agenda").select(CAMPOS_AGENDA).gte("data_exame", inicio).order("data_exame", { ascending: false }).order("horario", { ascending: false }).limit(LIMITE),
-    ]);
-    if (c.error || h.error) {
-      falhou = true;
-      console.error("Falha ao carregar o CRM da RM:", c.error?.message ?? h.error?.message);
-    }
-    contatos = (c.data ?? []) as unknown as Contato[];
-    horarios = (h.data ?? []) as unknown as Horario[];
+  // Catálogo: a lista de exames e convênios com o nome exato do Klingo, e o preço praticado.
+  const [cat, conv, pr] = await Promise.all([
+    supabase.from("crm_rm_exame").select(CAMPOS_EXAME).eq("ativo", true).order("grupo").order("atendimentos", { ascending: false }),
+    supabase.from("crm_rm_convenio").select(CAMPOS_CONVENIO).eq("ativo", true).order("tipo").order("atendimentos", { ascending: false }),
+    supabase.rpc("crm_rm_precos", { p_meses: 6 }),
+  ]);
+  const exames = (cat.data ?? []) as unknown as ExameCatalogo[];
+  const convenios = (conv.data ?? []) as unknown as ConvenioCatalogo[];
+  const precos = (pr.data ?? []) as unknown as Preco[];
+  const grupoDoExame = (nome: string) => exames.find((e) => e.nome === nome)?.grupo ?? "Outros";
 
-    if (aba === "agenda" && pPreencher) {
-      // Contatos "Agendado" que ainda não têm horário na Agenda (os últimos 120 dias).
-      const [ag, usados] = await Promise.all([
-        supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).eq("situacao", "Agendado").gte("data_contato", hojeEmBrasilia(-120)).order("id", { ascending: false }).limit(300),
-        supabase.from("crm_rm_agenda").select("contato_id").not("contato_id", "is", null).limit(5000),
-      ]);
-      const ocupados = new Set((usados.data ?? []).map((u) => u.contato_id as number));
-      opcoesContato = ((ag.data ?? []) as unknown as Contato[])
-        .filter((x) => !ocupados.has(x.id))
-        .map((x) => ({
-          id: x.id,
-          rotulo: `${codigoContato(x.id)} · ${dataBR(x.data_contato)} · ${x.exame} · ${x.forma_pagamento}`,
-          exame: x.exame,
-          forma: x.forma_pagamento,
-          valor: x.valor_informado,
-        }));
-    }
-  }
+  // Registros. RLS entrega tudo a quem vê o CRM e só o próprio a quem apenas preenche.
+  const deDados = aba === "meu-dia" ? hojeEmBrasilia(-JANELA_FILA) : inicio;
+  const [c, h] = await Promise.all([
+    supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).gte("data_contato", deDados).order("data_contato", { ascending: false }).order("id", { ascending: false }).limit(LIMITE),
+    supabase.from("crm_rm_agenda").select(CAMPOS_AGENDA).gte("data_exame", deDados).order("data_exame", { ascending: false }).order("horario", { ascending: false }).limit(LIMITE),
+  ]);
+  const falhou = Boolean(c.error || h.error);
+  if (falhou) console.error("Falha ao carregar o CRM da RM:", c.error?.message ?? h.error?.message);
+  const contatos = (c.data ?? []) as unknown as Contato[];
+  const horarios = (h.data ?? []) as unknown as Horario[];
 
   const exemplos = contatos.some((x) => x.exemplo) || horarios.some((x) => x.exemplo);
-  const passados = horarios.filter((h) => h.data_exame <= hoje);
-  const futuros = horarios.filter((h) => h.data_exame > hoje && h.status === "Agendado").length;
-  const ind = aba === "indicadores" ? calcular(contatos, passados, futuros) : null;
-  const retomar = aba === "indicadores" ? paraRetomar(contatos, hoje) : [];
-  const avisos = ind ? destaques(ind) : [];
+  const passados = horarios.filter((x) => x.data_exame <= hoje);
+  const futuros = horarios.filter((x) => x.data_exame > hoje && x.status === "Agendado").length;
 
-  const periodos = (
-    <nav className="crm-periodos" aria-label="Período">
-      {PERIODOS.map((p) => (
-        <Link key={p.dias} href={hrefDe(aba, p.dias)} className="crm-periodo" aria-current={p.dias === dias ? "true" : undefined}>
-          {p.rotulo}
-        </Link>
-      ))}
-    </nav>
-  );
+  const fila = montarFila(contatos, horarios, hoje, (n) => hojeEmBrasilia(n));
+  const pendencias = tamanhoDaFila(fila);
+
+  // Indicadores: quanto da operação real o CRM está capturando (só admin lê o Klingo, por isso a função).
+  let klingoRealizados: number | null = null;
+  if (aba === "indicadores") {
+    const { data: kr, error } = await supabase.rpc("crm_rm_realizados_klingo", { p_de: dias > 0 ? inicio : "2026-01-01", p_ate: hoje });
+    if (error) console.error("Falha ao ler o volume do Klingo:", error.message);
+    else klingoRealizados = typeof kr === "number" ? kr : null;
+  }
+
+  const ind = aba === "indicadores" ? calcular(contatos, passados, futuros) : null;
+  const mkt = aba === "indicadores" ? calcularMarketing(contatos, passados, grupoDoExame) : null;
+
+  // Agenda: contatos "Agendado" que ainda não têm horário registrado.
+  let opcoesContato: OpcaoContato[] = [];
+  if (aba === "agenda" && pPreencher) {
+    const [ag, usados] = await Promise.all([
+      supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).eq("situacao", "Agendado").gte("data_contato", hojeEmBrasilia(-120)).order("id", { ascending: false }).limit(300),
+      supabase.from("crm_rm_agenda").select("contato_id").not("contato_id", "is", null).limit(5000),
+    ]);
+    const ocupados = new Set((usados.data ?? []).map((u) => u.contato_id as number));
+    opcoesContato = ((ag.data ?? []) as unknown as Contato[])
+      .filter((x) => !ocupados.has(x.id))
+      .map((x) => ({
+        id: x.id,
+        rotulo: `${codigoContato(x.id)} · ${dataBR(x.data_contato)} · ${x.exame} · ${x.convenio ?? x.forma_pagamento}`,
+        exame: x.exame,
+        forma: x.forma_pagamento,
+        valor: x.valor_informado,
+      }));
+  }
+
+  // Busca na aba Atender: código RM-0001, código do Klingo, telefone ou texto do exame/observação.
+  const achados = busca
+    ? contatos.filter((x) => {
+        const t = busca.toLowerCase();
+        return (
+          codigoContato(x.id).toLowerCase().includes(t) ||
+          String(x.id) === busca ||
+          (x.codigo_klingo ?? "").toLowerCase().includes(t) ||
+          (x.telefone ?? "").includes(busca.replace(/\D/g, "")) ||
+          x.exame.toLowerCase().includes(t) ||
+          (x.observacoes ?? "").toLowerCase().includes(t)
+        );
+      })
+    : contatos;
+
+  const rotuloPeriodo = dias > 0 ? `últimos ${dias} dias` : "todo o período";
+  const catalogo = { exames, convenios, precos };
 
   return (
     <>
@@ -214,8 +190,8 @@ export default async function CrmRmPage({ searchParams }: Props) {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">CRM Ressonância</h1>
           <p className="page-lede">
-            O caminho do paciente na Ressonância Magnética: procurou o exame, recebeu orçamento ou autorização, agendou, compareceu e fez. Registre cada passo
-            para ver onde se perdem pacientes e faturamento.
+            O caminho do paciente na Ressonância Magnética: procurou o exame, recebeu orçamento ou autorização, agendou, compareceu e fez. Registre
+            cada passo para ver onde se perdem pacientes e faturamento.
           </p>
         </div>
       </header>
@@ -236,286 +212,88 @@ export default async function CrmRmPage({ searchParams }: Props) {
         {abas.map((a) => (
           <Link key={a.id} href={hrefDe(a.id, dias)} className="config-aba" aria-current={aba === a.id ? "page" : undefined}>
             {a.rotulo}
+            {a.id === "meu-dia" && pendencias > 0 && <span className="config-aba-n">{pendencias}</span>}
           </Link>
         ))}
       </nav>
 
-      {aba !== "como" && periodos}
-
-      {aba === "indicadores" && ind && (
-        <>
-          {avisos.length > 0 && (
-            <Painel id="t-destaques" titulo="O que olhar primeiro" sub="Resumo automático do período escolhido.">
-              <ul className="crm-destaques">
-                {avisos.map((a) => (
-                  <li key={a}>{a}</li>
-                ))}
-              </ul>
-            </Painel>
-          )}
-
-          <section aria-label="Resumo do período">
-            <div className="kpis">
-              <Kpi rotulo="Solicitações recebidas" valor={String(ind.solicitacoes)} meta={`${ind.emAberto} ainda em andamento`} cor="var(--s-realizados)" />
-              <Kpi rotulo="Taxa de conversão" valor={pct(ind.conversao)} meta="Solicitações que viraram agendamento" cor="var(--s-realizados)" />
-              <Kpi rotulo="Absenteísmo" valor={pct(ind.absenteismo)} meta={`${ind.faltas} faltas em ${ind.realizados + ind.faltas} horários com resultado`} cor="var(--s-agendados)" />
-              <Kpi rotulo="Vagas recuperadas" valor={pct(ind.pctRecuperadas)} meta={`${ind.vagasRecuperadas} de ${ind.vagasElegiveis} faltas e cancelamentos`} />
-              {verValores && <Kpi rotulo="Receita realizada" valor={brl(ind.receitaRealizada)} meta={`${ind.realizados} exames feitos`} cor="var(--s-realizados)" />}
-              {verValores && <Kpi rotulo="Previsto nas faltas" valor={brl(ind.valorPrevistoFaltas)} meta="Potencial bruto, não perda contábil" cor="var(--s-agendados)" />}
-              {verValores && <Kpi rotulo="Orçado e perdido" valor={brl(ind.valorPerdido)} meta={`${ind.perdidos} contatos que não agendaram ou desistiram`} cor="var(--s-agendados)" />}
-              {verValores && <Kpi rotulo="Orçado em aberto" valor={brl(ind.valorEmAberto)} meta="Ainda dá para recuperar" />}
-            </div>
-          </section>
-
-          <Painel id="t-funil" titulo="Funil do paciente" sub="Da procura ao exame feito. Passe o mouse (ou toque) em cada etapa para ver o que ela conta.">
-            <ol className="crm-funil">
-              {ind.funil.map((e, idx) => {
-                const base = Math.max(1, ind.funil[0].n);
-                const anterior = idx === 0 ? null : ind.funil[idx - 1].n;
-                return (
-                  <li key={e.id} title={e.dica}>
-                    <span className="crm-funil-nome">{e.rotulo}</span>
-                    <span className="crm-funil-trilho" aria-hidden="true">
-                      <span style={{ width: `${Math.min(100, (e.n / base) * 100)}%` }} />
-                    </span>
-                    <span className="crm-funil-valor">
-                      {e.n}
-                      {anterior !== null && anterior > 0 && <small> {pct((e.n / anterior) * 100)} da etapa anterior</small>}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-            <p className="crm-nota">
-              Atenção: as etapas olham períodos diferentes. Solicitações e agendamentos contam pela data do contato; exames feitos, pela data do exame.
-              {ind.aRealizar > 0 && ` Há ainda ${ind.aRealizar} ${ind.aRealizar === 1 ? "horário" : "horários"} marcado${ind.aRealizar === 1 ? "" : "s"} para os próximos dias.`}
-            </p>
-          </Painel>
-
-          <div className="crm-duas">
-            <Painel id="t-perdas" titulo="Por que perdemos pacientes" sub="Contatos que não agendaram ou desistiram, por motivo.">
-              {ind.perdasPorMotivo.length === 0 ? (
-                <p className="crm-vazio">Nenhuma perda registrada no período.</p>
-              ) : (
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Motivo</th>
-                        <th scope="col">Tipo de gargalo</th>
-                        <th scope="col">Contatos</th>
-                        <th scope="col">%</th>
-                        {verValores && <th scope="col">Orçado</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ind.perdasPorMotivo.map((m) => (
-                        <tr key={m.motivo}>
-                          <th scope="row">{m.motivo}</th>
-                          <td>{m.categoria}</td>
-                          <td>{m.n}</td>
-                          <td>{pct(m.pct)}</td>
-                          {verValores && <td>{m.valor > 0 ? brl(m.valor) : "—"}</td>}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Painel>
-
-            <Painel id="t-retomar" titulo="Para retomar hoje" sub="Contatos em aberto com retorno marcado para hoje ou antes.">
-              {retomar.length === 0 ? (
-                <p className="crm-vazio">Nenhum retorno atrasado.</p>
-              ) : (
-                <ul className="crm-lista">
-                  {retomar.slice(0, 8).map((c) => (
-                    <li key={c.id} className="crm-item">
-                      <div className="crm-item-topo">
-                        <strong>{codigoContato(c.id)}</strong>
-                        <span className="status-pill" data-status={pilula(c.situacao)}>
-                          {c.situacao}
-                        </span>
-                        <span className="crm-item-meta">
-                          {c.exame} · {c.forma_pagamento}
-                          {verValores && c.valor_informado !== null ? ` · ${brl(c.valor_informado)}` : ""}
-                        </span>
-                      </div>
-                      <p className="crm-item-meta">
-                        Retorno {c.data_retorno && c.data_retorno < hoje ? "atrasado desde" : "marcado para"} {dataBR(c.data_retorno as string)}
-                        {c.proxima_acao ? ` · ${c.proxima_acao}` : ""}
-                        {c.responsavel ? ` · ${c.responsavel}` : ""}
-                      </p>
-                    </li>
-                  ))}
-                  {retomar.length > 8 && <li className="crm-item crm-item-meta">E mais {retomar.length - 8} na aba CRM – Contatos.</li>}
-                </ul>
-              )}
-            </Painel>
-          </div>
-
-          <div className="crm-duas">
-            <Painel id="t-absent" titulo="Faltas e confirmação" sub="Quem faltou, de acordo com a resposta antes do exame (só horários com resultado).">
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Confirmação prévia</th>
-                      <th scope="col">Horários</th>
-                      <th scope="col">Faltas</th>
-                      <th scope="col">Taxa de falta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ind.faltasPorConfirmacao.map((c) => (
-                      <tr key={c.confirmacao}>
-                        <th scope="row">{c.confirmacao}</th>
-                        <td>{c.agendados}</td>
-                        <td>{c.faltas}</td>
-                        <td>{pct(c.taxa)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {ind.motivosFalta.length > 0 && (
-                <p className="crm-nota">
-                  Motivos das faltas: {ind.motivosFalta.map((m) => `${m.motivo} (${m.n})`).join(" · ")}.
-                </p>
-              )}
-              <p className="crm-nota">
-                Cancelamentos: {ind.cancelamentos} · Reagendados: {ind.reagendados}. Absenteísmo = faltas ÷ (exames feitos + faltas); horários ainda pendentes não entram.
-              </p>
-            </Painel>
-
-            <Painel id="t-forma" titulo="Particular × Convênio" sub="Os gargalos mudam conforme a forma de pagamento.">
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th scope="col"> </th>
-                      <th scope="col">Solicitações</th>
-                      <th scope="col">Conversão</th>
-                      <th scope="col">Exames feitos</th>
-                      <th scope="col">Absenteísmo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ind.porForma.map((f) => (
-                      <tr key={f.forma}>
-                        <th scope="row">{f.forma}</th>
-                        <td>{f.solicitacoes}</td>
-                        <td>{pct(f.conversao)}</td>
-                        <td>{f.realizados}</td>
-                        <td>{pct(f.absenteismo)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Painel>
-          </div>
-
-          <div className="crm-duas">
-            <Painel id="t-canal" titulo="Por onde chegam" sub="Canal de entrada e quantos viraram agendamento.">
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Canal</th>
-                      <th scope="col">Solicitações</th>
-                      <th scope="col">Agendaram</th>
-                      <th scope="col">Conversão</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ind.porCanal.map((c) => (
-                      <tr key={c.canal}>
-                        <th scope="row">{c.canal}</th>
-                        <td>{c.solicitacoes}</td>
-                        <td>{c.agendadas}</td>
-                        <td>{pct(c.conversao)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Painel>
-
-            <Painel id="t-op" titulo="Equipamento e sala" sub="Problemas operacionais anotados nos horários.">
-              {ind.motivosOperacionais.length === 0 ? (
-                <p className="crm-vazio">Nenhum problema operacional registrado no período.</p>
-              ) : (
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Motivo</th>
-                        <th scope="col">Ocorrências</th>
-                        <th scope="col">Horas paradas</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ind.motivosOperacionais.map((m) => (
-                        <tr key={m.motivo}>
-                          <th scope="row">{m.motivo}</th>
-                          <td>{m.n}</td>
-                          <td>{m.horas > 0 ? horas(m.horas) : "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <p className="crm-nota">Total no período: {horas(ind.horasParadas)} de equipamento parado ou em atraso.</p>
-            </Painel>
-          </div>
-        </>
+      {(aba === "atender" || aba === "agenda" || aba === "indicadores") && (
+        <nav className="crm-periodos" aria-label="Período">
+          {PERIODOS.map((p) => (
+            <Link key={p.dias} href={hrefDe(aba, p.dias, busca)} className="crm-periodo" aria-current={p.dias === dias ? "true" : undefined}>
+              {p.rotulo}
+            </Link>
+          ))}
+        </nav>
       )}
 
-      {aba === "contatos" && (
+      {aba === "meu-dia" && <SecaoMeuDia fila={fila} hoje={hoje} verValores={verValores} />}
+
+      {aba === "indicadores" && ind && mkt && (
+        <SecaoIndicadores ind={ind} mkt={mkt} verValores={verValores} klingoRealizados={klingoRealizados} metaMes={metaRM()} rotuloPeriodo={rotuloPeriodo} />
+      )}
+
+      {aba === "atender" && (
         <>
           {pPreencher && (
-            <Painel id="t-novo-contato" titulo="Registrar contato" sub="Um registro por pedido de exame recebido, mesmo que o paciente não agende. Sem nome, CPF ou dado clínico.">
-              <NovoContatoForm hoje={hoje} />
+            <Painel
+              id="t-novo-contato"
+              titulo="Registrar contato"
+              sub="Um registro por pedido de exame recebido, mesmo que o paciente não agende. Nunca escreva o nome do paciente: use o código do Klingo."
+            >
+              <NovoContatoForm hoje={hoje} catalogo={catalogo} />
             </Painel>
           )}
-          <Painel id="t-lista-contatos" titulo={pVer ? "Contatos do período" : "Seus contatos do período"} sub="Do mais recente para o mais antigo. Abra “Atualizar” depois de cada conversa com o paciente.">
-            {contatos.length === 0 ? (
-              <p className="crm-vazio">Nenhum contato no período.</p>
+
+          <Painel
+            id="t-lista-contatos"
+            titulo={pVer ? "Contatos do período" : "Seus contatos do período"}
+            sub="Do mais recente para o mais antigo. Abra “Atualizar” depois de cada conversa."
+          >
+            <form className="crm-busca" role="search">
+              <input type="hidden" name="aba" value="atender" />
+              {dias !== 30 && <input type="hidden" name="dias" value={dias} />}
+              <label className="sr-only" htmlFor="busca">
+                Buscar contato
+              </label>
+              <input id="busca" name="busca" className="input" placeholder="Buscar por RM-0001, código do Klingo, telefone ou exame" defaultValue={busca} />
+              <button type="submit" className="btn">
+                Buscar
+              </button>
+              {busca && (
+                <Link href={hrefDe("atender", dias)} className="crm-link">
+                  limpar
+                </Link>
+              )}
+            </form>
+
+            {achados.length === 0 ? (
+              <Vazio>{busca ? `Nada encontrado para “${busca}”.` : "Nenhum contato no período."}</Vazio>
             ) : (
               <ul className="crm-lista">
-                {contatos.slice(0, NA_LISTA).map((c) => (
-                  <li key={c.id} className="crm-item">
-                    <div className="crm-item-topo">
-                      <strong>{codigoContato(c.id)}</strong>
-                      <span className="status-pill" data-status={pilula(c.situacao)}>
-                        {c.situacao}
-                      </span>
-                      <span className="crm-item-meta">
-                        {dataBR(c.data_contato)} · {c.canal} · {c.exame} · {c.forma_pagamento}
-                        {c.convenio ? ` (${c.convenio})` : ""}
-                        {verValores && c.valor_informado !== null ? ` · ${brl(c.valor_informado)}` : ""}
-                      </span>
-                      {c.exemplo && <span className="badge">Exemplo</span>}
-                    </div>
-                    {(c.motivo_perda || (c.proxima_acao && c.proxima_acao !== "Sem ação") || c.data_retorno) && (
+                {achados.slice(0, NA_LISTA).map((x) => (
+                  <li key={x.id} className="crm-item">
+                    <ResumoContato c={x} verValores={verValores} />
+                    <Identificacao c={x} />
+                    {(x.motivo_perda || (x.proxima_acao && x.proxima_acao !== "Sem ação") || x.data_retorno) && (
                       <p className="crm-item-meta">
-                        {c.motivo_perda ? `Motivo: ${c.motivo_perda}` : ""}
-                        {c.motivo_perda && (c.proxima_acao || c.data_retorno) ? " · " : ""}
-                        {SITUACOES_PERDA.includes(c.situacao) || c.proxima_acao === "Sem ação" ? "" : c.proxima_acao ? `Próxima ação: ${c.proxima_acao}` : ""}
-                        {!SITUACOES_PERDA.includes(c.situacao) && c.data_retorno ? ` · retorno ${dataBR(c.data_retorno)}` : ""}
+                        {x.motivo_perda ? `Motivo: ${x.motivo_perda}` : ""}
+                        {x.motivo_perda && !SITUACOES_PERDA.includes(x.situacao) ? " · " : ""}
+                        {!SITUACOES_PERDA.includes(x.situacao) && x.proxima_acao && x.proxima_acao !== "Sem ação" ? `Próxima ação: ${x.proxima_acao}` : ""}
+                        {!SITUACOES_PERDA.includes(x.situacao) && x.data_retorno ? ` · retorno ${dataBR(x.data_retorno)}` : ""}
                       </p>
                     )}
-                    {c.observacoes && <p className="crm-item-texto">{c.observacoes}</p>}
+                    {x.observacoes && <p className="crm-item-texto">{x.observacoes}</p>}
                     <details className="crm-detalhes">
                       <summary>Atualizar</summary>
-                      <EditarContatoForm contato={c} />
+                      <EditarContatoForm contato={x} />
                     </details>
                   </li>
                 ))}
-                {contatos.length > NA_LISTA && (
-                  <li className="crm-item crm-item-meta">Mostrando os {NA_LISTA} mais recentes de {contatos.length}. Escolha um período menor para ver os outros.</li>
+                {achados.length > NA_LISTA && (
+                  <li className="crm-item crm-item-meta">
+                    Mostrando os {NA_LISTA} mais recentes de {achados.length}. Use a busca ou escolha um período menor.
+                  </li>
                 )}
               </ul>
             )}
@@ -526,43 +304,42 @@ export default async function CrmRmPage({ searchParams }: Props) {
       {aba === "agenda" && (
         <>
           {pPreencher && (
-            <Painel id="t-novo-horario" titulo="Registrar horário" sub="Um registro por horário reservado. Reagendar não é contato novo: marque o antigo como Reagendado e registre o novo horário.">
-              <NovoHorarioForm hoje={hoje} contatos={opcoesContato} verValores={verValores} />
+            <Painel
+              id="t-novo-horario"
+              titulo="Registrar horário"
+              sub="Um registro por horário reservado. Reagendar não é contato novo: marque o antigo como Reagendado e registre o novo horário."
+            >
+              <NovoHorarioForm hoje={hoje} contatos={opcoesContato} exames={exames} precos={precos} verValores={verValores} />
             </Painel>
           )}
-          <Painel id="t-lista-agenda" titulo={pVer ? "Horários do período" : "Seus horários do período"} sub="Depois da data do exame, abra “Atualizar” e informe se foi realizado, faltou ou cancelou.">
+          <Painel
+            id="t-lista-agenda"
+            titulo={pVer ? "Horários do período" : "Seus horários do período"}
+            sub="Depois da data do exame, informe se foi realizado, faltou ou cancelou (a aba Meu dia faz isso num clique)."
+          >
             {horarios.length === 0 ? (
-              <p className="crm-vazio">Nenhum horário no período.</p>
+              <Vazio>Nenhum horário no período.</Vazio>
             ) : (
               <ul className="crm-lista">
-                {horarios.slice(0, NA_LISTA).map((h) => (
-                  <li key={h.id} className="crm-item">
-                    <div className="crm-item-topo">
-                      <span className="status-pill" data-status={pilula(h.status)}>
-                        {h.status}
-                      </span>
-                      <span className="crm-item-meta">
-                        {dataBR(h.data_exame)}
-                        {h.horario ? ` ${hora(h.horario)}` : ""} · {h.exame} · {h.forma_pagamento}
-                        {h.contato_id ? ` · ${codigoContato(h.contato_id)}` : " · encaixe"}
-                        {verValores && h.valor_realizado !== null ? ` · ${brl(h.valor_realizado)}` : verValores && h.valor_previsto !== null ? ` · previsto ${brl(h.valor_previsto)}` : ""}
-                      </span>
-                      {h.exemplo && <span className="badge">Exemplo</span>}
-                    </div>
+                {horarios.slice(0, NA_LISTA).map((x) => (
+                  <li key={x.id} className="crm-item">
+                    <ResumoHorario h={x} verValores={verValores} />
                     <p className="crm-item-meta">
-                      Confirmação: {h.confirmacao}
-                      {h.motivo_falta ? ` · Motivo: ${h.motivo_falta}` : ""}
-                      {h.vaga_recuperada !== "Não se aplica" ? ` · Vaga recuperada: ${h.vaga_recuperada}` : ""}
-                      {h.motivo_operacional ? ` · ${h.motivo_operacional}${h.horas_paradas ? ` (${horas(h.horas_paradas)})` : ""}` : ""}
+                      Confirmação: {x.confirmacao}
+                      {x.motivo_falta ? ` · Motivo: ${x.motivo_falta}` : ""}
+                      {x.vaga_recuperada !== "Não se aplica" ? ` · Vaga recuperada: ${x.vaga_recuperada}` : ""}
+                      {x.motivo_operacional ? ` · ${x.motivo_operacional}` : ""}
                     </p>
                     <details className="crm-detalhes">
                       <summary>Atualizar</summary>
-                      <EditarHorarioForm horario={h} />
+                      <EditarHorarioForm horario={x} />
                     </details>
                   </li>
                 ))}
                 {horarios.length > NA_LISTA && (
-                  <li className="crm-item crm-item-meta">Mostrando os {NA_LISTA} mais recentes de {horarios.length}. Escolha um período menor para ver os outros.</li>
+                  <li className="crm-item crm-item-meta">
+                    Mostrando os {NA_LISTA} mais recentes de {horarios.length}. Escolha um período menor para ver os outros.
+                  </li>
                 )}
               </ul>
             )}
@@ -570,124 +347,125 @@ export default async function CrmRmPage({ searchParams }: Props) {
         </>
       )}
 
-      {aba === "como" && (
+      {aba === "guia" && (
         <>
           <Painel id="t-como" titulo="Como preencher" sub="Em que ordem, quem faz e quando.">
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">Etapa</th>
-                    <th scope="col">Quem preenche</th>
-                    <th scope="col">O que registrar</th>
-                    <th scope="col">Quando</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">1. CRM – Contatos</th>
-                    <td>Equipe de atendimento</td>
-                    <td>Uma linha por pedido de exame recebido, mesmo que o paciente não agende.</td>
-                    <td>No primeiro contato</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">2. Atualizar o contato</th>
-                    <td>Equipe de atendimento</td>
-                    <td>Nova situação, motivo se perdeu, próxima ação e data de retorno. Não apague oportunidades perdidas.</td>
-                    <td>Depois de cada conversa</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">3. Agenda – RM</th>
-                    <td>Agendamento / recepção</td>
-                    <td>Uma linha por horário reservado. Reagendar não conta como contato novo.</td>
-                    <td>Ao agendar e depois da data do exame</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">4. Indicadores</th>
-                    <td>Coordenação</td>
-                    <td>Acompanhar os números e escolher os três maiores gargalos da semana.</td>
-                    <td>Reunião semanal de 30 minutos</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">5. Privacidade</th>
-                    <td>Todos</td>
-                    <td>Nunca escrever nome, CPF ou dado clínico. Cada registro tem só um código (RM-0001).</td>
-                    <td>Sempre</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <Tabela colunas={["Etapa", "Quem faz", "O que registrar", "Quando"]}>
+              <tr>
+                <th scope="row">1. Atender</th>
+                <td>Call center e recepção</td>
+                <td>Uma linha por pedido de exame recebido, mesmo que a pessoa não agende.</td>
+                <td>No primeiro contato</td>
+              </tr>
+              <tr>
+                <th scope="row">2. Atualizar</th>
+                <td>Call center e recepção</td>
+                <td>Nova situação, motivo se perdeu, próxima ação e data de retorno. Não apague oportunidade perdida.</td>
+                <td>Depois de cada conversa</td>
+              </tr>
+              <tr>
+                <th scope="row">3. Agenda</th>
+                <td>Agendamento e recepção</td>
+                <td>Uma linha por horário reservado. Reagendar não conta como contato novo.</td>
+                <td>Ao agendar</td>
+              </tr>
+              <tr>
+                <th scope="row">4. Meu dia</th>
+                <td>Call center e recepção</td>
+                <td>Responder, confirmar os exames de amanhã, fechar o resultado e preencher as vagas que abriram.</td>
+                <td>Todo dia, começando por aí</td>
+              </tr>
+              <tr>
+                <th scope="row">5. Indicadores</th>
+                <td>Coordenação</td>
+                <td>Escolher os três maiores gargalos da semana e agir.</td>
+                <td>Reunião semanal de 30 minutos</td>
+              </tr>
+              <tr>
+                <th scope="row">6. Privacidade</th>
+                <td>Todos</td>
+                <td>Nunca escrever nome ou dado clínico. Identifique pelo código do Klingo; telefone só se precisar ligar.</td>
+                <td>Sempre</td>
+              </tr>
+            </Tabela>
           </Painel>
 
-          <Painel id="t-dic-sit" titulo="Dicionário: situação do contato" sub="O que cada opção quer dizer e o que a equipe faz.">
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">Situação</th>
-                    <th scope="col">O que significa</th>
-                    <th scope="col">O que fazer</th>
+          <Painel id="t-catalogo" titulo="Exames de Ressonância" sub="Os nomes são os mesmos do Klingo. O preço é o que a clínica praticou nos últimos 6 meses.">
+            <Tabela colunas={verValores ? ["Exame", "Grupo", "Sedação", "Preparo", "Particular", "Convênio (média)"] : ["Exame", "Grupo", "Sedação", "Preparo"]}>
+              {exames.map((e) => {
+                const p = precos.find((x) => x.exame === e.nome);
+                return (
+                  <tr key={e.id}>
+                    <th scope="row">{e.nome}</th>
+                    <td>{e.grupo}</td>
+                    <td>{e.sedacao ? "Sim" : "Não"}</td>
+                    <td>{e.preparo ?? "Não cadastrado"}</td>
+                    {verValores && <td>{p?.particular_mediana != null ? brl(p.particular_mediana) : "—"}</td>}
+                    {verValores && <td>{p?.convenio_medio != null ? brl(p.convenio_medio) : "—"}</td>}
                   </tr>
-                </thead>
-                <tbody>
-                  {SITUACOES.map((s) => (
-                    <tr key={s.id}>
-                      <th scope="row">{s.id}</th>
-                      <td>{s.significado}</td>
-                      <td>{s.acao}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                );
+              })}
+            </Tabela>
+            <Nota>
+              Preparo, contraste e duração ainda não foram cadastrados pela clínica. Até lá, confirme com a equipe técnica antes de orientar o
+              paciente. O preço é referência, não tabela oficial.
+            </Nota>
           </Painel>
 
-          <Painel id="t-dic-mot" titulo="Dicionário: motivo da perda" sub="Separa o que é problema comercial, de agenda, de convênio ou clínico.">
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">Motivo</th>
-                    <th scope="col">Tipo de gargalo</th>
-                    <th scope="col">O que significa</th>
-                    <th scope="col">O que fazer</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {MOTIVOS_PERDA.map((m) => (
-                    <tr key={m.id}>
-                      <th scope="row">{m.id}</th>
-                      <td>{m.categoria}</td>
-                      <td>{m.significado}</td>
-                      <td>{m.acao}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <Painel id="t-convenios-guia" titulo="Convênios atendidos" sub="Se o convênio do paciente não está aqui, a clínica não atende: ofereça o particular.">
+            <Tabela colunas={["Convênio", "Tipo", "Exige autorização", "Prazo"]}>
+              {convenios.map((x) => (
+                <tr key={x.id}>
+                  <th scope="row">{x.nome}</th>
+                  <td>{x.tipo}</td>
+                  <td>{x.exige_autorizacao === null ? "Não cadastrado" : x.exige_autorizacao ? "Sim" : "Não"}</td>
+                  <td>{x.prazo_autorizacao ? `${x.prazo_autorizacao} dias` : "—"}</td>
+                </tr>
+              ))}
+            </Tabela>
           </Painel>
 
-          <Painel id="t-dic-ag" titulo="Dicionário: status da agenda" sub="Como classificar cada horário depois do exame.">
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">Status</th>
-                    <th scope="col">O que significa</th>
-                    <th scope="col">O que fazer</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {STATUS_AGENDA.map((s) => (
-                    <tr key={s.id}>
-                      <th scope="row">{s.id}</th>
-                      <td>{s.significado}</td>
-                      <td>{s.acao}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <Painel id="t-dic-sit" titulo="Situação do contato" sub="O que cada opção quer dizer e o que fazer.">
+            <Tabela colunas={["Situação", "O que significa", "O que fazer"]}>
+              {SITUACOES.map((s) => (
+                <tr key={s.id}>
+                  <th scope="row">{s.id}</th>
+                  <td>{s.significado}</td>
+                  <td>{s.acao}</td>
+                </tr>
+              ))}
+            </Tabela>
+          </Painel>
+
+          <Painel id="t-dic-mot" titulo="Motivo da perda e o que fazer" sub="Separa o que é problema comercial, de agenda, de convênio ou clínico.">
+            <Tabela colunas={["Motivo", "Gargalo", "O que significa", "Passo a passo"]}>
+              {MOTIVOS_PERDA.map((m) => (
+                <tr key={m.id}>
+                  <th scope="row">{m.id}</th>
+                  <td>{m.categoria}</td>
+                  <td>{m.significado}</td>
+                  <td>
+                    <ol className="crm-passos">
+                      {m.roteiro.map((p) => (
+                        <li key={p}>{p}</li>
+                      ))}
+                    </ol>
+                  </td>
+                </tr>
+              ))}
+            </Tabela>
+          </Painel>
+
+          <Painel id="t-dic-ag" titulo="Status da agenda" sub="Como classificar cada horário depois do exame.">
+            <Tabela colunas={["Status", "O que significa", "O que fazer"]}>
+              {STATUS_AGENDA.map((s) => (
+                <tr key={s.id}>
+                  <th scope="row">{s.id}</th>
+                  <td>{s.significado}</td>
+                  <td>{s.acao}</td>
+                </tr>
+              ))}
+            </Tabela>
           </Painel>
         </>
       )}
