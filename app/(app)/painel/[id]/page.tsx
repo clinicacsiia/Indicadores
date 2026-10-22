@@ -34,7 +34,7 @@ export default async function PainelPage({ params, searchParams }: Props) {
         <h2>Sem acesso a {painel.nome}</h2>
         <p>
           {faltaFinanceiro
-            ? "Este painel mostra receitas, despesas e valores em R$. Peça a um administrador para liberar “Dados financeiros” em Configurações."
+            ? "Este painel mostra produção, receitas, despesas e valores em R$. Peça a um administrador para liberar “Dados financeiros” em Configurações."
             : "Peça a um administrador para liberar este painel em Configurações."}
         </p>
       </section>

@@ -46,7 +46,7 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtend
           veMetas ? "Metas" : null,
           nPaineis > 0 ? `${nPaineis} ${nPaineis === 1 ? "painel" : "painéis"}` : null,
           visaoAtendimento ? `Atendimento só de ${RESPONSAVEIS_ATENDIMENTO.find((r) => r.id === visaoAtendimento)?.nome ?? visaoAtendimento}` : null,
-          veFinanceiro ? "Financeiro" : null,
+          veFinanceiro ? "Dados financeiros" : null,
         ]
           .filter(Boolean)
           .join(" · ") || "Sem telas liberadas";
@@ -133,7 +133,7 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtend
                 <label className="switch">
                   <input type="checkbox" name="dados_financeiros" defaultChecked={veFinanceiro} />
                   <span className="switch-track" aria-hidden="true" />
-                  <span className="switch-text">Dados financeiros (receitas, despesas e valores em R$)</span>
+                  <span className="switch-text">Dados financeiros (produção, receitas, despesas e valores em R$)</span>
                 </label>
               </div>
               <span className="switch-hint">

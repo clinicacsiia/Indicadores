@@ -157,6 +157,26 @@ botão "Atualizar agora" (só admin) ou sozinho a cada 5 h  →  /api/atualizar?
   do portal e as "visões" em PDF do Atendimento. A aba **Metas** continua sendo a do site (abaixo); a base das Metas em Python
   só existe para o Atendimento.
 
+### Nomenclatura: produção, faturado, recebido, receita, despesa
+
+Os mesmos números aparecem em vários painéis, então cada palavra tem **um** significado. Ao criar texto novo, use estas e não misture:
+
+| Palavra | O que é | Onde aparece |
+| --- | --- | --- |
+| **Produção** / **produzido** (a *receita produzida* do relatório nº 26) | Valor dos atendimentos **realizados**, pela tabela do convênio ou do particular. Ainda não é fatura nem dinheiro recebido. Mês de **competência** (data do atendimento). | Faturamento, Indicadores, Atendimento (por profissional), Despesas (repasse médico). Na Cesta chama-se **receita** e é a mesma produção. |
+| **Faturado** | Faturas emitidas ao convênio (*a enviar* → *enviada* → *movimentada*; *cancelada* sai do ciclo). | Faturamento, Indicadores. |
+| **Recebido** | O que de fato entrou (baixas dos convênios, particular liquidado). | Faturamento, Indicadores, Financeiro (créditos de convênio). |
+| **Glosa** | Parte da produção que o convênio recusou. | Faturamento, Indicadores. |
+| **Receita** | Dinheiro que entra, no sentido do caixa: receitas lançadas, "a receber". | Financeiro (e a Cesta, onde significa receita produzida). |
+| **Despesa** / **a pagar** | Dinheiro que sai, sempre pelo mês de **vencimento**, pago (com *Conta*) ou sem baixa. | Financeiro (resumo) e Despesas (detalhe). |
+| **Custo** | Só o custo cadastrado de um item de estoque. | Suprimentos. |
+| **Repasse** | Honorário médico lançado nas despesas. | Despesas. |
+
+Regras que decorrem disso: o mês escolhido é o de **competência** (Faturamento, Indicadores) ou o de **vencimento** (Financeiro, Despesas) e o rótulo do filtro diz qual;
+"faturar" só vale para fatura (não para "gerar receita"); o relatório nº 13329 chama-se **Controle por Convênio** em todas as telas;
+"A receber" no Financeiro é o que vence no mês, e nos Indicadores é o saldo do ciclo da competência (a tela explica a diferença);
+o bloco 2 dos Indicadores chama-se **Cobrança e recebimento** para não confundir com o painel Financeiro.
+
 ### Abertura rápida e renovação em segundo plano
 
 Abrir um painel **nunca espera a atualização**. `/api/painel` entrega na hora a última página guardada (`painel_pagina`), mesmo velha, e

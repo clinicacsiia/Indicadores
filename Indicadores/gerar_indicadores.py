@@ -1,4 +1,4 @@
-"""Indicadores: os 16 indicadores de Produção/Faturamento, Financeiro e Glosas, com a origem de cada um.
+"""Indicadores: os 16 indicadores de Produção/Faturamento, Cobrança e recebimento (o "Financeiro" do pedido original) e Glosas, com a origem de cada um.
 
 Junta o que o Klingo entrega nos relatorios de Faturamento (#26, #13329, #13328, #13355), Financeiro (#13297, #13295)
 e nos relatorios novos desta pasta (#13374 guias, #13375 glosas e recursos, #13376 baixas). Quando um dado ainda nao
@@ -157,7 +157,7 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
     cards = []
     cards.append(card("produzido", 1, "Produzido", DIRETO, produzido, "brl",
                       f"Convênios <b>{brl(produzido - particular)}</b> · particular <b>{brl(particular)}</b>" + (f" · <b>{len(gm_ativas):,}</b> guias".replace(",", ".") if len(gm_ativas) else ""),
-                      "Faturamento · Receita Produzida (Valor); convênios conferidos no relatório de Produção por Convênio", f"Competência: {rot}"))
+                      "Faturamento · Receita Produzida (Valor); convênios conferidos no relatório Controle por Convênio", f"Competência: {rot}"))
 
     fm = f[f["_comp"].isin(yms)] if len(f) else f   # competencia = mes em que comeca o periodo faturado: so existe por mes
     fa = fm[fm["_st"] == A_ENVIAR] if len(fm) else fm
@@ -189,7 +189,7 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
                       + (f" Candidata a confirmar: <b>{prot}</b> guia(s) “Protocolada” em {rot}." if prot else ""),
                       "Sem relatório no Klingo: a informação está no portal da operadora", "Posição de hoje"))
 
-    # ---------------------------------------------------------------- bloco 2: financeiro
+    # ---------------------------------------------------------------- bloco 2: cobranca e recebimento
     ativas = fm[fm["_st"] != CANCELADA] if len(fm) else fm
     cards.append(card("fatura_mes", 2, "Fatura do período" if per else "Fatura do mês", DERIVADO, float(ativas["_valor"].fillna(0).sum()) if len(ativas) else 0.0, "brl",
                       f"<b>{len(ativas)}</b> fatura(s): a enviar <b>{brl(float(fa['_valor'].fillna(0).sum())) if len(fa) else 'R$ 0,00'}</b> · enviadas <b>{brl(float(fe['_valor'].fillna(0).sum())) if len(fe) else 'R$ 0,00'}</b>"
@@ -228,7 +228,7 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
         conc_txt = "Conciliação: relatório de Baixas sem dados"
     cards.append(card("recebido", 2, "Recebido", DERIVADO, rec_conv + rec_part, "brl",
                       f"Convênios <b>{brl(rec_conv)}</b> · particular já liquidado <b>{brl(rec_part)}</b>. {conc_txt}",
-                      "Produção por Convênio · Recebido (convênios) + Recebimento Particular · Valor Líquido com recebimento até hoje (particular); conciliação do relatório de Baixas",
+                      "Controle por Convênio · Recebido (convênios) + Recebimento Particular · Valor Líquido com recebimento até hoje (particular); conciliação do relatório de Baixas",
                       f"Competência: {rot_m}",
                       "“Liquidado” é o que foi baixado; “conciliado” depende de marcar a baixa como conciliada no Klingo (hoje nenhuma está)."))
 
@@ -241,7 +241,7 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
                       f"Convênios: faturado <b>{brl(faturado_conv)}</b> − recebido <b>{brl(rec_conv)}</b> − glosa acatada <b>{brl(gl_mes_acat)}</b> = <b>{brl(saldo_conv)}</b> · particular a cair <b>{brl(a_rec_part)}</b>",
                       "Faturado − Recebido − Glosa acatada, mais parcelas futuras do relatório de Recebimento Particular",
                       f"Competência: {rot_m}",
-                      "O campo “A Receber (Saldo)” do relatório de Produção por Convênio só vem preenchido para um convênio; por isso o saldo é calculado aqui."))
+                      "O campo “A Receber (Saldo)” do relatório Controle por Convênio só vem preenchido para um convênio; por isso o saldo é calculado aqui."))
 
     # ---------------------------------------------------------------- bloco 3: glosas (acumulado, de todas as competencias)
     gl_total_ctrl = float(ctrl["Glosa"].fillna(0).sum()) if tem_colunas(ctrl, "Glosa") else 0.0
@@ -251,8 +251,8 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
     total = gl["glosado"] if (gl["tem"] and gl.get("glosado") is not None) else max(gl_total_ctrl, gl_guias)
     cls_total = DIRETO if (gl["tem"] and gl.get("glosado") is not None) else PROXY
     cards.append(card("glosa_total", 3, "Glosa total", cls_total, total, "brl",
-                      (f"Produção por Convênio: <b>{brl(gl_total_ctrl)}</b> · guias: <b>{brl(gl_guias)}</b>. " if not gl["tem"] else "") + (nota_arq or f"{gl['linhas']} linha(s) no relatório de Glosas e Recursos."),
-                      "Glosas e Recursos · valor glosado; sem ele, Produção por Convênio Glosa e Guias Valor Glosado", "Acumulado desde set/2026",
+                      (f"Controle por Convênio: <b>{brl(gl_total_ctrl)}</b> · guias: <b>{brl(gl_guias)}</b>. " if not gl["tem"] else "") + (nota_arq or f"{gl['linhas']} linha(s) no relatório de Glosas e Recursos."),
+                      "Glosas e Recursos · valor glosado; sem ele, Controle por Convênio Glosa e Guias Valor Glosado", "Acumulado desde set/2026",
                       "Hoje o Klingo não registra nenhuma glosa." if total == 0 else None))
 
     rec_ok = gl["tem"] and gl.get("recursado") is not None
@@ -270,8 +270,8 @@ def montar_mes(ym: str, hoje: date, d: dict, per: pc.Periodo | None = None) -> d
                       "Glosas e Recursos · valor deferido", "Acumulado desde set/2026"))
     acat_ok = gl["tem"] and gl.get("perda") is not None
     cards.append(card("glosa_acatada", 3, "Glosa acatada", DIRETO if acat_ok else PROXY, gl["perda"] if acat_ok else acatada_ctrl, "brl",
-                      "Perda definitiva no relatório de Glosas e Recursos." if acat_ok else f"Coluna “Glosa Acatada” do relatório de Produção por Convênio. Ela não separa “sem recurso” de “recurso indeferido”.",
-                      "Glosas e Recursos · perda definitiva; sem ele, Produção por Convênio Glosa Acatada", "Acumulado desde set/2026"))
+                      "Perda definitiva no relatório de Glosas e Recursos." if acat_ok else f"Coluna “Glosa Acatada” do relatório Controle por Convênio. Ela não separa “sem recurso” de “recurso indeferido”.",
+                      "Glosas e Recursos · perda definitiva; sem ele, Controle por Convênio Glosa Acatada", "Acumulado desde set/2026"))
 
     # ---------------------------------------------------------------- detalhes do mes
     por_sit = []
@@ -354,7 +354,7 @@ def alertas_gerais(d: dict, glosas: dict, hoje: date) -> list[dict]:
         v_guias = float(g["Movimentação Guia - Valor Recebido"].fillna(0).sum())
         v_ctrl = float(d["ctrl"]["Recebido"].fillna(0).sum())
         if abs(v_guias - v_ctrl) > 0.01:
-            out.append({"nivel": "atencao", "titulo": "Recebido das guias não bate com o relatório de Produção por Convênio",
+            out.append({"nivel": "atencao", "titulo": "Recebido das guias não bate com o relatório Controle por Convênio",
                         "texto": f"Guias recebidas somam <b>{brl(v_guias)}</b> e o Controle por Convênio mostra <b>{brl(v_ctrl)}</b>."})
     out.append({"nivel": "info", "titulo": "Sem fonte no Klingo: Bloqueado e Antecipado",
                 "texto": "Guia retida na operadora e antecipação de recebíveis não existem nos relatórios. Bloqueado só aparece no portal da operadora; "
@@ -383,7 +383,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         pc.acrescentar_periodo(meses, per, lambda p: montar_mes(p.fim, hoje, d, per=p))
         if per.exato:
             info["notas"] = ["O Controle por Convênio (produzido, recebido e glosa por convênio) e as faturas por competência só existem por mês: nesses valores entram os meses "
-                             "inteiros que o período toca. Receita produzida, guias, vencimentos e recebimentos seguem exatamente os dias escolhidos."]
+                             "inteiros que o período toca. Produzido, guias, vencimentos e recebimentos seguem exatamente os dias escolhidos."]
     alertas = alertas_gerais(d, d["glosas"], hoje) if (len(g) or len(d["f"]) or len(d["prod"])) else []
     ordem = {"critico": 0, "atencao": 1, "ok": 2, "info": 3}
     alertas.sort(key=lambda a: ordem[a["nivel"]])

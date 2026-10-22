@@ -151,7 +151,7 @@ function passosGoogle() {
   if (GG.configurado && GG.tem_dados) return '';
   const motivo = GG.configurado ? 'A chave do Google já está na Vercel, mas ainda não houve nenhuma coleta. Clique em <b>Atualizar agora</b> (no alto da página).' : 'A coleta do Google ainda não foi ligada. São 4 passos, uma vez só:';
   return `<div class="card" style="margin-top:14px"><h3>Ligar a nota do Google Maps</h3><p class="nota">${motivo}</p>` + (GG.configurado ? '' : `<ol class="passos">
-    <li>No <b>Google Cloud Console</b>, crie (ou escolha) um projeto, ative a <b>Places API (New)</b> e crie uma <b>chave de API</b> em Credenciais. Restrinja a chave a essa API. O Google exige o faturamento ativo no projeto, mas a clínica fica dentro do crédito gratuito: o painel faz poucas consultas por dia.</li>
+    <li>No <b>Google Cloud Console</b>, crie (ou escolha) um projeto, ative a <b>Places API (New)</b> e crie uma <b>chave de API</b> em Credenciais. Restrinja a chave a essa API. O Google exige a conta de cobrança (billing) ativa no projeto, mas a clínica fica dentro do crédito gratuito: o painel faz poucas consultas por dia.</li>
     <li>Na <b>Vercel</b> (Settings → Environment Variables), crie <b>GOOGLE_PLACES_API_KEY</b> com a chave e refaça o deploy. Não coloque a chave em nenhum arquivo do projeto.</li>
     <li>Opcional: se o painel não achar o perfil certo, crie também <b>GOOGLE_PLACE_ID</b> com o identificador do perfil (começa com “ChIJ”).</li>
     <li>Abra este painel e clique em <b>Atualizar agora</b>. A partir daí o resumo do Google é guardado todos os dias e o histórico começa a se formar.</li></ol>`) + '</div>';

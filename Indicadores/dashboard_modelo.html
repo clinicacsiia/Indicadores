@@ -37,7 +37,7 @@ __CSS__
     </div>
   </header>
   <section class="toolbar" id="toolbar" aria-label="Filtros">
-      <label class="mes-pick">Competência <select id="mes"></select></label>
+      <label class="mes-pick">Mês de competência <select id="mes"></select></label>
   </section>
   <div class="aviso" id="aviso" hidden></div>
   <main id="conteudo"></main>
@@ -46,12 +46,13 @@ __CSS__
     <summary>Como ler este painel</summary>
     <div class="corpo">
       <ul>
+        <li><b>Os três passos do dinheiro:</b> <b>Produzido</b> = valor dos atendimentos realizados (a produção, ou receita produzida, do painel Faturamento), ainda sem fatura · <b>Faturado</b> = faturas enviadas ao convênio (a <b>Pré-fatura</b> é a fatura emitida que ainda não saiu) · <b>Recebido</b> = o que já entrou (baixas). “A receber / saldo” aqui é o que falta entrar do ciclo da competência escolhida; no painel <b>Financeiro</b>, “A receber” é o que vence em cada mês.</li>
         <li><b>Etiqueta de cada indicador:</b> <b>Direto</b> = o Klingo entrega o dado pronto · <b>Derivado</b> = cálculo sobre dados que o Klingo entrega · <b>Aproximação</b> = o dado mais próximo que existe, mas não é exatamente o conceito pedido · <b>Sem fonte</b> = nenhum relatório traz o dado (o cartão diz o que falta; não mostro zero para não parecer que está tudo certo).</li>
         <li><b>Competência</b> escolhida no topo vale para os indicadores marcados “Competência” (mês de execução das guias e do período das faturas). Os marcados “Posição de hoje” não mudam com o mês; os de glosa são acumulados desde set/2026, porque a glosa chega semanas depois do atendimento.</li>
         <li><b>Comparação em cada cartão:</b> “% do produzido” ou “% do faturado” mostra quanto do valor anterior do ciclo já chegou àquela etapa. A variação contra o mês anterior só aparece com os dois meses completos (mês em andamento contra mês cheio seria uma comparação injusta).</li>
         <li><b>Guias:</b> o relatório de Guias repete a guia uma vez por procedimento; aqui conto cada guia uma vez.</li>
         <li><b>Como a página é organizada:</b> <b>Resumo</b> (os 16 indicadores e o caminho do dinheiro), <b>Análise</b> (guias, pendências e convênios em gráficos) e <b>Detalhes</b> (tabelas, recolhidas: clique para abrir).</li>
-        <li><b>Atualização:</b> o botão consulta os relatórios de Guias, Glosas e Recursos e Baixas e também os de Faturamento e Financeiro que os indicadores usam. Os dados ficam em <b>Indicadores.xlsx</b>.</li>
+        <li><b>Atualização:</b> o botão traz os relatórios de Guias, Glosas e Recursos e Baixas e também os de Faturamento e Financeiro que os indicadores usam.</li>
       </ul>
     </div>
   </details>
@@ -67,7 +68,7 @@ const VAZIO = '<span style="color:var(--muted)">—</span>';
 const ORDEM_NIVEL = { critico: 0, atencao: 1, ok: 2, info: 3 };
 const CHAVES = chavesMeses(D);
 const BLOCOS = { 1: ['Produção e faturamento', 'Do que foi produzido ao que já foi transmitido para o convênio.'],
-                 2: ['Financeiro', 'O que está faturado, o que vence, o que entrou e o que falta entrar.'],
+                 2: ['Cobrança e recebimento', 'O que está faturado, o que vence, o que entrou e o que falta entrar. Contas a pagar e fluxo de caixa estão no painel Financeiro.'],
                  3: ['Glosas', 'O que as operadoras rejeitaram e o que aconteceu depois.'] };
 // indicadores da mesma competencia comparados com o produzido do mesmo mes: [id da referencia, texto]
 // (recebido, saldo e glosa ficam de fora: misturam particular, convenio e meses diferentes, e a razao enganaria)
@@ -140,7 +141,7 @@ function conveniosGraf(m) {
   if (!m.convenios.length) return '';
   const top = m.convenios.filter(x => x.produzido > 0);
   if (!top.length) return '';
-  return `<section><h2>Convênios que mais produziram em ${esc(m.rotulo)}</h2><p class="nota">Produzido por convênio, com quanto já foi faturado (relatórios de Produção por Convênio e Faturas Emitidas).</p>
+  return `<section><h2>Convênios que mais produziram em ${esc(m.rotulo)}</h2><p class="nota">Produzido por convênio, com quanto já foi faturado (relatórios Controle por Convênio e Faturas Emitidas).</p>
     ${barras(top.map(x => ({ rotulo: x.nome, valor: x.produzido, texto: brlc(x.produzido), extra: x.produzido ? pct(x.faturado / x.produzido * 100, 0) + ' faturado' : '',
       tip: `${x.nome}\nProduzido ${brl(x.produzido)}\nFaturado ${brl(x.faturado)}\nRecebido ${brl(x.recebido)}\nSaldo ${brl(x.saldo)}` })), '', '30%')}</section>`;
 }
