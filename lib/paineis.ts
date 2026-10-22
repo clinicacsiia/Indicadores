@@ -1,4 +1,5 @@
 import modulos from "@/modulos.json";
+import responsaveis from "@/Atendimento/responsaveis.json";
 
 // Painéis em Python (Faturamento, Financeiro, ...). A lista vem do modulos.json, o mesmo arquivo que o
 // código Python lê: um painel novo entra nos dois lados ao mesmo tempo. As Metas têm aba própria no site.
@@ -28,7 +29,19 @@ export const PAINEIS: Painel[] = modulos.modulos
 // Chave em profiles.permissions. Não pode ser "financeiro": as chaves do painel são os ids dos painéis, e já existe um com esse id.
 export const PERMISSAO_FINANCEIRA = "dados_financeiros";
 
-type PerfilComPermissoes = { role: string; permissions: Record<string, boolean> } | null;
+// Quem cuida de cada parte do Atendimento (Atendimento/responsaveis.json, o mesmo arquivo que o painel em Python lê; o id vira minúsculo lá também).
+export type Responsavel = { id: string; nome: string; area: string };
+export const RESPONSAVEIS_ATENDIMENTO: Responsavel[] = responsaveis.responsaveis.map((r) => ({
+  id: String(r.id ?? r.nome).trim().toLowerCase(),
+  nome: r.nome,
+  area: r.area,
+}));
+
+// Chave em profiles.permissions (texto = id do responsável; vazio ou ausente = sem restrição). O servidor Python (restricao.py) entrega
+// a página do Atendimento só com os dados dessa pessoa; o banco (can_view_painel) esconde os avisos da clínica inteira.
+export const PERMISSAO_ATENDIMENTO_VISAO = "atendimento_visao";
+
+type PerfilComPermissoes = { role: string; permissions: Record<string, boolean | string> } | null;
 
 // Admin vê receitas, despesas e valores; os demais só com "Dados financeiros" marcado em Configurações.
 export function veDadosFinanceiros(perfil: PerfilComPermissoes): boolean {

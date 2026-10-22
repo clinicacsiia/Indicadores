@@ -276,11 +276,24 @@ def pagina_para_abrir(painel: str, periodo: tuple[str, str] | None) -> tuple[str
     return html, vencido, previsto
 
 
-def com_marcas(html: str, painel: str, admin: bool, vencido: bool = False, previsto_s: int = 0, sem_financeiro: bool = False) -> str:
+def visao_restrita(u: dict, painel: str) -> str | None:
+    """A visao a que este usuario esta restrito no painel (Configuracoes > "Atendimento: o que a pessoa vê"), ou None. Administrador nunca e restrito."""
+    import restricao
+    return None if u["admin"] else restricao.visao_do_perfil(u["permissoes"], painel)
+
+
+def com_marcas(html: str, painel: str, admin: bool, vencido: bool = False, previsto_s: int = 0, sem_financeiro: bool = False, visao: str | None = None) -> str:
     """Poe no HTML o que o painel_base.js precisa saber (painel, nuvem, se o usuario e admin). Feito a cada pedido: a pagina guardada e a mesma para todos.
     `sem_financeiro` = o usuario nao tem "Dados financeiros": num painel misto os valores em R$ saem da pagina (sigilo.py).
+    `visao` = o usuario so pode ver essa parte do painel (restricao.py): o resto da clinica sai da pagina.
     `vencido`/`previsto_s` sao para a tela do site (PainelFrame), que le o iframe e pede a renovacao."""
     # "embutido": a pagina aparece dentro de uma tela do site, que ja da o respiro e o fundo (ver .embutido em painel_base.css)
+    if visao:
+        import restricao
+        try:
+            html = restricao.limpar_html(html, painel, visao)   # os dados das outras visoes (e o total da clinica) saem do JSON da pagina
+        except restricao.VisaoInexistente:
+            raise Negado(403, "Seu acesso a este painel está limitado a uma parte que não existe mais. Peça a um administrador para ajustar em Configurações.")
     if sem_financeiro and modo_financeiro(painel) == "parcial":
         import sigilo
         html = sigilo.limpar_html(html, painel)   # os valores saem do JSON da pagina; o modelo so precisa saber que nao ha o que mostrar
@@ -461,7 +474,8 @@ def rota_pagina(h) -> None:
             traceback.print_exc()
             detalhe = f"{type(e).__name__}: {e}" if u["admin"] else "Avise um administrador."
             return responder(h, 500, _pagina_de_aviso("Não consegui montar este painel", detalhe), "text/html; charset=utf-8")
-        responder(h, 200, com_marcas(html, painel, u["admin"], vencido, previsto, sem_financeiro=not u["financeiro"]), "text/html; charset=utf-8")
+        responder(h, 200, com_marcas(html, painel, u["admin"], vencido, previsto, sem_financeiro=not u["financeiro"],
+                                      visao=visao_restrita(u, painel)), "text/html; charset=utf-8")
     tratar(h, fazer)
 
 
@@ -518,6 +532,8 @@ def rota_pendencias(h) -> None:
         u = conferir_acesso(h.headers, painel)
         if h.command != "GET":
             raise Negado(405, "Para fechar um alerta use a aba Avisos: lá é preciso justificar.")
+        if visao_restrita(u, painel):   # os avisos descrevem a clinica toda: quem esta limitado a uma parte do painel nao os recebe
+            return responder(h, 200, {"ok": True, "avisos": []})
         responder(h, 200, {"ok": True, "avisos": arm.listar_avisos(painel, com_sensiveis=u["financeiro"])})
     tratar(h, fazer)
 

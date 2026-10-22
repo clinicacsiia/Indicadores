@@ -53,7 +53,10 @@ class RegraDoSiteIgualAoServidorTest(unittest.TestCase):
         pasta = Path(tempfile.mkdtemp())
         try:
             (pasta / "modulos.json").write_text((RAIZ / "modulos.json").read_text(encoding="utf-8-sig"), encoding="utf-8")
-            (pasta / "paineis.ts").write_text((RAIZ / "lib" / "paineis.ts").read_text(encoding="utf-8").replace('from "@/modulos.json";', 'from "./modulos.json" with { type: "json" };'), encoding="utf-8")
+            (pasta / "responsaveis.json").write_text((RAIZ / "Atendimento" / "responsaveis.json").read_text(encoding="utf-8-sig"), encoding="utf-8")
+            (pasta / "paineis.ts").write_text((RAIZ / "lib" / "paineis.ts").read_text(encoding="utf-8")
+                                              .replace('from "@/modulos.json";', 'from "./modulos.json" with { type: "json" };')
+                                              .replace('from "@/Atendimento/responsaveis.json";', 'from "./responsaveis.json" with { type: "json" };'), encoding="utf-8")
             (pasta / "roteiro.mts").write_text(ROTEIRO, encoding="utf-8")
             r = subprocess.run(["node", "--experimental-strip-types", "--no-warnings", "roteiro.mts", json.dumps(casos)], cwd=pasta, capture_output=True, text=True, timeout=120)
         finally:

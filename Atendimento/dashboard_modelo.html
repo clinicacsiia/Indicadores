@@ -92,7 +92,8 @@ const CHAVES = chavesMeses(D);
 const VISOES = D.visoes || [];
 let VISAO = '';
 const visaoAtual = () => VISOES.find(v => v.id === VISAO) || null;
-const mesesDaVisao = () => VISAO ? (D.por_visao[VISAO] || {}) : D.meses;
+// D.visao_fixa: o servidor limitou esta pagina a uma pessoa (Configuracoes) e ja trocou D.meses pelos meses dela; nao ha "Todos" nem outra visao para escolher
+const mesesDaVisao = () => D.visao_fixa ? D.meses : VISAO ? (D.por_visao[VISAO] || {}) : D.meses;
 const lerPreferencia = () => { try { return localStorage.getItem('atendimento.visao') || ''; } catch (e) { return ''; } };
 const guardarPreferencia = v => { try { localStorage.setItem('atendimento.visao', v); } catch (e) { /* sem armazenamento: so nao lembra */ } };
 const mn = v => v == null ? '—' : v < 100 ? `${num(v, 0)} min` : `${num(v / 60, 1)} h`;
@@ -316,7 +317,9 @@ if (!CHAVES.length || !D.tem_dados) {
   $('conteudo').innerHTML = '<div class="card"><h2>Ainda não há dados</h2><p class="nota">Clique em <b>Atualizar agora</b> para buscar o relatório no Klingo.</p></div>';
   $('mes').disabled = true;
 } else {
-  if (VISOES.length) {
+  if (D.visao_fixa) {
+    VISAO = D.visao_fixa;
+  } else if (VISOES.length) {
     $('visao').innerHTML = '<option value="">Todos (clínica inteira)</option>' + VISOES.map(v => `<option value="${esc(v.id)}">${esc(v.nome)} — ${esc(v.area)}</option>`).join('');
     $('visao-pick').hidden = false;
     // o endereco manda (?visao=carla, ou todos): e assim que o PDF do portal pede cada pessoa; sem ele, vale a ultima escolha deste navegador

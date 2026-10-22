@@ -333,4 +333,24 @@ begin
   perform pg_temp.espera(pg_temp.eventos('faturamento', '|fat_espera_envio') = 'detectado,justificado,atualizacao', 'nota de atualização no histórico');
 end $$;
 
+-- ---- 8. restrição por usuário (migration 20261021110000): quem está limitado a uma parte do painel não lê os avisos da clínica inteira
+insert into public.profiles values
+  ('00000000-0000-0000-0000-000000000010', 'gabi@csi.local', 'viewer', '{"atendimento": true, "atendimento_visao": "carla", "cesta": true}'),
+  ('00000000-0000-0000-0000-000000000011', 'hugo@csi.local', 'viewer', '{"atendimento": true, "atendimento_visao": ""}'),
+  ('00000000-0000-0000-0000-000000000012', 'iris@csi.local', 'admin',  '{"atendimento_visao": "carla"}');
+\i supabase/migrations/20261021110000_atendimento_visao_avisos.sql
+do $$
+begin
+  perform pg_temp.como('00000000-0000-0000-0000-000000000010');
+  perform pg_temp.espera(not public.can_view_painel('atendimento'), 'restrita a uma visão: não vê os avisos do painel');
+  perform pg_temp.como('00000000-0000-0000-0000-000000000011');
+  perform pg_temp.espera(public.can_view_painel('atendimento'), 'restrição vazia = vê os avisos como antes');
+  perform pg_temp.como('00000000-0000-0000-0000-00000000000e');
+  perform pg_temp.espera(public.can_view_painel('atendimento'), 'sem a chave = vê os avisos como antes');
+  perform pg_temp.como('00000000-0000-0000-0000-000000000012');
+  perform pg_temp.espera(public.can_view_painel('atendimento'), 'administrador nunca é restrito');
+  perform pg_temp.como('00000000-0000-0000-0000-000000000010');
+  perform pg_temp.espera(public.can_view_painel('cesta'), 'a restrição de um painel não mexe nos outros');
+end $$;
+
 select 'AVISOS OK' as resultado;
