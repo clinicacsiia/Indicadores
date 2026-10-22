@@ -34,13 +34,14 @@ __CSS__
     <div class="corpo">
       <ul>
         <li><b>Mês de vencimento:</b> os números do mês somam o que <b>vence</b> naquele mês (dinheiro que sai ou entra no caixa), e não o que foi lançado nele. Os lançamentos vêm do relatório de Lançamentos Financeiros.</li>
-        <li><b>Pago ou sem baixa:</b> considero uma despesa <b>paga</b> quando o lançamento tem uma <b>Conta</b> (banco ou caixa) preenchida. Sem Conta = sem baixa. Se a clínica dá baixa de outro jeito, esse critério precisa ser ajustado.</li>
+        <li><b>Pago ou sem baixa:</b> uma despesa conta como <b>paga</b> quando o lançamento tem uma <b>Conta</b> (banco ou caixa) preenchida. Sem Conta = sem baixa. Se a clínica dá baixa de outro jeito, esse critério precisa ser ajustado.</li>
+        <li><b>A pagar</b> é a soma das <b>despesas</b> que vencem no mês, pagas ou não. O detalhe delas (categoria, fornecedor, líquido, repasse médico) está no painel <b>Despesas</b>, que usa o mesmo mês de vencimento. O <b>Faturamento</b> usa o mês de competência (quando o atendimento foi feito).</li>
         <li><b>A receber:</b> soma as receitas já lançadas com vencimento no mês (cartão em parcelas, Pix, dinheiro) com as faturas de convênio ainda não baixadas que vencem no mês (relatório de Faturas em Aberto, do painel de Faturamento). Vendas futuras não entram.</li>
         <li><b>Taxa de cartão:</b> vem do relatório de Recebimento Particular (recebimento particular com taxa e líquido), pelo mês do atendimento.</li>
         <li><b>Créditos de convênio:</b> relatório de Créditos de Convênio, pela data do recebimento.</li>
         <li><b>Comparação com o mês anterior:</b> compara o total que vence em cada mês. Para a despesa e para a taxa de cartão, menos é melhor (seta verde quando cai). Os meses futuros mostram só o que já foi lançado.</li>
         <li><b>Como a página é organizada:</b> <b>Resumo</b> (números e fluxo dos próximos meses), <b>Análise</b> (para onde vai e de onde vem o dinheiro) e <b>Detalhes</b> (todas as tabelas, recolhidas: clique para abrir).</li>
-        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> consulta o Klingo, refaz os meses e grava na planilha <b>Financeiro.xlsx</b>: baixas, correções e exclusões feitas no Klingo aparecem aqui, e os meses antigos continuam guardados.</li>
+        <li><b>Atualização:</b> o botão <b>Atualizar agora</b> traz os dados mais recentes do Klingo e refaz os meses: baixas, correções e exclusões feitas no Klingo aparecem aqui, e os meses antigos continuam guardados.</li>
       </ul>
     </div>
   </details>
@@ -121,7 +122,7 @@ function composicaoGraf(m) {
   const rec = m.receber;
   const formas = m.formas.map(i => ({ rotulo: bonito(i.nome), valor: i.valor, tip: `${bonito(i.nome)}\n${brl(i.valor)} (${pct(i.pct)})` }));
   return `<section class="grid2">
-    <div><h2>Para onde vai o dinheiro</h2><p class="nota">Despesas com vencimento em ${esc(m.rotulo)}, por categoria (acima) e por empresa (abaixo).</p>
+    <div><h2>Para onde vai o dinheiro</h2><p class="nota">Despesas com vencimento em ${esc(m.rotulo)}, por categoria (acima) e por empresa (abaixo). Mais detalhes no painel Despesas.</p>
       ${barras(mk(m.despesas_categoria), 'Nenhuma despesa vence neste mês.', '40%')}<div style="height:18px"></div>${barras(mk(m.despesas_empresa), '', '40%')}</div>
     <div><h2>De onde vem</h2><p class="nota">A receber em ${esc(m.rotulo)}: origem (acima) e forma de pagamento das receitas lançadas (abaixo).</p>
       ${donut([{ rotulo: 'Receitas lançadas (particular)', valor: rec.lancadas }, { rotulo: 'Faturas de convênio em aberto', valor: rec.convenios }], { fmt: brlc, vazio: 'Nada a receber neste mês.', centro: { num: rotEixo(rec.total), rot: 'R$ a receber' } })}

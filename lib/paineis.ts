@@ -4,7 +4,7 @@ import responsaveis from "@/Atendimento/responsaveis.json";
 // Painéis em Python (Faturamento, Financeiro, ...). A lista vem do modulos.json, o mesmo arquivo que o
 // código Python lê: um painel novo entra nos dois lados ao mesmo tempo. As Metas têm aba própria no site.
 //
-// `financeiro` diz o que o painel tem de dinheiro (receita, despesa, valores em R$):
+// `financeiro` diz o que o painel tem de dinheiro (produção, receita, despesa, valores em R$):
 //   "total"   = é praticamente só dinheiro: sem "Dados financeiros" o painel nem abre;
 //   "parcial" = é misto: abre, mas o servidor tira os valores em R$ da página;
 //   null      = sem dinheiro ("nenhum" no modulos.json; painel sem o campo conta como "total").
@@ -43,7 +43,7 @@ export const PERMISSAO_ATENDIMENTO_VISAO = "atendimento_visao";
 
 type PerfilComPermissoes = { role: string; permissions: Record<string, boolean | string> } | null;
 
-// Admin vê receitas, despesas e valores; os demais só com "Dados financeiros" marcado em Configurações.
+// Admin vê produção, receitas, despesas e valores; os demais só com "Dados financeiros" marcado em Configurações.
 export function veDadosFinanceiros(perfil: PerfilComPermissoes): boolean {
   if (!perfil) return false;
   return perfil.role === "admin" || perfil.permissions?.[PERMISSAO_FINANCEIRA] === true;

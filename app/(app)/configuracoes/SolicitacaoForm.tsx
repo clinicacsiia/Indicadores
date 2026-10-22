@@ -94,7 +94,7 @@ export function SolicitacaoForm({ id, usuario, nome, emailContato, desde, painei
             <label className="switch">
               <input type="checkbox" name="dados_financeiros" />
               <span className="switch-track" aria-hidden="true" />
-              <span className="switch-text">Dados financeiros (receitas, despesas e valores em R$)</span>
+              <span className="switch-text">Dados financeiros (produção, receitas, despesas e valores em R$)</span>
             </label>
           </div>
         </div>

@@ -595,15 +595,15 @@ def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, ho
         alertas.append({"nivel": "atencao", "titulo": "Faturas em aberto sem valor", "itens": aberto["sem_valor_itens"],
                         "texto": f"<b>{aberto['sem_valor']}</b> fatura(s) estão com valor bruto vazio ou zero, o que reduz o total “em aberto” mostrado."})
     if variacao is not None and variacao <= -LIMITE_VARIACAO:
-        alertas.append({"nivel": "atencao", "titulo": "Receita abaixo do mês anterior",
-                        "texto": f"A receita está <b>{abs(variacao):.1f}% abaixo</b> de {ref_txt}."})
+        alertas.append({"nivel": "atencao", "titulo": "Produção abaixo do mês anterior",
+                        "texto": f"A produção (receita produzida) está <b>{abs(variacao):.1f}% abaixo</b> de {ref_txt}."})
     if conferencia["diferenca_pct"] is not None and abs(conferencia["diferenca_pct"]) > 2:
         alertas.append({"nivel": "atencao", "titulo": "Relatórios de produção não batem",
-                        "texto": f"A receita de convênios do relatório de Faturamento ({pc_brl(conv_26)}) difere do produzido do relatório de Produção por Convênio ({pc_brl(total_prod_conv)}) "
+                        "texto": f"A produção de convênios do relatório Receita Produzida ({pc_brl(conv_26)}) difere do produzido do relatório Controle por Convênio ({pc_brl(total_prod_conv)}) "
                                  f"em {conferencia['diferenca_pct']:+.1f}%."})
     if variacao is not None and variacao >= LIMITE_VARIACAO:
-        alertas.append({"nivel": "ok", "titulo": "Receita acima do mês anterior",
-                        "texto": f"A receita está <b>{variacao:.1f}% acima</b> de {ref_txt}."})
+        alertas.append({"nivel": "ok", "titulo": "Produção acima do mês anterior",
+                        "texto": f"A produção (receita produzida) está <b>{variacao:.1f}% acima</b> de {ref_txt}."})
     top3 = sum(x["pct"] for x in conv[:3])
     if len(conv) >= 3:
         nomes = ", ".join(html.escape(str(x["nome"])) for x in conv[:3])
@@ -611,7 +611,7 @@ def montar_mes(ym: str, prod: pd.DataFrame, ctrl: pd.DataFrame, aberto: dict, ho
                         "texto": f"Os 3 maiores ({nomes}) respondem por <b>{top3:.0f}%</b> do produzido com convênios."})
     if receita:
         alertas.append({"nivel": "info", "titulo": "Mix de pagadores",
-                        "texto": f"Particular: <b>{particular / receita * 100:.0f}%</b> da receita produzida · Convênios: <b>{(receita - particular) / receita * 100:.0f}%</b>."})
+                        "texto": f"Particular: <b>{particular / receita * 100:.0f}%</b> da produção · Convênios: <b>{(receita - particular) / receita * 100:.0f}%</b>."})
     alertas += alertas_faturas(fg, funil_ref, rot_ref)
     ordem = {"critico": 0, "atencao": 1, "ok": 2, "info": 3}
     alertas.sort(key=lambda a: ordem[a["nivel"]])
@@ -698,7 +698,7 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
             pc.acrescentar_periodo(meses, per, lambda p: montar_periodo(p, prod, ctrl, aberto, hoje, cfg, fat, fg))
             if per.exato:
                 info["notas"] = ["Controle por Convênio (produzido, recebido e glosa por convênio) e o funil de faturas só existem por mês: nesses blocos entram os meses "
-                                 "inteiros que o período toca. Receita, procedimentos, pacientes e dias úteis seguem exatamente os dias escolhidos."]
+                                 "inteiros que o período toca. Produção, procedimentos, pacientes e dias úteis seguem exatamente os dias escolhidos."]
 
     arq = arquivo_dados()
     dados_em = datetime.fromtimestamp(arq.stat().st_mtime) if arq.exists() else datetime.now()

@@ -14,7 +14,7 @@
     {
       "id": "faturamento",
       "nome": "Faturamento",
-      "descricao": "Receita produzida, convênios e faturas em aberto",
+      "descricao": "Produção (receita produzida), do produzido à fatura, faturas em aberto e recebimento por convênio",
       "pasta": "Faturamento",
       "tipo": "relatorios",
       "financeiro": "total",
@@ -32,7 +32,7 @@
     {
       "id": "despesas",
       "nome": "Despesas",
-      "descricao": "Despesas por categoria, fornecedor e mês de competência",
+      "descricao": "Despesas por categoria e fornecedor, por mês de vencimento, com o repasse médico",
       "pasta": "Despesas",
       "tipo": "relatorios",
       "financeiro": "total",
@@ -41,7 +41,7 @@
     {
       "id": "indicadores",
       "nome": "Indicadores",
-      "descricao": "Produção, financeiro e glosas: os 16 indicadores e a origem de cada um",
+      "descricao": "Produção, cobrança e recebimento e glosas: os 16 indicadores e a origem de cada um",
       "pasta": "Indicadores",
       "tipo": "relatorios",
       "financeiro": "total",
