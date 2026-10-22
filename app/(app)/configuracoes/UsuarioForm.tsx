@@ -14,6 +14,8 @@ type Props = {
   role: "admin" | "viewer";
   veMetas: boolean;
   veFinanceiro: boolean;
+  qualidadeVer: boolean;
+  qualidadePreencher: boolean;
   visaoAtendimento: string;
   paineis: { id: string; nome: string; liberado: boolean }[];
   ehVoce: boolean;
@@ -31,7 +33,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtendimento, paineis, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, qualidadeVer, qualidadePreencher, visaoAtendimento, paineis, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -46,6 +48,7 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtend
           veMetas ? "Metas" : null,
           nPaineis > 0 ? `${nPaineis} ${nPaineis === 1 ? "painel" : "painéis"}` : null,
           visaoAtendimento ? `Atendimento só de ${RESPONSAVEIS_ATENDIMENTO.find((r) => r.id === visaoAtendimento)?.nome ?? visaoAtendimento}` : null,
+          qualidadeVer || qualidadePreencher ? "Qualidade" : null,
           veFinanceiro ? "Dados financeiros" : null,
         ]
           .filter(Boolean)
@@ -122,6 +125,24 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtend
             <div className="user-paineis">
               <VisaoAtendimento id={id} valor={visaoAtendimento} />
               {papel === "admin" && <span className="switch-hint">Administradores sempre veem a clínica inteira.</span>}
+            </div>
+
+            <div className="user-paineis" role="group" aria-labelledby={`qual-${id}`}>
+              <span className="field-label user-paineis-titulo" id={`qual-${id}`}>
+                Qualidade (reclamações, ocorrências e elogios)
+              </span>
+              <div className="user-switches">
+                <label className="switch">
+                  <input type="checkbox" name="qualidade_preencher" defaultChecked={qualidadePreencher} />
+                  <span className="switch-track" aria-hidden="true" />
+                  <span className="switch-text">Pode registrar (e ver o que registrou)</span>
+                </label>
+                <label className="switch">
+                  <input type="checkbox" name="qualidade" defaultChecked={qualidadeVer} />
+                  <span className="switch-track" aria-hidden="true" />
+                  <span className="switch-text">Pode ver o indicador e marcar como resolvida</span>
+                </label>
+              </div>
             </div>
 
             <div className="user-paineis" role="group" aria-labelledby={`dados-${id}`}>

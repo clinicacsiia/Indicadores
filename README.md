@@ -512,6 +512,20 @@ vem dele; o dia de hoje conta só a parte do expediente que já passou.
 `sync-relatorios-dw` e, na aba Metas (como admin), clicar em "Atualizar" para
 o mês desejado (um mês por vez, máx. 31 dias).
 
+## Aba Qualidade
+
+Reclamações, ocorrências e elogios que a equipe **lança à mão** (o Klingo não traz esse registro). Migration `20261022100000_aba_qualidade.sql`.
+
+- **Quem preenche / quem vê:** duas chaves novas em `profiles.permissions`, as duas **desligadas** até o administrador marcar em Configurações
+  (item "Qualidade", também no pedido de acesso). `qualidade_preencher` = registra e vê só o que registrou; `qualidade` = vê o indicador inteiro e
+  marca uma ocorrência como resolvida. Administrador tem as duas. O menu "Qualidade" só aparece para quem tem uma delas.
+- **Tabela `ocorrencia`** (data, unidade, setor, tipo, gravidade, descrição, status, `resolvida_em`, `criado_por`, `exemplo`). A segurança está no banco (RLS +
+  `grant` por coluna): quem só preenche não lê o que os outros lançaram, quem só vê não lança, ninguém além do admin apaga, e só `status` e
+  `resolvida_em` podem mudar depois de registrado. Teste: `supabase/tests/qualidade.sql` (Postgres local; ver o cabeçalho do arquivo).
+- **Tela** (`app/(app)/qualidade/`, `lib/qualidade.ts`): formulário "Registrar"; para quem vê, o mês (últimos 6), cartões (reclamações e ocorrências, elogios,
+  % resolvidas, tempo médio para resolver, gravidade alta aberta), por setor, por unidade e a lista com "Marcar como resolvida".
+- **Dados de demonstração:** linhas com `exemplo = true` (aparecem com a etiqueta "Exemplo"). Para tirar: `delete from public.ocorrencia where exemplo;`.
+
 ## Data warehouse de relatórios
 
 Além do `sync-indicadores` original (que só lê o relatório `13397` e grava 4

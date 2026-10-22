@@ -86,6 +86,24 @@ export function SolicitacaoForm({ id, usuario, nome, emailContato, desde, painei
           <VisaoAtendimento id={`pedido-${id}`} valor="" />
         </div>
 
+        <div className="user-paineis" role="group" aria-labelledby={`pedido-qual-${id}`}>
+          <span className="field-label user-paineis-titulo" id={`pedido-qual-${id}`}>
+            Qualidade (reclamações, ocorrências e elogios)
+          </span>
+          <div className="user-switches">
+            <label className="switch">
+              <input type="checkbox" name="qualidade_preencher"  />
+              <span className="switch-track" aria-hidden="true" />
+              <span className="switch-text">Pode registrar (e ver o que registrou)</span>
+            </label>
+            <label className="switch">
+              <input type="checkbox" name="qualidade"  />
+              <span className="switch-track" aria-hidden="true" />
+              <span className="switch-text">Pode ver o indicador e marcar como resolvida</span>
+            </label>
+          </div>
+        </div>
+
         <div className="user-paineis" role="group" aria-labelledby={`pedido-dados-${id}`}>
           <span className="field-label user-paineis-titulo" id={`pedido-dados-${id}`}>
             Dados sensíveis

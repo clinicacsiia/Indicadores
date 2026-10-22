@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconAviso, IconConfig, IconInicio, IconMetas, IconPainel } from "./icons";
+import { IconAviso, IconConfig, IconInicio, IconMetas, IconPainel, IconQualidade } from "./icons";
 import type { Painel } from "@/lib/paineis";
 
 type Props = {
   isAdmin: boolean;
   paineis: Painel[];
+  // Aba Qualidade: aparece só para quem pode ver o indicador ou preencher o formulário.
+  qualidade: boolean;
   // Avisos abertos que esta pessoa pode ver (e quantos são críticos), para o contador do menu.
   avisos: { abertos: number; criticos: number };
   // Pedidos de acesso aguardando aprovação (só o administrador vê), para o contador de Configurações.
   pedidos: number;
 };
 
-export function NavLinks({ isAdmin, paineis, avisos, pedidos }: Props) {
+export function NavLinks({ isAdmin, paineis, qualidade, avisos, pedidos }: Props) {
   const pathname = usePathname();
 
   const links: {
@@ -37,6 +39,7 @@ export function NavLinks({ isAdmin, paineis, avisos, pedidos }: Props) {
       textoContador: (n) => `${n} ${n === 1 ? "aviso aberto" : "avisos abertos"}`,
     },
     { href: "/metas", rotulo: "Metas", icone: <IconMetas />, ativo: pathname.startsWith("/metas") },
+    ...(qualidade ? [{ href: "/qualidade", rotulo: "Qualidade", icone: <IconQualidade />, ativo: pathname.startsWith("/qualidade") }] : []),
     ...paineis.map((p) => ({
       href: `/painel/${p.id}`,
       rotulo: p.nome,
