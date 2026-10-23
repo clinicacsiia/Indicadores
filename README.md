@@ -247,6 +247,10 @@ históricos ganharam o evento "Correção de registro"; a linha original não fo
 **20/10/2026, `20261020120000_cadastra_relatorio_nps_13697.sql`:** aplicada pelo `apply_migration` (um `insert ... on conflict`, sem `drop`). Cadastra o #13697 (NPS) como ativo, coleta mensal desde set/2026; a primeira coleta
 trouxe 283 respostas (174 em set e 109 em out) e o filtro de período foi comprovado sozinho. Ver "Aba NPS × Google".
 
+**23/10/2026, `20261023160000_cadastra_relatorio_agendamentos_13825.sql`, `..170000_agenda_klingo_coleta_mensal.sql` e `..170100_crm_rm_agenda_klingo.sql`:** o cadastro do #13825
+foi aplicado pelo `apply_migration` (um `insert ... on conflict`); a coleta mensal, pelo `execute_sql` em duas partes (o texto de `observacoes` com o mapa das colunas fica pendurado no MCP; o mapa está
+no comentário da migration); a função, pelo `apply_migration` (`create or replace`, sem `drop`). Primeira coleta mensal sem erro: setembro com 8.549 linhas e outubro com 6.595. Ver "Aba CRM Ressonância".
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -514,9 +518,11 @@ o mês desejado (um mês por vez, máx. 31 dias).
 
 ## Aba CRM Ressonância
 
-O caminho do paciente na Ressonância Magnética, registrado pela equipe de atendimento: procura → orçamento/autorização → agendamento →
-comparecimento → realização. Serve para achar os gargalos antes de gastar mais em captação. Migrations `20261022110000_crm_ressonancia.sql`,
-`20261022120000_crm_rm_catalogo.sql` e `20261022130000_crm_rm_alinha_nomenclatura.sql`.
+O caminho do paciente na Ressonância Magnética: procura → orçamento/autorização → agendamento → comparecimento → realização. A **procura** é
+registrada pela equipe de atendimento; a **agenda** (marcação, confirmação, exame feito, falta, cancelamento) vem sozinha do Klingo, sem digitação.
+Serve para achar os gargalos antes de gastar mais em captação. Migrations `20261022110000_crm_ressonancia.sql`, `20261022120000_crm_rm_catalogo.sql`,
+`20261022130000_crm_rm_alinha_nomenclatura.sql`, `20261023160000_cadastra_relatorio_agendamentos_13825.sql`, `20261023170000_agenda_klingo_coleta_mensal.sql` e
+`20261023170100_crm_rm_agenda_klingo.sql`.
 
 ### Quem preenche, quem vê
 
@@ -526,16 +532,17 @@ pedido de acesso):
 - `crm_rm_preencher` — call center e recepção: registram e atualizam **só o que elas mesmas registraram**;
 - `crm_rm` — coordenação: vê os indicadores e todas as listas, e atualiza qualquer registro.
 
-Administrador tem as duas. Valores em R$ só para quem tem "Dados financeiros". O menu só aparece para quem tem uma das duas.
+Administrador tem as duas. Valores em R$ só para quem tem "Dados financeiros". O menu só aparece para quem tem uma das duas. **Quem tem qualquer uma das duas vê
+a agenda do Klingo inteira** (paciente, telefone, confirmação), porque a agenda é da clínica e não de quem registrou.
 
 ### As cinco seções
 
 | Seção | Para quem | O que faz |
 | --- | --- | --- |
-| **Meu dia** | atendimento | A fila do dia: responder primeiro, retornos vencidos, confirmar os exames de até 2 dias, exames sem resultado, vagas que abriram (com quem está esperando vaga) e contatos parados. Cada item traz como achar a pessoa e botões de um clique. |
+| **Meu dia** | atendimento | A fila do dia: responder primeiro, retornos vencidos, **confirmar os exames de hoje até depois de amanhã** (marcações do Klingo ainda não confirmadas, com nome, telefone e atalho do WhatsApp), **quem faltou nos últimos 7 dias**, **vagas que abriram** nos próximos 7 dias (com quem está esperando vaga) e contatos parados. |
 | **Atender** | atendimento | Registra o contato e busca por `RM-0001`, código do Klingo, telefone ou exame. |
-| **Agenda** | atendimento | Um registro por horário reservado, com o código da marcação do Klingo. |
-| **Indicadores** | coordenação | Funil, perdas por motivo e tipo de gargalo, absenteísmo × confirmação, forma de pagamento, equipamento — e a seção **Marketing e captação**. |
+| **Agenda** | todos | As marcações de RM **do Klingo**, sem digitação: hoje e os próximos dias primeiro, com filtro por situação (abertas, realizadas, faltaram, canceladas), busca por paciente, prontuário, marcação, exame ou convênio e a hora da última leitura. |
+| **Indicadores** | coordenação | Funil do atendimento, perdas por motivo e tipo de gargalo, **absenteísmo × confirmação**, forma de pagamento, a seção **Agenda do Klingo** (por convênio, por grupo de exame e por usuário que marca) e a seção **Marketing e captação**. |
 | **Guia** | todos | Catálogo de exames com preço praticado e sedação, convênios atendidos, dicionário das situações e o **passo a passo de cada motivo de perda**. |
 
 ### Nomenclatura: tudo vem do Klingo
@@ -569,9 +576,14 @@ lugar, em vez de deixar a coordenação decidir em cima de uma amostra.
 
 ### Privacidade
 
-Não existe campo de nome nem de dado clínico. A identificação é o **código do Klingo**; `telefone` é opcional, só dígitos, existe para a atendente
-conseguir retomar o contato e aparece **apenas nas listas de trabalho**, nunca nos indicadores. A segurança é do banco (RLS + `grant` por coluna):
-quem só preenche não lê o que os outros registraram, quem só vê não registra, e apagar é só do admin. Teste: `supabase/tests/crm_rm.sql`.
+Nos **contatos** digitados pela equipe não existe campo de nome nem de dado clínico. A identificação é o **código do Klingo**; `telefone` é opcional, só dígitos,
+existe para a atendente conseguir retomar o contato e aparece **apenas nas listas de trabalho**, nunca nos indicadores. A segurança é do banco (RLS + `grant`
+por coluna): quem só preenche não lê o que os outros registraram, quem só vê não registra, e apagar é só do admin.
+
+Na **agenda do Klingo** o nome, o celular e o telefone do paciente vêm do relatório #13825 e aparecem na aba Agenda e na fila do "Meu dia", para a atendente
+confirmar o exame. Ficam guardados em `fact_relatorio_linha` (só o administrador lê a tabela); quem tem acesso ao CRM os recebe pela função `crm_rm_agenda_klingo()`,
+que devolve zero linhas para os outros. Os indicadores só usam contagens. O texto livre do Klingo (`Observação` e `Cancelamento - Motivo`) aparece como veio e
+pode ter ruído ("teste", "err"): leia como pista, não como dado. Teste: `supabase/tests/crm_rm.sql`.
 
 ### Dados de demonstração
 
@@ -579,10 +591,35 @@ Linhas com `exemplo = true` (etiqueta "Exemplo"). Para tirar, no SQL Editor:
 `delete from public.crm_rm_agenda where exemplo; delete from public.crm_rm_contato where exemplo;`
 (pelo MCP não dá: ver a nota sobre comandos destrutivos no `CLAUDE.md`).
 
+### Agenda do Klingo (relatório #13825)
+
+Fonte: **"Agendamentos - Visão Consolidada por Marcação"**, uma linha por marcação. Colunas (o Klingo as entrega como `col0`…`col17`; os títulos ficam em `dim_relatorio_coluna.titulo_klingo`):
+`col0` Id da Marcação · `col1` Id do Atendimento (só existe quando o paciente foi atendido) · `col2` Prontuário · `col3` Data Agendado Em · `col4` Data Agendado Para (a do exame) ·
+`col5` Procedimento · `col6` Operadora · `col7` Responsável (quem marcou) · `col8` Valor · `col9` Observação · `col10` Confirm Status · `col11` Cancelamento - Motivo ·
+`col12` Status (Aberta/Cancelada) · `col13` Atendido (S/N) · `col14` Unidade · `col15` Paciente - Nome · `col16` Celular · `col17` Telefone.
+
+- **Coleta mensal, revendo os 2 últimos meses** (`granularidade = 'mes'`, `primeiro_mes = 2026-09-01`, `revisar_meses = 2`, todas as colunas). O único filtro de data do relatório
+  (`periodo0`) é a data em que a marcação foi **feita**, não a do exame; como cancelamento, atendimento e confirmação mudam depois, coletar por dia olharia cada dia uma vez só e
+  deixaria o status velho. O mês corrente é refeito a cada ~5 h pela coleta automática. Um mês traz ~8,5 mil linhas (limite do motor: 16 mil por chamada): se passar disso, mudar para
+  coleta por dia. A tela mostra a hora da última leitura.
+- **`crm_rm_agenda_klingo(p_de, p_ate)`** (por data do exame) devolve só RM: o procedimento tem de estar em `crm_rm_exame` (ou começar com `RM `, `ANGIO-RM`, `COLANGIO`, para exame novo que
+  ainda não entrou no catálogo); tomografia, `PCTE` e `CONTRASTE` ficam de fora. Nomes comparados sem acento (o relatório diz "AMOR SAÚDE", o catálogo "AMOR SAUDE"). Marcação repetida entre a
+  coleta do dia e a do mês vale pela mais recente.
+- **Status** (em `lib/crm-rm.ts`, `statusDoKlingo`): **Realizado** = o Klingo abriu o atendimento (vale mesmo se a marcação foi cancelada depois); **Reagendado** = cancelada com o motivo
+  "Remarcado"; **Cancelado** = as outras canceladas; **Faltou** = marcação aberta, sem atendimento e com a data **já passada** (o dia do exame ainda é "Agendado": o paciente pode chegar).
+  Confirmação: Confirmado → Confirmou, Sem Resposta → Não respondeu, A Confirmar → Não contatado.
+- **Conferência com o faturamento** (1º a 22/out): 1.327 marcações atendidas na agenda × 1.390 atendimentos de RM no #52; 1.250 aparecem nos dois (94%). O resto é atendimento sem marcação
+  no #13825 (encaixe, marcação anterior ao Klingo) e vice-versa. Faltou mesmo? É inferência: se o Klingo não abriu o atendimento, conta como falta.
+- **Cobertura do CRM** passou a ser contatos que viraram agendamento ÷ marcações novas de RM no Klingo (antes comparava com o faturado). Funil, perdas e canais descrevem só o que a
+  equipe registrou; agenda, faltas e confirmação são da clínica toda.
+- A tabela `crm_rm_agenda` (horários digitados) e a função `crm_rm_realizados_klingo()` ficaram no banco, sem uso; a tabela está vazia e pode ser apagada no SQL Editor
+  (`drop table public.crm_rm_agenda;`, pelo MCP não dá: ver `CLAUDE.md`).
+
 ### Ainda não faz
 
-Puxar do Klingo a agenda da RM (hoje a agenda é digitada). O caminho está mapeado: o relatório 7 traz o código da marcação, que liga tudo —
-falta o Klingo incluir a situação do atendimento e esse mesmo código nos relatórios 18 e 47.
+- **Confirmar, cancelar e remarcar não é pelo CRM.** A resposta do paciente é registrada no Klingo, e a lista do CRM se atualiza na leitura seguinte.
+- **"Vaga recuperada" e "motivo da falta"** deixaram de existir: o Klingo não diz se a vaga foi ocupada nem por que o paciente faltou. A fila de vagas mostra o que está livre nos próximos 7 dias.
+- O motivo do cancelamento vem do Klingo como texto livre; falta padronizar lá.
 
 ## Data warehouse de relatórios
 

@@ -7,7 +7,6 @@ import { hojeEmBrasilia } from "@/lib/avisos";
 import { metasConfig } from "@/lib/metas/config";
 import { IconAlerta } from "@/app/components/icons";
 import {
-  CAMPOS_AGENDA,
   CAMPOS_CONTATO,
   CAMPOS_CONVENIO,
   CAMPOS_EXAME,
@@ -19,10 +18,13 @@ import {
   calcular,
   calcularMarketing,
   codigoContato,
+  doKlingo,
   montarFila,
   podePreencherCrmRm,
   podeVerCrmRm,
+  resumirAgenda,
   tamanhoDaFila,
+  type AgendaKlingo,
   type ConvenioCatalogo,
   type Contato,
   type ExameCatalogo,
@@ -30,14 +32,14 @@ import {
   type Preco,
 } from "@/lib/crm-rm";
 import { EditarContatoForm, NovoContatoForm } from "./ContatoForm";
-import { EditarHorarioForm, NovoHorarioForm, type OpcaoContato } from "./HorarioForm";
+import { SecaoAgenda } from "./SecaoAgenda";
 import { SecaoIndicadores } from "./SecaoIndicadores";
 import { SecaoMeuDia } from "./SecaoMeuDia";
-import { Identificacao, Nota, Painel, ResumoContato, ResumoHorario, Tabela, Vazio, brl, dataBR } from "./comuns";
+import { Identificacao, Kpi, Nota, PacienteHorario, Painel, ResumoContato, ResumoHorario, Tabela, Vazio, brl, dataBR, dataHoraBR } from "./comuns";
 
 export const metadata: Metadata = { title: "CRM Ressonância" };
 
-type Props = { searchParams: Promise<{ aba?: string; dias?: string; busca?: string }> };
+type Props = { searchParams: Promise<{ aba?: string; dias?: string; busca?: string; st?: string }> };
 type Aba = "meu-dia" | "atender" | "agenda" | "indicadores" | "guia";
 
 const PERIODOS = [
@@ -47,15 +49,45 @@ const PERIODOS = [
   { dias: 0, rotulo: "Tudo" },
 ];
 const LIMITE = 3000;
+/** O PostgREST entrega no máximo 1.000 linhas por chamada: a agenda do Klingo é lida em páginas. */
+const PAGINA_AGENDA = 1000;
+const MAX_PAGINAS_AGENDA = 15;
+/** Fim da leitura da agenda: traz também as marcações futuras. */
+const ATE_AGENDA = "2099-12-31";
+/** Filtros da lista da Agenda: valor na URL -> o que mostra. */
+const FILTROS_AGENDA = [
+  { id: "todas", rotulo: "Todas", status: null },
+  { id: "abertas", rotulo: "Abertas", status: ["Agendado"] },
+  { id: "feitas", rotulo: "Realizadas", status: ["Realizado"] },
+  { id: "faltas", rotulo: "Faltaram", status: ["Faltou"] },
+  { id: "canceladas", rotulo: "Canceladas", status: ["Cancelado", "Reagendado"] },
+] as const;
 const NA_LISTA = 40;
 /** A fila de trabalho não respeita o filtro de período: pendência velha continua sendo pendência. */
 const JANELA_FILA = 180;
 
-function hrefDe(aba: Aba, dias: number, busca?: string) {
+function hrefDe(aba: Aba, dias: number, busca?: string, st?: string) {
   const q = new URLSearchParams({ aba });
   if (dias !== 30) q.set("dias", String(dias));
   if (busca) q.set("busca", busca);
+  if (st && st !== "todas") q.set("st", st);
   return `/crm-rm?${q.toString()}`;
+}
+
+type Cliente = Awaited<ReturnType<typeof createClient>>;
+
+async function lerAgenda(supabase: Cliente, de: string): Promise<{ linhas: AgendaKlingo[]; erro: string | null; cortada: boolean }> {
+  const linhas: AgendaKlingo[] = [];
+  for (let pagina = 0; pagina < MAX_PAGINAS_AGENDA; pagina++) {
+    const { data, error } = await supabase
+      .rpc("crm_rm_agenda_klingo", { p_de: de, p_ate: ATE_AGENDA })
+      .range(pagina * PAGINA_AGENDA, (pagina + 1) * PAGINA_AGENDA - 1);
+    if (error) return { linhas, erro: error.message, cortada: false };
+    const lote = (data ?? []) as unknown as AgendaKlingo[];
+    linhas.push(...lote);
+    if (lote.length < PAGINA_AGENDA) return { linhas, erro: null, cortada: false };
+  }
+  return { linhas, erro: null, cortada: true };
 }
 
 const metaRM = () => {
@@ -64,7 +96,7 @@ const metaRM = () => {
 };
 
 export default async function CrmRmPage({ searchParams }: Props) {
-  const { aba: abaParam, dias: diasParam, busca: buscaParam } = await searchParams;
+  const { aba: abaParam, dias: diasParam, busca: buscaParam, st: stParam } = await searchParams;
   const profile = await getCurrentProfile();
   const pVer = podeVerCrmRm(profile);
   const pPreencher = podePreencherCrmRm(profile);
@@ -101,7 +133,8 @@ export default async function CrmRmPage({ searchParams }: Props) {
   const aba: Aba = abas.some((a) => a.id === abaParam) ? (abaParam as Aba) : abas[0].id;
   const diasNum = Number(diasParam);
   const dias = PERIODOS.some((p) => p.dias === diasNum) && diasParam !== undefined ? diasNum : 30;
-  const inicio = dias > 0 ? hojeEmBrasilia(-dias + 1) : "0000-01-01";
+  // O Klingo entrou em operação em setembro/2026: "Tudo" começa no ano, o que já cobre tudo (o PostgreSQL não aceita o ano 0000).
+  const inicio = dias > 0 ? hojeEmBrasilia(-dias + 1) : "2026-01-01";
   const busca = (buscaParam ?? "").trim().slice(0, 40);
 
   const supabase = await createClient();
@@ -117,53 +150,35 @@ export default async function CrmRmPage({ searchParams }: Props) {
   const precos = (pr.data ?? []) as unknown as Preco[];
   const grupoDoExame = (nome: string) => exames.find((e) => e.nome === nome)?.grupo ?? "Outros";
 
-  // Registros. RLS entrega tudo a quem vê o CRM e só o próprio a quem apenas preenche.
-  const deDados = aba === "meu-dia" ? hojeEmBrasilia(-JANELA_FILA) : inicio;
-  const [c, h] = await Promise.all([
-    supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).gte("data_contato", deDados).order("data_contato", { ascending: false }).order("id", { ascending: false }).limit(LIMITE),
-    supabase.from("crm_rm_agenda").select(CAMPOS_AGENDA).gte("data_exame", deDados).order("data_exame", { ascending: false }).order("horario", { ascending: false }).limit(LIMITE),
-  ]);
-  const falhou = Boolean(c.error || h.error);
-  if (falhou) console.error("Falha ao carregar o CRM da RM:", c.error?.message ?? h.error?.message);
-  const contatos = (c.data ?? []) as unknown as Contato[];
-  const horarios = (h.data ?? []) as unknown as Horario[];
+  // Contatos digitados pela equipe. RLS entrega tudo a quem vê o CRM e só o próprio a quem apenas preenche.
+  const deContatos = aba === "meu-dia" ? hojeEmBrasilia(-JANELA_FILA) : inicio;
+  const c = await supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).gte("data_contato", deContatos).order("data_contato", { ascending: false }).order("id", { ascending: false }).limit(LIMITE);
 
-  const exemplos = contatos.some((x) => x.exemplo) || horarios.some((x) => x.exemplo);
-  const passados = horarios.filter((x) => x.data_exame <= hoje);
-  const futuros = horarios.filter((x) => x.data_exame > hoje && x.status === "Agendado").length;
+  // Agenda: vem sozinha do Klingo. A fila (e o número na aba Meu dia) olha os últimos 7 dias em qualquer aba;
+  // Agenda e Indicadores olham o período escolhido.
+  const ultimos7 = hojeEmBrasilia(-7);
+  const ag = await lerAgenda(supabase, aba === "agenda" || aba === "indicadores" ? (inicio < ultimos7 ? inicio : ultimos7) : ultimos7);
+
+  const falhou = Boolean(c.error || ag.erro);
+  if (falhou) console.error("Falha ao carregar o CRM da RM:", c.error?.message ?? ag.erro);
+  const contatos = (c.data ?? []) as unknown as Contato[];
+  const horarios = ag.linhas.map((a) => doKlingo(a, hoje));
+  const atualizadoEm = horarios.reduce<string | null>((mais, x) => (mais === null || x.atualizado_em > mais ? x.atualizado_em : mais), null);
+
+  const exemplos = contatos.some((x) => x.exemplo);
+  // O que cai no período escolhido (a fila usa `horarios` inteiro: os últimos 7 dias valem mesmo com o filtro em 7 dias).
+  const doPeriodo = horarios.filter((x) => x.data_exame >= inicio);
+  const passados = doPeriodo.filter((x) => x.data_exame <= hoje);
+  const futuros = doPeriodo.filter((x) => x.data_exame > hoje && x.status === "Agendado").length;
+  const marcacoesNovas = doPeriodo.filter((x) => x.agendado_em !== null && x.agendado_em.slice(0, 10) >= inicio).length;
+  const filtroAgenda = FILTROS_AGENDA.find((f) => f.id === stParam) ?? FILTROS_AGENDA[0];
 
   const fila = montarFila(contatos, horarios, hoje, (n) => hojeEmBrasilia(n));
   const pendencias = tamanhoDaFila(fila);
 
-  // Indicadores: quanto da operação real o CRM está capturando (só admin lê o Klingo, por isso a função).
-  let klingoRealizados: number | null = null;
-  if (aba === "indicadores") {
-    const { data: kr, error } = await supabase.rpc("crm_rm_realizados_klingo", { p_de: dias > 0 ? inicio : "2026-01-01", p_ate: hoje });
-    if (error) console.error("Falha ao ler o volume do Klingo:", error.message);
-    else klingoRealizados = typeof kr === "number" ? kr : null;
-  }
-
-  const ind = aba === "indicadores" ? calcular(contatos, passados, futuros) : null;
-  const mkt = aba === "indicadores" ? calcularMarketing(contatos, passados, grupoDoExame) : null;
-
-  // Agenda: contatos "Agendado" que ainda não têm horário registrado.
-  let opcoesContato: OpcaoContato[] = [];
-  if (aba === "agenda" && pPreencher) {
-    const [ag, usados] = await Promise.all([
-      supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).eq("situacao", "Agendado").gte("data_contato", hojeEmBrasilia(-120)).order("id", { ascending: false }).limit(300),
-      supabase.from("crm_rm_agenda").select("contato_id").not("contato_id", "is", null).limit(5000),
-    ]);
-    const ocupados = new Set((usados.data ?? []).map((u) => u.contato_id as number));
-    opcoesContato = ((ag.data ?? []) as unknown as Contato[])
-      .filter((x) => !ocupados.has(x.id))
-      .map((x) => ({
-        id: x.id,
-        rotulo: `${codigoContato(x.id)} · ${dataBR(x.data_contato)} · ${x.exame} · ${x.convenio ?? x.forma_pagamento}`,
-        exame: x.exame,
-        forma: x.forma_pagamento,
-        valor: x.valor_informado,
-      }));
-  }
+  const ind = aba === "indicadores" ? calcular(contatos, passados, futuros, marcacoesNovas) : null;
+  const mkt = aba === "indicadores" ? calcularMarketing(contatos, doPeriodo, grupoDoExame) : null;
+  const agenda = aba === "indicadores" ? resumirAgenda(doPeriodo, grupoDoExame) : null;
 
   // Busca na aba Atender: código RM-0001, código do Klingo, telefone ou texto do exame/observação.
   const achados = busca
@@ -190,8 +205,8 @@ export default async function CrmRmPage({ searchParams }: Props) {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">CRM Ressonância</h1>
           <p className="page-lede">
-            O caminho do paciente na Ressonância Magnética: procurou o exame, recebeu orçamento ou autorização, agendou, compareceu e fez. Registre
-            cada passo para ver onde se perdem pacientes e faturamento.
+            O caminho do paciente na Ressonância Magnética: procurou o exame, recebeu orçamento ou autorização, agendou, compareceu e fez. A equipe
+            registra a procura; a agenda (marcação, confirmação, exame feito, falta e cancelamento) vem sozinha do Klingo.
           </p>
         </div>
       </header>
@@ -220,7 +235,7 @@ export default async function CrmRmPage({ searchParams }: Props) {
       {(aba === "atender" || aba === "agenda" || aba === "indicadores") && (
         <nav className="crm-periodos" aria-label="Período">
           {PERIODOS.map((p) => (
-            <Link key={p.dias} href={hrefDe(aba, p.dias, busca)} className="crm-periodo" aria-current={p.dias === dias ? "true" : undefined}>
+            <Link key={p.dias} href={hrefDe(aba, p.dias, busca, aba === "agenda" ? filtroAgenda.id : undefined)} className="crm-periodo" aria-current={p.dias === dias ? "true" : undefined}>
               {p.rotulo}
             </Link>
           ))}
@@ -229,8 +244,8 @@ export default async function CrmRmPage({ searchParams }: Props) {
 
       {aba === "meu-dia" && <SecaoMeuDia fila={fila} hoje={hoje} verValores={verValores} />}
 
-      {aba === "indicadores" && ind && mkt && (
-        <SecaoIndicadores ind={ind} mkt={mkt} verValores={verValores} klingoRealizados={klingoRealizados} metaMes={metaRM()} rotuloPeriodo={rotuloPeriodo} />
+      {aba === "indicadores" && ind && mkt && agenda && (
+        <SecaoIndicadores ind={ind} mkt={mkt} agenda={agenda} verValores={verValores} metaMes={metaRM()} rotuloPeriodo={rotuloPeriodo} />
       )}
 
       {aba === "atender" && (
@@ -302,49 +317,17 @@ export default async function CrmRmPage({ searchParams }: Props) {
       )}
 
       {aba === "agenda" && (
-        <>
-          {pPreencher && (
-            <Painel
-              id="t-novo-horario"
-              titulo="Registrar horário"
-              sub="Um registro por horário reservado. Reagendar não é contato novo: marque o antigo como Reagendado e registre o novo horário."
-            >
-              <NovoHorarioForm hoje={hoje} contatos={opcoesContato} exames={exames} precos={precos} verValores={verValores} />
-            </Painel>
-          )}
-          <Painel
-            id="t-lista-agenda"
-            titulo={pVer ? "Horários do período" : "Seus horários do período"}
-            sub="Depois da data do exame, informe se foi realizado, faltou ou cancelou (a aba Meu dia faz isso num clique)."
-          >
-            {horarios.length === 0 ? (
-              <Vazio>Nenhum horário no período.</Vazio>
-            ) : (
-              <ul className="crm-lista">
-                {horarios.slice(0, NA_LISTA).map((x) => (
-                  <li key={x.id} className="crm-item">
-                    <ResumoHorario h={x} verValores={verValores} />
-                    <p className="crm-item-meta">
-                      Confirmação: {x.confirmacao}
-                      {x.motivo_falta ? ` · Motivo: ${x.motivo_falta}` : ""}
-                      {x.vaga_recuperada !== "Não se aplica" ? ` · Vaga recuperada: ${x.vaga_recuperada}` : ""}
-                      {x.motivo_operacional ? ` · ${x.motivo_operacional}` : ""}
-                    </p>
-                    <details className="crm-detalhes">
-                      <summary>Atualizar</summary>
-                      <EditarHorarioForm horario={x} />
-                    </details>
-                  </li>
-                ))}
-                {horarios.length > NA_LISTA && (
-                  <li className="crm-item crm-item-meta">
-                    Mostrando os {NA_LISTA} mais recentes de {horarios.length}. Escolha um período menor para ver os outros.
-                  </li>
-                )}
-              </ul>
-            )}
-          </Painel>
-        </>
+        <SecaoAgenda
+          horarios={doPeriodo}
+          hoje={hoje}
+          dias={dias}
+          busca={busca}
+          filtros={FILTROS_AGENDA}
+          filtro={filtroAgenda}
+          verValores={verValores}
+          atualizadoEm={atualizadoEm}
+          cortada={ag.cortada}
+        />
       )}
 
       {aba === "guia" && (
@@ -365,14 +348,17 @@ export default async function CrmRmPage({ searchParams }: Props) {
               </tr>
               <tr>
                 <th scope="row">3. Agenda</th>
-                <td>Agendamento e recepção</td>
-                <td>Uma linha por horário reservado. Reagendar não conta como contato novo.</td>
-                <td>Ao agendar</td>
+                <td>Ninguém digita</td>
+                <td>
+                  Vem do Klingo. Para a agenda ficar certa, mantenha o Klingo em dia: registre a confirmação, abra o atendimento quando o paciente
+                  chegar e use o motivo “Remarcado” ao cancelar uma marcação que o paciente vai refazer.
+                </td>
+                <td>Sempre, no Klingo</td>
               </tr>
               <tr>
                 <th scope="row">4. Meu dia</th>
                 <td>Call center e recepção</td>
-                <td>Responder, confirmar os exames de amanhã, fechar o resultado e preencher as vagas que abriram.</td>
+                <td>Responder, confirmar os exames dos próximos dias (e registrar a resposta no Klingo), ligar para quem faltou e oferecer as vagas que abriram.</td>
                 <td>Todo dia, começando por aí</td>
               </tr>
               <tr>
@@ -384,7 +370,10 @@ export default async function CrmRmPage({ searchParams }: Props) {
               <tr>
                 <th scope="row">6. Privacidade</th>
                 <td>Todos</td>
-                <td>Nunca escrever nome ou dado clínico. Identifique pelo código do Klingo; telefone só se precisar ligar.</td>
+                <td>
+                  Ao registrar um contato, nunca escreva nome ou dado clínico: use o código do Klingo. A Agenda mostra nome e telefone vindos do
+                  Klingo, só para quem tem acesso ao CRM; não repasse.
+                </td>
                 <td>Sempre</td>
               </tr>
             </Tabela>
@@ -456,7 +445,7 @@ export default async function CrmRmPage({ searchParams }: Props) {
             </Tabela>
           </Painel>
 
-          <Painel id="t-dic-ag" titulo="Status da agenda" sub="Como classificar cada horário depois do exame.">
+          <Painel id="t-dic-ag" titulo="Status da agenda" sub="Como o status de cada marcação é decidido a partir do Klingo.">
             <Tabela colunas={["Status", "O que significa", "O que fazer"]}>
               {STATUS_AGENDA.map((s) => (
                 <tr key={s.id}>

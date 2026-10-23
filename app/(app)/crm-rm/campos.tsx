@@ -4,20 +4,14 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
   MAX_OBS,
-  MOTIVOS_FALTA,
-  MOTIVOS_OPERACIONAIS,
   MOTIVOS_PERDA,
   PROXIMAS_ACOES,
-  SAI_DO_COMPARECIMENTO,
   SITUACOES,
   SITUACOES_PERDA,
-  STATUS_AGENDA,
-  VAGA_RECUPERADA,
   roteiroDoMotivo,
   telefoneBonito,
   type Contato,
   type ExameCatalogo,
-  type Horario,
   type Preco,
 } from "@/lib/crm-rm";
 import type { CrmState } from "./actions";
@@ -247,47 +241,6 @@ export function CamposAcompanhamento({ pre, p }: { pre: string; p?: Contato }) {
         />
       </div>
       {perdeu && motivo && <Roteiro motivo={motivo} />}
-    </>
-  );
-}
-
-/** Status, confirmação, motivo, vaga, valor e problema de sala: o que muda depois do exame. */
-export function CamposResultado({ pre, h }: { pre: string; h?: Horario }) {
-  const [status, setStatus] = useState<string>(h?.status ?? "Agendado");
-  const saiu = (SAI_DO_COMPARECIMENTO as string[]).includes(status);
-  const info = STATUS_AGENDA.find((s) => s.id === status);
-  return (
-    <>
-      <Campo id={`${pre}-status`} rotulo="Status da agenda" dica={info ? `${info.significado}. ${info.acao}.` : undefined}>
-        <Seletor id={`${pre}-status`} name="status" opcoes={STATUS_AGENDA.map((s) => s.id)} valor={status} onChange={setStatus} obrigatorio />
-      </Campo>
-      <Campo id={`${pre}-conf`} rotulo="Confirmação prévia" dica="O que o paciente respondeu antes do exame.">
-        <Seletor id={`${pre}-conf`} name="confirmacao" opcoes={["Confirmou", "Não respondeu", "Solicitou reagendamento", "Não contatado"]} valor={h?.confirmacao ?? "Não contatado"} obrigatorio />
-      </Campo>
-      {saiu && (
-        <>
-          <Campo id={`${pre}-falta`} rotulo="Motivo da falta ou cancelamento">
-            <Seletor id={`${pre}-falta`} name="motivo_falta" opcoes={MOTIVOS_FALTA} valor={h?.motivo_falta ?? ""} vazio="Não informado" />
-          </Campo>
-          <Campo id={`${pre}-vaga`} rotulo="Vaga recuperada?" dica="Sim = outra pessoa ocupou o horário.">
-            <Seletor id={`${pre}-vaga`} name="vaga_recuperada" opcoes={VAGA_RECUPERADA} valor={h?.vaga_recuperada ?? "Não se aplica"} obrigatorio />
-          </Campo>
-        </>
-      )}
-      {status === "Realizado" && (
-        <Campo id={`${pre}-real`} rotulo="Valor realizado (R$)">
-          <input id={`${pre}-real`} name="valor_realizado" className="input" inputMode="decimal" placeholder="0,00" defaultValue={dinheiro(h?.valor_realizado ?? h?.valor_previsto)} />
-        </Campo>
-      )}
-      <Campo id={`${pre}-cod`} rotulo="Código da marcação no Klingo" dica="Liga este horário ao sistema.">
-        <input id={`${pre}-cod`} name="codigo_marcacao" className="input" inputMode="numeric" maxLength={12} placeholder="ex.: 20621" defaultValue={h?.codigo_marcacao ?? ""} />
-      </Campo>
-      <Campo id={`${pre}-horas`} rotulo="Horas paradas ou de atraso" dica="Tempo do equipamento sem exame neste horário.">
-        <input id={`${pre}-horas`} name="horas_paradas" className="input" inputMode="decimal" placeholder="0" defaultValue={h?.horas_paradas ?? ""} />
-      </Campo>
-      <Campo id={`${pre}-op`} rotulo="Motivo operacional" dica="Só se houve problema na sala.">
-        <Seletor id={`${pre}-op`} name="motivo_operacional" opcoes={MOTIVOS_OPERACIONAIS} valor={h?.motivo_operacional ?? ""} vazio="Nenhum" />
-      </Campo>
     </>
   );
 }

@@ -5,8 +5,10 @@ export const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/$
 export const hhmm = (h: string | null) => (h ? h.slice(0, 5) : "");
 export const pct = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`);
 export const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-export const horasTxt = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
 export const num = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+/** "2026-10-23T13:43:19+00:00" -> "23/10 13:43" (a hora do carimbo vem em UTC; o Brasil fica 3 h atrás). */
+export const dataHoraBR = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
 /** Verde = andou; vermelho = parou; amarelo = esperando. */
 export function pilula(estado: string): string | undefined {
@@ -118,7 +120,7 @@ export function ResumoContato({ c, verValores }: { c: Contato; verValores: boole
   );
 }
 
-/** Linha de resumo de um horário. */
+/** Linha de resumo de uma marcação do Klingo. */
 export function ResumoHorario({ h, verValores }: { h: Horario; verValores: boolean }) {
   return (
     <div className="crm-item-topo">
@@ -127,16 +129,33 @@ export function ResumoHorario({ h, verValores }: { h: Horario; verValores: boole
       </span>
       <span className="crm-item-meta">
         {dataBR(h.data_exame)}
-        {h.horario ? ` ${hhmm(h.horario)}` : ""} · {h.exame} · {h.forma_pagamento}
-        {h.contato_id ? ` · ${codigoContato(h.contato_id)}` : " · encaixe"}
-        {h.codigo_marcacao ? ` · marcação ${h.codigo_marcacao}` : ""}
-        {verValores && h.valor_realizado !== null
-          ? ` · ${brl(h.valor_realizado)}`
-          : verValores && h.valor_previsto !== null
-            ? ` · previsto ${brl(h.valor_previsto)}`
-            : ""}
+        {h.horario ? ` ${hhmm(h.horario)}` : ""} · {h.exame} · {h.convenio ?? h.forma_pagamento}
+        {` · marcação ${h.codigo_marcacao}`}
+        {verValores && h.valor !== null && h.valor > 0 ? ` · ${brl(h.valor)}` : ""}
       </span>
-      {h.exemplo && <span className="badge">Exemplo</span>}
     </div>
+  );
+}
+
+/** Paciente da marcação: nome, prontuário e telefone com atalho do WhatsApp. Vem do Klingo, só para quem tem acesso ao CRM. */
+export function PacienteHorario({ h }: { h: Horario }) {
+  const zap = linkWhatsApp(h.telefone);
+  return (
+    <span className="crm-item-meta crm-identificacao">
+      <span>{h.paciente ?? "Paciente sem nome no Klingo"}</span>
+      {h.prontuario && <span>Prontuário {h.prontuario}</span>}
+      {h.telefone ? (
+        <>
+          <span>{telefoneBonito(h.telefone)}</span>
+          {zap && (
+            <a href={zap} target="_blank" rel="noopener noreferrer" className="crm-link">
+              abrir WhatsApp
+            </a>
+          )}
+        </>
+      ) : (
+        <span>Sem telefone no Klingo</span>
+      )}
+    </span>
   );
 }
