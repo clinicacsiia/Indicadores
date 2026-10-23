@@ -1,21 +1,20 @@
 // Aba "Meu dia": o que a pessoa de atendimento tem para fazer agora, em ordem de urgência.
 // Cada item traz como achar o paciente e os botões que resolvem sem abrir formulário.
 import { DIAS_PARADO, codigoContato, type Fila } from "@/lib/crm-rm";
-import { BotaoRespondi, BotaoVagaRecuperada, BotoesAdiar, BotoesConfirmacao, BotoesResultado } from "./AcoesRapidas";
+import { BotaoRespondi, BotoesAdiar } from "./AcoesRapidas";
 import { EditarContatoForm } from "./ContatoForm";
-import { EditarHorarioForm } from "./HorarioForm";
-import { Identificacao, Nota, Painel, ResumoContato, ResumoHorario, Vazio, dataBR } from "./comuns";
+import { Identificacao, Nota, PacienteHorario, Painel, ResumoContato, ResumoHorario, Vazio, dataBR } from "./comuns";
 
 export function SecaoMeuDia({ fila, hoje, verValores }: { fila: Fila; hoje: string; verValores: boolean }) {
   const nada =
-    !fila.retornos.length && !fila.semPrimeiraResposta.length && !fila.confirmar.length && !fila.semResultado.length && !fila.vagasAbertas.length && !fila.parados.length;
+    !fila.retornos.length && !fila.semPrimeiraResposta.length && !fila.confirmar.length && !fila.faltaram.length && !fila.vagasAbertas.length && !fila.parados.length;
 
   return (
     <>
       {nada && (
         <section className="panel empty">
           <h2>Nada pendente agora</h2>
-          <p>Quando houver retorno marcado, confirmação para fazer ou exame sem resultado, aparece aqui.</p>
+          <p>Quando houver retorno marcado, confirmação para fazer ou paciente que faltou, aparece aqui.</p>
         </section>
       )}
 
@@ -70,43 +69,44 @@ export function SecaoMeuDia({ fila, hoje, verValores }: { fila: Fila; hoje: stri
         id="t-confirmar"
         titulo="Confirmar os próximos exames"
         contador={fila.confirmar.length}
-        sub="Exames de hoje até depois de amanhã que ainda não confirmaram. Quem não confirma falta muito mais."
+        sub="Marcações do Klingo com exame de hoje até depois de amanhã que ainda não confirmaram. Quem não confirma falta muito mais."
       >
         {fila.confirmar.length === 0 ? (
           <Vazio>Tudo confirmado.</Vazio>
         ) : (
           <ul className="crm-lista">
             {fila.confirmar.slice(0, 20).map((h) => (
-              <li key={h.id} className="crm-item">
+              <li key={h.codigo_marcacao} className="crm-item">
                 <ResumoHorario h={h} verValores={verValores} />
-                <p className="crm-item-meta">Confirmação: {h.confirmacao}</p>
-                <BotoesConfirmacao id={h.id} />
+                <PacienteHorario h={h} />
+                <p className="crm-item-meta">Confirmação no Klingo: {h.confirmacao}</p>
+                {h.observacao && <p className="crm-item-texto">{h.observacao}</p>}
               </li>
             ))}
+            {fila.confirmar.length > 20 && <li className="crm-item crm-item-meta">Mostrando os 20 primeiros de {fila.confirmar.length}.</li>}
           </ul>
         )}
+        <Nota>Registre a resposta do paciente no Klingo: esta lista se atualiza sozinha na próxima leitura.</Nota>
       </Painel>
 
       <Painel
-        id="t-resultado"
-        titulo="Exames sem resultado"
-        contador={fila.semResultado.length}
-        sub="A data já passou e ninguém disse se o exame foi feito. Sem isso o absenteísmo fica errado."
+        id="t-faltaram"
+        titulo="Faltaram nos últimos 7 dias"
+        contador={fila.faltaram.length}
+        sub="O Klingo não registrou atendimento depois da data do exame. Ligue, entenda o motivo e ofereça um novo horário."
       >
-        {fila.semResultado.length === 0 ? (
-          <Vazio>Nenhum exame pendente de resultado.</Vazio>
+        {fila.faltaram.length === 0 ? (
+          <Vazio>Ninguém faltou nos últimos 7 dias.</Vazio>
         ) : (
           <ul className="crm-lista">
-            {fila.semResultado.slice(0, 20).map((h) => (
-              <li key={h.id} className="crm-item">
+            {fila.faltaram.slice(0, 20).map((h) => (
+              <li key={h.codigo_marcacao} className="crm-item">
                 <ResumoHorario h={h} verValores={verValores} />
-                <BotoesResultado id={h.id} />
-                <details className="crm-detalhes">
-                  <summary>Cancelou ou remarcou</summary>
-                  <EditarHorarioForm horario={h} />
-                </details>
+                <PacienteHorario h={h} />
+                <p className="crm-item-meta">Confirmação no Klingo: {h.confirmacao}</p>
               </li>
             ))}
+            {fila.faltaram.length > 20 && <li className="crm-item crm-item-meta">Mostrando os 20 mais recentes de {fila.faltaram.length}.</li>}
           </ul>
         )}
       </Painel>
@@ -115,19 +115,19 @@ export function SecaoMeuDia({ fila, hoje, verValores }: { fila: Fila; hoje: stri
         id="t-vagas"
         titulo="Vagas que abriram"
         contador={fila.vagasAbertas.length}
-        sub="Faltas e cancelamentos dos últimos 14 dias que ninguém ocupou. Abaixo, quem está esperando vaga."
+        sub="Marcações canceladas ou remarcadas com exame nos próximos 7 dias. Abaixo, quem está esperando vaga."
       >
         {fila.vagasAbertas.length === 0 ? (
-          <Vazio>Nenhuma vaga aberta sem destino.</Vazio>
+          <Vazio>Nenhuma vaga aberta nos próximos 7 dias.</Vazio>
         ) : (
           <ul className="crm-lista">
             {fila.vagasAbertas.slice(0, 15).map((h) => (
-              <li key={h.id} className="crm-item">
+              <li key={h.codigo_marcacao} className="crm-item">
                 <ResumoHorario h={h} verValores={verValores} />
-                <p className="crm-item-meta">{h.motivo_falta ? `Motivo: ${h.motivo_falta}` : "Sem motivo registrado"}</p>
-                <BotaoVagaRecuperada id={h.id} />
+                <p className="crm-item-meta">{h.motivo_cancelamento ? `Motivo no Klingo: ${h.motivo_cancelamento}` : "Sem motivo registrado no Klingo"}</p>
               </li>
             ))}
+            {fila.vagasAbertas.length > 15 && <li className="crm-item crm-item-meta">Mostrando as 15 primeiras de {fila.vagasAbertas.length}.</li>}
           </ul>
         )}
         {fila.esperandoVaga.length > 0 && (

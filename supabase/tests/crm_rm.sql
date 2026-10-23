@@ -199,4 +199,54 @@ insert into public.crm_rm_agenda (data_exame, forma_pagamento, exame, codigo_mar
   values (current_date, 'SUS', 'RM CRANIO SOB SEDACAO', '20621', auth.uid());
 reset role;
 
+-- ───────── Agenda do Klingo (relatório #13825) ─────────
+-- O banco de verdade tem v_relatorio_linha_vigente e last_seen_at; aqui basta o mesmo formato.
+alter table public.fact_relatorio_linha add column last_seen_at timestamptz not null default now();
+create view public.v_relatorio_linha_vigente as select * from public.fact_relatorio_linha;
+\i supabase/migrations/20261023170100_crm_rm_agenda_klingo.sql
+
+insert into public.dim_relatorio (klingo_id) values ('13825');
+create function pg_temp.marcacao(cod text, proc text, oper text, quando text, aberta text, atendido text, vista timestamptz, periodo date) returns void language sql as $$
+  insert into public.fact_relatorio_linha (relatorio_id, periodo, last_seen_at, linha)
+  select r.id, periodo, vista, jsonb_build_object('col0', cod, 'col1', case when atendido = 'S' then cod || '9' end, 'col2', '555', 'col3', '2026-10-01 09:00:00',
+    'col4', quando, 'col5', proc, 'col6', oper, 'col7', 'ana.silva', 'col8', '450.00', 'col10', 'Confirmado', 'col12', aberta, 'col13', atendido,
+    'col14', 'CLÍNICA DE SAÚDE E IMAGEM - RM/TC', 'col15', 'Fulano de Tal', 'col16', '71999998888')
+  from public.dim_relatorio r where r.klingo_id = '13825' $$;
+-- 101: exame do catálogo, convênio com acento (o catálogo guarda AMOR SAUDE)
+select pg_temp.marcacao('101', 'RM CRANIO SOB SEDACAO', 'AMOR SAÚDE', '2026-10-30 10:00:00', 'Aberta', 'N', now(), date '2026-10-01');
+-- 102: a mesma marcação em duas coletas (a do mês, mais antiga, aberta; a do dia, mais nova, cancelada): vale a mais nova
+select pg_temp.marcacao('102', 'RM DE JOELHO ( UNILATERAL )', 'Particular', '2026-10-30 11:00:00', 'Aberta', 'N', now() - interval '1 hour', date '2026-10-01');
+select pg_temp.marcacao('102', 'RM DE JOELHO ( UNILATERAL )', 'Particular', '2026-10-30 11:00:00', 'Cancelada', 'N', now(), date '2026-10-20');
+-- 103 e 104: tomografia e pacote de autorização não são ressonância
+select pg_temp.marcacao('103', 'TC TÓRAX', 'Particular', '2026-10-30 12:00:00', 'Aberta', 'N', now(), date '2026-10-01');
+select pg_temp.marcacao('104', 'PCTE RM E/OU ANGIORM COLUNA', 'Particular', '2026-10-30 12:30:00', 'Aberta', 'N', now(), date '2026-10-01');
+-- 105: exame que ainda não está no catálogo, mas é RM: entra, atendido, convênio que não é Particular vira Convênio
+select pg_temp.marcacao('105', 'RM FETAL', 'UNIMED NOVA', '2026-10-31 08:00:00', 'Aberta', 'S', now(), date '2026-10-01');
+-- 106: sem data do exame: fora
+select pg_temp.marcacao('106', 'RM DE JOELHO ( UNILATERAL )', 'Particular', 'sem data', 'Aberta', 'N', now(), date '2026-10-01');
+-- 107: fora do período pedido
+select pg_temp.marcacao('107', 'RM DE JOELHO ( UNILATERAL )', 'Particular', '2026-12-30 08:00:00', 'Aberta', 'N', now(), date '2026-10-01');
+
+select pg_temp.como('00000000-0000-0000-0000-00000000000a');  -- administrador
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$), 3, 'agenda do Klingo: 101, 102 (uma só) e 105');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30') where codigo_marcacao = '102' and cancelada$q$), 1, 'agenda do Klingo: a coleta mais nova da marcação é a que vale');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30') where codigo_marcacao = '101' and exame = 'RM CRANIO SOB SEDACAO' and convenio = 'AMOR SAUDE' and forma_pagamento = 'Convênio' and horario = '10:00' and not cancelada and not atendido and valor = 450 and paciente = 'Fulano de Tal' and celular = '71999998888' and prontuario = '555' and confirm_status = 'Confirmado' and responsavel = 'ana.silva'$q$), 1, 'agenda do Klingo: campos da 101');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30') where codigo_marcacao = '105' and atendido and id_atendimento = '1059' and exame = 'RM FETAL' and forma_pagamento = 'Convênio'$q$), 1, 'agenda do Klingo: exame RM fora do catálogo entra, atendido');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30') where codigo_marcacao in ('103', '104', '106')$q$), 0, 'agenda do Klingo: tomografia, pacote e linha sem data ficam de fora');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-12-31')$q$), 4, 'agenda do Klingo: o período decide (inclui a 107)');
+reset role;
+select pg_temp.como('00000000-0000-0000-0000-00000000000b');  -- Ana, só preenche
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$), 3, 'agenda do Klingo: quem preenche vê toda a agenda');
+reset role;
+select pg_temp.como('00000000-0000-0000-0000-00000000000c');  -- Bia, só vê
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$), 3, 'agenda do Klingo: quem vê o CRM vê toda a agenda');
+reset role;
+select pg_temp.como('00000000-0000-0000-0000-00000000000d');  -- Caio, sem permissão
+select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$), 0, 'agenda do Klingo: sem acesso ao CRM, nada');
+select pg_temp.deve_falhar($q$select count(*) from public.fact_relatorio_linha$q$, 'permission denied');
+reset role;
+set role anon;
+select pg_temp.deve_falhar($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$, 'permission denied');
+reset role;
+
 select 'CRM RM OK' as resultado;

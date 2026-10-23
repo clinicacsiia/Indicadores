@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { adiarRetorno, fecharHorario, marcarConfirmacao, marcarVagaRecuperada, responderAgora, type CrmState } from "./actions";
+import { adiarRetorno, responderAgora, type CrmState } from "./actions";
 
 const inicial: CrmState = {};
 
@@ -52,55 +52,6 @@ export function BotoesAdiar({ id }: { id: number }) {
       <button type="submit" name="dias" value="7" className="btn btn-pequeno">
         1 semana
       </button>
-      <Erro state={state} />
-    </form>
-  );
-}
-
-/** Resposta da confirmação prévia, num clique. */
-export function BotoesConfirmacao({ id }: { id: number }) {
-  const [state, action] = useActionState(marcarConfirmacao, inicial);
-  return (
-    <form action={action} className="crm-rapidas">
-      <input type="hidden" name="id" value={id} />
-      <button type="submit" name="confirmacao" value="Confirmou" className="btn btn-pequeno btn-primary">
-        Confirmou
-      </button>
-      <button type="submit" name="confirmacao" value="Não respondeu" className="btn btn-pequeno">
-        Não respondeu
-      </button>
-      <button type="submit" name="confirmacao" value="Solicitou reagendamento" className="btn btn-pequeno">
-        Quer remarcar
-      </button>
-      <Erro state={state} />
-    </form>
-  );
-}
-
-/** Fecha o horário depois do exame. */
-export function BotoesResultado({ id }: { id: number }) {
-  const [state, action] = useActionState(fecharHorario, inicial);
-  return (
-    <form action={action} className="crm-rapidas">
-      <input type="hidden" name="id" value={id} />
-      <button type="submit" name="status" value="Realizado" className="btn btn-pequeno btn-primary">
-        Realizado
-      </button>
-      <button type="submit" name="status" value="Faltou" className="btn btn-pequeno">
-        Faltou
-      </button>
-      <Erro state={state} />
-    </form>
-  );
-}
-
-/** Marca que outra pessoa ocupou a vaga que abriu. */
-export function BotaoVagaRecuperada({ id }: { id: number }) {
-  const [state, action] = useActionState(marcarVagaRecuperada, inicial);
-  return (
-    <form action={action} className="crm-rapidas">
-      <input type="hidden" name="id" value={id} />
-      <Botao texto="Preenchi esta vaga" ocupado="Salvando" tom="primario" />
       <Erro state={state} />
     </form>
   );

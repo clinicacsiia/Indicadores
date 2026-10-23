@@ -1,14 +1,17 @@
-// Aba "Indicadores": operação (funil, perdas, absenteísmo, sala) e marketing (onde investir).
-import type { Indicadores, Marketing } from "@/lib/crm-rm";
-import { Kpi, Nota, Painel, Tabela, Vazio, brl, horasTxt, num, pct } from "./comuns";
+// Aba "Indicadores": operação (funil, perdas, agenda do Klingo, absenteísmo) e marketing (onde investir).
+import type { Indicadores, LinhaAgenda, Marketing, ResumoAgenda } from "@/lib/crm-rm";
+import { Kpi, Nota, Painel, Tabela, Vazio, brl, num, pct } from "./comuns";
 
 /** Leitura rápida do período: aponta onde está o volume, sem inventar a causa. */
-function destaques(i: Indicadores, m: Marketing, cobertura: number | null): string[] {
+function destaques(i: Indicadores, m: Marketing): string[] {
   const t: string[] = [];
-  if (cobertura !== null && cobertura < 70) {
+  if (i.cobertura !== null && i.cobertura < 70) {
     t.push(
-      `O CRM registrou ${pct(cobertura)} dos exames de RM que o Klingo faturou no período. Enquanto a cobertura não subir, os números abaixo falam de uma parte da operação, não do todo.`,
+      `Só ${pct(i.cobertura)} das ${i.marcacoesNovas} marcações de RM feitas no Klingo no período têm um contato registrado aqui. Agenda, faltas e confirmação são da clínica toda (vêm do Klingo), mas funil, perdas e canais descrevem só o que a equipe registrou.`,
     );
+  }
+  if (i.absenteismo !== null && i.faltas >= 5) {
+    t.push(`${pct(i.absenteismo)} dos exames com resultado foram faltas (${i.faltas} de ${i.realizados + i.faltas}).`);
   }
   const topo = i.perdasPorMotivo[0];
   if (topo && i.perdidos >= 3) {
@@ -32,35 +35,46 @@ function destaques(i: Indicadores, m: Marketing, cobertura: number | null): stri
       t.push(`Quem está “${pior.confirmacao}” falta ${pct(pior.taxa)} das vezes; quem confirmou, ${pct(conf.taxa)}. A confirmação ativa tem espaço.`);
     }
   }
-  if (i.vagasElegiveis >= 3 && i.pctRecuperadas !== null) {
-    t.push(`${i.vagasElegiveis - i.vagasRecuperadas} de ${i.vagasElegiveis} vagas de faltas e cancelamentos ficaram vazias (${pct(100 - i.pctRecuperadas)}).`);
-  }
   if (m.respostaMediaHoras !== null && m.respostaMediaHoras > 2) {
     t.push(`A primeira resposta está levando ${num(m.respostaMediaHoras)} horas em média. “Demora na resposta” é motivo de perda registrado.`);
   }
-  if (i.horasParadas > 0 && i.motivosOperacionais[0]) {
-    t.push(`Equipamento com ${horasTxt(i.horasParadas)} parado ou em atraso; mais frequente: ${i.motivosOperacionais[0].motivo}.`);
-  }
   return t;
+}
+
+function TabelaAgenda({ linhas, rotulo }: { linhas: LinhaAgenda[]; rotulo: string }) {
+  if (linhas.length === 0) return <Vazio>Sem marcações no período.</Vazio>;
+  return (
+    <Tabela colunas={[rotulo, "Marcações", "Feitos", "Faltas", "Cancelados", "Absenteísmo"]}>
+      {linhas.map((l) => (
+        <tr key={l.nome}>
+          <th scope="row">{l.nome}</th>
+          <td>{l.marcacoes}</td>
+          <td>{l.feitos}</td>
+          <td>{l.faltas}</td>
+          <td>{l.cancelados}</td>
+          <td>{pct(l.absenteismo)}</td>
+        </tr>
+      ))}
+    </Tabela>
+  );
 }
 
 export function SecaoIndicadores({
   ind,
   mkt,
+  agenda,
   verValores,
-  klingoRealizados,
   metaMes,
   rotuloPeriodo,
 }: {
   ind: Indicadores;
   mkt: Marketing;
+  agenda: ResumoAgenda;
   verValores: boolean;
-  klingoRealizados: number | null;
   metaMes: number | null;
   rotuloPeriodo: string;
 }) {
-  const cobertura = klingoRealizados && klingoRealizados > 0 ? (ind.realizados / klingoRealizados) * 100 : null;
-  const avisos = destaques(ind, mkt, cobertura);
+  const avisos = destaques(ind, mkt);
 
   return (
     <>
@@ -79,15 +93,16 @@ export function SecaoIndicadores({
           <Kpi rotulo="Solicitações recebidas" valor={String(ind.solicitacoes)} meta={`${ind.emAberto} ainda em andamento`} cor="var(--s-realizados)" />
           <Kpi rotulo="Taxa de conversão" valor={pct(ind.conversao)} meta="Solicitações que viraram agendamento" cor="var(--s-realizados)" />
           <Kpi rotulo="Absenteísmo" valor={pct(ind.absenteismo)} meta={`${ind.faltas} faltas em ${ind.realizados + ind.faltas} horários com resultado`} cor="var(--s-agendados)" />
-          <Kpi rotulo="Vagas recuperadas" valor={pct(ind.pctRecuperadas)} meta={`${ind.vagasRecuperadas} de ${ind.vagasElegiveis} faltas e cancelamentos`} />
+          <Kpi
+            rotulo="Marcações no Klingo"
+            valor={String(ind.marcacoesNovas)}
+            meta={`${ind.realizados} exames feitos · ${ind.cancelamentos + ind.reagendados} cancelados ou remarcados`}
+            cor="var(--s-realizados)"
+          />
           <Kpi
             rotulo="Cobertura do CRM"
-            valor={cobertura === null ? "—" : pct(cobertura)}
-            meta={
-              klingoRealizados === null
-                ? "Sem dado do Klingo no período"
-                : `${ind.realizados} registrados aqui de ${klingoRealizados} que o Klingo faturou`
-            }
+            valor={pct(ind.cobertura)}
+            meta="Contatos que viraram agendamento ÷ marcações novas de RM no Klingo"
             cor="var(--s-agendados)"
           />
           <Kpi
@@ -95,14 +110,14 @@ export function SecaoIndicadores({
             valor={mkt.respostaMediaHoras === null ? "—" : `${num(mkt.respostaMediaHoras)} h`}
             meta={mkt.semResposta > 0 ? `${mkt.semResposta} contatos sem resposta marcada` : "Todos têm resposta marcada"}
           />
-          {verValores && <Kpi rotulo="Receita realizada" valor={brl(ind.receitaRealizada)} meta={`${ind.realizados} exames feitos`} cor="var(--s-realizados)" />}
-          {verValores && <Kpi rotulo="Previsto nas faltas" valor={brl(ind.valorPrevistoFaltas)} meta="Potencial bruto, não perda contábil" cor="var(--s-agendados)" />}
+          {verValores && <Kpi rotulo="Valor dos exames feitos" valor={brl(ind.valorRealizado)} meta={`${ind.realizados} exames, pelo valor da marcação no Klingo`} cor="var(--s-realizados)" />}
+          {verValores && <Kpi rotulo="Valor nas faltas" valor={brl(ind.valorPrevistoFaltas)} meta="Potencial bruto, não perda contábil" cor="var(--s-agendados)" />}
           {verValores && <Kpi rotulo="Orçado e perdido" valor={brl(ind.valorPerdido)} meta={`${ind.perdidos} não agendaram ou desistiram`} cor="var(--s-agendados)" />}
           {verValores && <Kpi rotulo="Orçado em aberto" valor={brl(ind.valorEmAberto)} meta="Ainda dá para recuperar" />}
         </div>
       </section>
 
-      <Painel id="t-funil" titulo="Funil do paciente" sub="Da procura ao exame feito. Passe o mouse em cada etapa para ver o que ela conta.">
+      <Painel id="t-funil" titulo="Funil do atendimento" sub="Do pedido registrado pela equipe até o agendamento. Passe o mouse em cada etapa para ver o que ela conta.">
         <ol className="crm-funil">
           {ind.funil.map((e, idx) => {
             const base = Math.max(1, ind.funil[0].n);
@@ -122,8 +137,9 @@ export function SecaoIndicadores({
           })}
         </ol>
         <Nota>
-          As etapas olham períodos diferentes: solicitações e agendamentos contam pela data do contato; exames feitos, pela data do exame.
-          {ind.aRealizar > 0 && ` Há ainda ${ind.aRealizar} ${ind.aRealizar === 1 ? "horário marcado" : "horários marcados"} para os próximos dias.`}
+          Só entra aqui o que a equipe registrou na aba Atender. O que aconteceu depois da marcação (exame feito, falta, cancelamento) vem do Klingo e
+          está em “Agenda do Klingo”, logo abaixo.
+          {ind.aRealizar > 0 && ` Há ainda ${ind.aRealizar} ${ind.aRealizar === 1 ? "marcação aberta" : "marcações abertas"} para os próximos dias.`}
           {metaMes !== null && ` A meta da clínica é de ${metaMes} ressonâncias por mês (aba Metas).`}
         </Nota>
       </Painel>
@@ -147,7 +163,7 @@ export function SecaoIndicadores({
           )}
         </Painel>
 
-        <Painel id="t-absent" titulo="Faltas e confirmação" sub="Quem faltou, pela resposta antes do exame (só horários com resultado).">
+        <Painel id="t-absent" titulo="Faltas e confirmação" sub="Quem faltou, pela confirmação registrada no Klingo antes do exame (só marcações com resultado).">
           <Tabela colunas={["Confirmação prévia", "Horários", "Faltas", "Taxa de falta"]}>
             {ind.faltasPorConfirmacao.map((c) => (
               <tr key={c.confirmacao}>
@@ -158,16 +174,18 @@ export function SecaoIndicadores({
               </tr>
             ))}
           </Tabela>
-          {ind.motivosFalta.length > 0 && <Nota>Motivos das faltas: {ind.motivosFalta.map((m) => `${m.motivo} (${m.n})`).join(" · ")}.</Nota>}
           <Nota>
-            Cancelamentos: {ind.cancelamentos} · Reagendados: {ind.reagendados}. Absenteísmo = faltas ÷ (exames feitos + faltas); horários pendentes
-            não entram.
+            Cancelamentos: {ind.cancelamentos} · Remarcados: {ind.reagendados}. Absenteísmo = faltas ÷ (exames feitos + faltas); marcações
+            abertas com exame de hoje em diante não entram. “Faltou” = marcação aberta, sem atendimento no Klingo, com a data já passada.
           </Nota>
         </Painel>
       </div>
 
+      <h2 className="crm-secao">Agenda do Klingo</h2>
+      <p className="crm-secao-sub">Todas as marcações de Ressonância da clínica no período, lidas do Klingo sem digitação.</p>
+
       <div className="crm-duas">
-        <Painel id="t-forma" titulo="Por forma de pagamento" sub="Particular, convênio, SUS e Cetrus têm gargalos diferentes.">
+        <Painel id="t-forma" titulo="Por forma de pagamento" sub="Particular, convênio, SUS e Cetrus têm gargalos diferentes. Solicitações e conversão vêm do CRM; exames feitos e faltas, do Klingo.">
           {ind.porForma.length === 0 ? (
             <Vazio>Sem registros no período.</Vazio>
           ) : (
@@ -185,21 +203,34 @@ export function SecaoIndicadores({
           )}
         </Painel>
 
-        <Painel id="t-op" titulo="Equipamento e sala" sub="Problemas operacionais anotados nos horários.">
-          {ind.motivosOperacionais.length === 0 ? (
-            <Vazio>Nenhum problema operacional registrado no período.</Vazio>
+        <Painel id="t-conv-agenda" titulo="Agenda por convênio" sub="Marcações do Klingo, pelo convênio da marcação.">
+          <TabelaAgenda linhas={agenda.porConvenio.slice(0, 12)} rotulo="Convênio" />
+          {agenda.porConvenio.length > 12 && <Nota>Mostrando os 12 convênios com mais marcações de {agenda.porConvenio.length}.</Nota>}
+        </Painel>
+      </div>
+
+      <div className="crm-duas">
+        <Painel id="t-grupo-agenda" titulo="Agenda por grupo de exame" sub="Onde há mais marcação, falta e cancelamento.">
+          <TabelaAgenda linhas={agenda.porGrupo} rotulo="Grupo de exame" />
+        </Painel>
+
+        <Painel id="t-quem-marca" titulo="Quem marca" sub="Usuário do Klingo que fez a marcação e quanto dela acabou cancelado ou remarcado.">
+          {agenda.porResponsavel.length === 0 ? (
+            <Vazio>Sem marcações no período.</Vazio>
           ) : (
-            <Tabela colunas={["Motivo", "Ocorrências", "Horas paradas"]}>
-              {ind.motivosOperacionais.map((m) => (
-                <tr key={m.motivo}>
-                  <th scope="row">{m.motivo}</th>
-                  <td>{m.n}</td>
-                  <td>{m.horas > 0 ? horasTxt(m.horas) : "—"}</td>
+            <Tabela colunas={["Usuário", "Marcações", "Canceladas ou remarcadas", "%"]}>
+              {agenda.porResponsavel.slice(0, 15).map((r) => (
+                <tr key={r.nome}>
+                  <th scope="row">{r.nome}</th>
+                  <td>{r.marcacoes}</td>
+                  <td>{r.cancelados}</td>
+                  <td>{pct(r.pctCancelado)}</td>
                 </tr>
               ))}
             </Tabela>
           )}
-          <Nota>Total no período: {horasTxt(ind.horasParadas)} de equipamento parado ou em atraso.</Nota>
+          {agenda.porResponsavel.length > 15 && <Nota>Mostrando os 15 usuários com mais marcações de {agenda.porResponsavel.length}.</Nota>}
+          <Nota>Cancelamento alto de um usuário pode ser só remarcação de paciente: olhe junto com o motivo na aba Agenda.</Nota>
         </Painel>
       </div>
 
@@ -227,7 +258,7 @@ export function SecaoIndicadores({
           <Kpi
             rotulo="Antecedência média"
             valor={mkt.antecedenciaMedia === null ? "—" : `${num(mkt.antecedenciaMedia)} dias`}
-            meta="Do contato até a data do exame"
+            meta="Da marcação no Klingo até a data do exame"
           />
           <Kpi
             rotulo="Demanda sem vaga"
@@ -304,22 +335,22 @@ export function SecaoIndicadores({
       </div>
 
       <div className="crm-duas">
-        <Painel id="t-procurados" titulo="Exames mais procurados" sub="O que as pessoas pedem e quanto disso vira exame feito. Serve para escolher o que anunciar.">
+        <Painel id="t-procurados" titulo="Exames mais marcados" sub="O que as pessoas pedem (CRM) e o que foi marcado e feito (Klingo), por grupo de exame. Serve para escolher o que anunciar.">
           {mkt.topProcurados.length === 0 ? (
-            <Vazio>Sem contatos no período.</Vazio>
+            <Vazio>Sem contatos nem marcações no período.</Vazio>
           ) : (
-            <Tabela colunas={["Grupo de exame", "Procurado", "Feito", "Conversão"]}>
+            <Tabela colunas={["Grupo de exame", "Procurado no CRM", "Marcado no Klingo", "Feito"]}>
               {mkt.topProcurados.map((e) => (
                 <tr key={e.exame}>
                   <th scope="row">{e.exame}</th>
                   <td>{e.procurado}</td>
-                  <td>{e.realizado}</td>
-                  <td>{pct(e.conversao)}</td>
+                  <td>{e.marcado}</td>
+                  <td>{e.feito}</td>
                 </tr>
               ))}
             </Tabela>
           )}
-          <Nota>Procurado conta pela data do contato e feito pela data do exame, então um exame marcado para depois ainda não aparece como feito.</Nota>
+          <Nota>Procurado conta só o que a equipe registrou; marcado e feito são da clínica toda. “Marcado” não inclui cancelamentos.</Nota>
         </Painel>
 
         <Painel id="t-convenios" titulo="Convênios que pedimos e não atendemos" sub="Cada linha é demanda real que foi embora. Vira pedido de credenciamento.">

@@ -5,30 +5,22 @@ import { createClient } from "@/lib/supabase/server";
 import { hojeEmBrasilia } from "@/lib/avisos";
 import {
   CANAIS,
-  CONFIRMACOES,
   FORMAS_PAGAMENTO,
   MAX_OBS,
-  MOTIVOS_FALTA,
-  MOTIVOS_OPERACIONAIS,
   MOTIVOS_PERDA,
   ORIGENS_REGISTRO,
   PROXIMAS_ACOES,
-  SAI_DO_COMPARECIMENTO,
   SITUACOES,
   SITUACOES_PERDA,
-  STATUS_AGENDA,
   TIPOS_PACIENTE,
   UNIDADE_RM,
-  VAGA_RECUPERADA,
   lerValor,
   soDigitos,
-  type StatusAgenda,
 } from "@/lib/crm-rm";
 
 export type CrmState = { ok?: boolean; error?: string };
 
 const DATA_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const texto = (f: FormData, nome: string) => String(f.get(nome) ?? "").trim();
 const dataValida = (iso: string) => DATA_RE.test(iso) && new Date(`${iso}T12:00:00Z`).toISOString().slice(0, 10) === iso;
 const naLista = (lista: readonly string[], v: string) => lista.includes(v);
@@ -251,186 +243,6 @@ export async function adiarRetorno(_prev: CrmState, f: FormData): Promise<CrmSta
     .select("id");
   if (error) return { error: erroDoBanco(error, "Não foi possível adiar o retorno.") };
   if (!data?.length) return { error: "Você não pode alterar este registro." };
-  revalidatePath("/crm-rm");
-  return { ok: true };
-}
-
-/** Registra a resposta da confirmação prévia num clique. */
-export async function marcarConfirmacao(_prev: CrmState, f: FormData): Promise<CrmState> {
-  const id = inteiro(f.get("id"));
-  const conf = texto(f, "confirmacao");
-  if (!id || !naLista(CONFIRMACOES, conf)) return { error: "Registro inválido." };
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("crm_rm_agenda").update({ confirmacao: conf }).eq("id", id).eq("status", "Agendado").select("id");
-  if (error) return { error: erroDoBanco(error, "Não foi possível salvar a confirmação.") };
-  if (!data?.length) return { error: "Este horário não está mais aberto." };
-  revalidatePath("/crm-rm");
-  return { ok: true };
-}
-
-/** Fecha o horário depois do exame: Realizado (com o valor previsto) ou Faltou. */
-export async function fecharHorario(_prev: CrmState, f: FormData): Promise<CrmState> {
-  const id = inteiro(f.get("id"));
-  const status = texto(f, "status");
-  if (!id || !["Realizado", "Faltou"].includes(status)) return { error: "Registro inválido." };
-
-  const supabase = await createClient();
-  const { data: atual, error: e1 } = await supabase.from("crm_rm_agenda").select("valor_previsto").eq("id", id).eq("status", "Agendado").maybeSingle();
-  if (e1) return { error: erroDoBanco(e1, "Não foi possível ler o horário.") };
-  if (!atual) return { error: "Este horário não está mais aberto." };
-
-  const { data, error } = await supabase
-    .from("crm_rm_agenda")
-    .update(
-      status === "Realizado"
-        ? { status, valor_realizado: atual.valor_previsto }
-        : { status, vaga_recuperada: "Não" },
-    )
-    .eq("id", id)
-    .eq("status", "Agendado")
-    .select("id");
-  if (error) return { error: erroDoBanco(error, "Não foi possível salvar.") };
-  if (!data?.length) return { error: "Este horário não está mais aberto." };
-  revalidatePath("/crm-rm");
-  return { ok: true };
-}
-
-/** Marca que a vaga de uma falta ou cancelamento foi ocupada por outra pessoa. */
-export async function marcarVagaRecuperada(_prev: CrmState, f: FormData): Promise<CrmState> {
-  const id = inteiro(f.get("id"));
-  if (!id) return { error: "Registro inválido." };
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("crm_rm_agenda")
-    .update({ vaga_recuperada: "Sim" })
-    .eq("id", id)
-    .in("status", ["Faltou", "Cancelado", "Reagendado"])
-    .select("id");
-  if (error) return { error: erroDoBanco(error, "Não foi possível salvar.") };
-  if (!data?.length) return { error: "Este horário não aceita essa marcação." };
-  revalidatePath("/crm-rm");
-  return { ok: true };
-}
-
-// ───────── Agenda ─────────
-
-function conferirHorario(
-  status: string,
-  motivoFalta: string,
-  vaga: string,
-  valorRealizado: number | null,
-  motivoOp: string,
-  horas: number | null,
-): string | null {
-  if (!STATUS_AGENDA.some((s) => s.id === status)) return "Escolha o status do horário.";
-  const saiu = (SAI_DO_COMPARECIMENTO as string[]).includes(status);
-  if (motivoFalta && !naLista(MOTIVOS_FALTA, motivoFalta)) return "Motivo da falta ou cancelamento inválido.";
-  if (motivoFalta && !saiu) return "O motivo da falta só vale para Faltou, Cancelado ou Reagendado.";
-  if (!naLista(VAGA_RECUPERADA, vaga)) return "Informe se a vaga foi recuperada.";
-  if (vaga !== "Não se aplica" && !saiu) return '"Vaga recuperada" só vale para Faltou, Cancelado ou Reagendado.';
-  if (valorRealizado !== null && status !== "Realizado") return "O valor realizado só vale para exame Realizado.";
-  if (motivoOp && !naLista(MOTIVOS_OPERACIONAIS, motivoOp)) return "Motivo operacional inválido.";
-  if (horas !== null && (horas < 0 || horas > 24)) return "As horas paradas ficam entre 0 e 24.";
-  return null;
-}
-
-function numeroHoras(f: FormData): number | null | { error: string } {
-  const t = texto(f, "horas_paradas").replace(",", ".");
-  if (!t) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? Math.round(n * 10) / 10 : { error: "Horas paradas: use só números, por exemplo 1,5." };
-}
-
-export async function registrarHorario(_prev: CrmState, f: FormData): Promise<CrmState> {
-  const contatoId = texto(f, "contato_id") ? inteiro(f.get("contato_id")) : null;
-  const dataExame = texto(f, "data_exame");
-  const hora = texto(f, "horario");
-  const exame = texto(f, "exame");
-  const codigoMarcacao = texto(f, "codigo_marcacao");
-  const status = texto(f, "status") || "Agendado";
-  const conf = texto(f, "confirmacao") || "Não contatado";
-
-  if (texto(f, "contato_id") && contatoId === null) return { error: "Contato inválido." };
-  if (!dataValida(dataExame)) return { error: "Informe a data do exame." };
-  if (dataExame > hojeEmBrasilia(120) || dataExame < hojeEmBrasilia(-365)) {
-    return { error: "A data do exame precisa estar entre o último ano e os próximos 4 meses." };
-  }
-  if (hora && !HORA_RE.test(hora)) return { error: "Horário inválido." };
-  if (codigoMarcacao && !/^\d{1,12}$/.test(codigoMarcacao)) return { error: "Código da marcação: só números." };
-  if (!naLista(CONFIRMACOES, conf)) return { error: "Escolha a confirmação prévia." };
-  const prev = valor(f, "valor_previsto", "Valor previsto");
-  if ("error" in prev) return prev;
-  const problema = conferirHorario(status, "", "Não se aplica", null, "", null);
-  if (problema) return { error: problema };
-
-  const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return { error: "Sua sessão expirou. Entre de novo." };
-
-  let forma = texto(f, "forma_pagamento");
-  if (!naLista(FORMAS_PAGAMENTO, forma)) return { error: "Escolha Particular ou o convênio." };
-
-  const doCatalogo = await conferirCatalogo(supabase, exame, "");
-  if (doCatalogo) return { error: doCatalogo };
-
-  const { error } = await supabase.from("crm_rm_agenda").insert({
-    contato_id: contatoId,
-    codigo_marcacao: codigoMarcacao || null,
-    data_exame: dataExame,
-    horario: hora || null,
-    forma_pagamento: forma,
-    exame,
-    status: status as StatusAgenda,
-    confirmacao: conf,
-    vaga_recuperada: "Não se aplica",
-    valor_previsto: prev.v,
-    unidade: UNIDADE_RM,
-    criado_por: auth.user.id,
-  });
-  if (error) return { error: erroDoBanco(error, "Não foi possível registrar o horário. Tente de novo.") };
-
-  revalidatePath("/crm-rm");
-  return { ok: true };
-}
-
-/** Depois da data do exame: realizado, faltou, cancelado ou reagendado (e o que aconteceu). */
-export async function atualizarHorario(_prev: CrmState, f: FormData): Promise<CrmState> {
-  const id = inteiro(f.get("id"));
-  const status = texto(f, "status");
-  const conf = texto(f, "confirmacao");
-  const motivoFalta = texto(f, "motivo_falta");
-  const vaga = texto(f, "vaga_recuperada") || "Não se aplica";
-  const motivoOp = texto(f, "motivo_operacional");
-  const codigoMarcacao = texto(f, "codigo_marcacao");
-
-  if (!id) return { error: "Registro inválido." };
-  if (!naLista(CONFIRMACOES, conf)) return { error: "Escolha a confirmação prévia." };
-  if (codigoMarcacao && !/^\d{1,12}$/.test(codigoMarcacao)) return { error: "Código da marcação: só números." };
-  const real = valor(f, "valor_realizado", "Valor realizado");
-  if ("error" in real) return real;
-  const horas = numeroHoras(f);
-  if (horas !== null && typeof horas === "object") return horas;
-  const problema = conferirHorario(status, motivoFalta, vaga, real.v, motivoOp, horas as number | null);
-  if (problema) return { error: problema };
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("crm_rm_agenda")
-    .update({
-      status: status as StatusAgenda,
-      confirmacao: conf,
-      motivo_falta: motivoFalta || null,
-      vaga_recuperada: vaga,
-      valor_realizado: real.v,
-      horas_paradas: horas as number | null,
-      motivo_operacional: motivoOp || null,
-      codigo_marcacao: codigoMarcacao || null,
-    })
-    .eq("id", id)
-    .select("id");
-  if (error) return { error: erroDoBanco(error, "Não foi possível salvar. Tente de novo.") };
-  if (!data?.length) return { error: "Você não pode alterar este registro." };
-
   revalidatePath("/crm-rm");
   return { ok: true };
 }

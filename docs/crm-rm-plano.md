@@ -1,6 +1,6 @@
 # CRM Ressonância — o que já está pronto e o que falta
 
-Documento de trabalho da Clínica CSI. Última revisão: 22/10/2026.
+Documento de trabalho da Clínica CSI. Última revisão: 23/10/2026.
 
 ---
 
@@ -52,20 +52,22 @@ No Supabase, Table Editor → `crm_rm_exame`, preencha para os 10 exames mais fe
 registrado, inclusive o que não agenda. Sugestão de rotina:
 - começar o dia pela aba **Meu dia** e zerar "Responder primeiro";
 - registrar o contato **antes** de resolver, não depois;
-- confirmar os exames do dia seguinte pela própria aba;
-- fechar o resultado dos exames do dia anterior.
+- ligar para quem aparece em "Confirmar os próximos exames" e registrar a resposta no Klingo;
+- ligar para quem faltou e oferecer as vagas que abriram.
 
 **5. Reunião semanal de 30 minutos** na aba Indicadores: escolher os três maiores
 gargalos e decidir uma ação para cada. Comece olhando a **cobertura**.
 
-### Depois (depende do Klingo)
+### Já feito: a agenda vem do Klingo (23/10)
 
-**6. Enviar o pedido ao suporte** (o texto está na conversa). O essencial é a situação
-do atendimento e o código da marcação nos relatórios 18 e 47.
+A agenda deixou de ser digitada. O relatório **#13825 "Agendamentos - Visão Consolidada por Marcação"** é lido sozinho e alimenta as abas Agenda, Meu dia e Indicadores:
+"Realizado", "Faltou" e "Cancelado" vêm do Klingo, e a atendente só liga para confirmar. Para a agenda ficar certa, a equipe precisa manter o **Klingo** em dia:
 
-**7. Quando o Klingo responder**, a agenda deixa de ser digitada: as marcações entram
-sozinhas, "Realizado" e "Faltou" vêm prontos, e a atendente só registra confirmação e
-motivo. É a diferença entre a equipe alimentar o sistema e o sistema alimentar a equipe.
+- registrar a confirmação do paciente (Confirmado / Sem Resposta);
+- abrir o atendimento quando o paciente chega (é o que separa "Realizado" de "Faltou");
+- ao cancelar uma marcação que o paciente vai refazer, usar o motivo **"Remarcado"**.
+
+O pedido ao suporte do Klingo (situação do atendimento nos relatórios 18 e 47) deixou de ser necessário para a agenda.
 
 ---
 
@@ -82,7 +84,7 @@ motivo. É a diferença entre a equipe alimentar o sistema e o sistema alimentar
 
 ## 4. O que esta aba ainda não faz
 
-- **Não puxa a agenda do Klingo** — a agenda é digitada (item 6 acima).
+- **Não confirma nem cancela pelo CRM** — isso é registrado no Klingo e a lista se atualiza na leitura seguinte (a cada poucas horas).
 - **Não conhece o Wellum.** Se ele exportar as conversas, cada contato novo de WhatsApp
   pode virar registro automático. Preciso saber o que o seu plano oferece.
 - **Não cobre os outros exames.** É só Ressonância, de propósito: é o equipamento mais
