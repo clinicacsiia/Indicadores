@@ -65,6 +65,7 @@ export function FecharAviso({ id, persistente }: { id: number; persistente: bool
             {tamanho < MIN_JUSTIFICATIVA
               ? `Escreva pelo menos ${MIN_JUSTIFICATIVA} caracteres (${tamanho}/${MIN_JUSTIFICATIVA}). `
               : ""}
+            Justificar não corrige o Klingo: se o dado está errado ou faltando, corrija lá. {" "}
             {persistente
               ? "Este aviso pode ser aceito: fica como informação enquanto continuar igual e reabre se piorar."
               : "Na próxima atualização dos dados o painel confere: se o problema sumiu, o aviso fica resolvido; se continuar, ele reabre (a não ser que você informe uma data prevista)."}

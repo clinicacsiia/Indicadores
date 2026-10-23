@@ -189,7 +189,7 @@ export function Roteiro({ motivo }: { motivo: string }) {
 }
 
 /** Situação, motivo, valor, próxima ação, retorno e identificação: o que muda a cada conversa. */
-export function CamposAcompanhamento({ pre, p }: { pre: string; p?: Contato }) {
+export function CamposAcompanhamento({ pre, p, responsavelPadrao = "" }: { pre: string; p?: Contato; responsavelPadrao?: string }) {
   const [situacao, setSituacao] = useState<string>(p?.situacao ?? "Novo contato");
   const [motivo, setMotivo] = useState<string>(p?.motivo_perda ?? "");
   const perdeu = (SITUACOES_PERDA as string[]).includes(situacao);
@@ -199,6 +199,14 @@ export function CamposAcompanhamento({ pre, p }: { pre: string; p?: Contato }) {
       <Campo id={`${pre}-situacao`} rotulo="Situação" dica={info ? `${info.significado}. ${info.acao}.` : undefined}>
         <Seletor id={`${pre}-situacao`} name="situacao" opcoes={SITUACOES.map((s) => s.id)} valor={situacao} onChange={setSituacao} obrigatorio />
       </Campo>
+      {(situacao === "Agendado" || situacao === "Aguardando autorização") && (
+        <p className="crm-aviso crm-largo" role="note">
+          <strong>Faça no Klingo:</strong>{" "}
+          {situacao === "Agendado"
+            ? "a marcação do exame. Aqui só se anota o código da marcação; este site não agenda nem atualiza o Klingo."
+            : "o pedido de autorização ao convênio. Este site não envia nem atualiza nada no Klingo; aqui você só acompanha."}
+        </p>
+      )}
       {perdeu && (
         <Campo id={`${pre}-motivo`} rotulo="Motivo da perda" dica="Obrigatório quando não agendou ou desistiu.">
           <Seletor id={`${pre}-motivo`} name="motivo_perda" opcoes={MOTIVOS_PERDA.map((m) => m.id)} valor={motivo} onChange={setMotivo} vazio="Escolha" obrigatorio />
@@ -217,14 +225,14 @@ export function CamposAcompanhamento({ pre, p }: { pre: string; p?: Contato }) {
           </Campo>
         </>
       )}
-      <Campo id={`${pre}-codigo`} rotulo="Código no Klingo" dica="Do paciente ou da marcação. É assim que você acha a pessoa depois.">
-        <input id={`${pre}-codigo`} name="codigo_klingo" className="input" maxLength={30} placeholder="ex.: 184323" defaultValue={p?.codigo_klingo ?? ""} />
+      <Campo id={`${pre}-codigo`} rotulo="Código no Klingo" dica={situacao === "Agendado" ? "Obrigatório: o código da marcação já feita no Klingo." : "Do paciente ou da marcação. É assim que você acha a pessoa depois."}>
+        <input id={`${pre}-codigo`} name="codigo_klingo" className="input" maxLength={30} placeholder="ex.: 184323" required={situacao === "Agendado"} defaultValue={p?.codigo_klingo ?? ""} />
       </Campo>
       <Campo id={`${pre}-tel`} rotulo="Telefone (opcional)" dica="Só para retomar o contato. Não aparece nos indicadores.">
         <input id={`${pre}-tel`} name="telefone" className="input" inputMode="tel" maxLength={16} placeholder="(71) 99999-8888" defaultValue={telefoneBonito(p?.telefone ?? null)} />
       </Campo>
       <Campo id={`${pre}-resp`} rotulo="Responsável">
-        <input id={`${pre}-resp`} name="responsavel" className="input" maxLength={60} placeholder="Quem atendeu" defaultValue={p?.responsavel ?? ""} />
+        <input id={`${pre}-resp`} name="responsavel" className="input" maxLength={60} placeholder="Quem atendeu" defaultValue={p ? (p.responsavel ?? "") : responsavelPadrao} />
       </Campo>
       <div className="field crm-largo">
         <label className="field-label" htmlFor={`${pre}-obs`}>

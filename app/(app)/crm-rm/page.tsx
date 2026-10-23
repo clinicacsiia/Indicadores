@@ -211,6 +211,10 @@ export default async function CrmRmPage({ searchParams }: Props) {
         </div>
       </header>
 
+      <p className="crm-aviso" role="note">
+        <strong>Este site só consulta o Klingo, não grava nele.</strong> Marcar, autorizar, confirmar, cancelar e remarcar exames é no <strong>Klingo</strong>:
+        o que for feito lá aparece aqui na próxima leitura (a agenda é atualizada sozinha). O que se registra aqui é só a procura do paciente.
+      </p>
       {exemplos && (
         <p className="crm-aviso" role="note">
           Os registros marcados como <strong>Exemplo</strong> são só de demonstração, para você ver a tela funcionando. O administrador pode apagá-los.
@@ -256,7 +260,7 @@ export default async function CrmRmPage({ searchParams }: Props) {
               titulo="Registrar contato"
               sub="Um registro por pedido de exame recebido, mesmo que o paciente não agende. Nunca escreva o nome do paciente: use o código do Klingo."
             >
-              <NovoContatoForm hoje={hoje} catalogo={catalogo} />
+              <NovoContatoForm hoje={hoje} catalogo={catalogo} responsavelPadrao={profile?.nome ?? ""} />
             </Painel>
           )}
 

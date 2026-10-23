@@ -17,7 +17,7 @@ const inicial: CrmState = {};
 
 type Catalogo = { exames: ExameCatalogo[]; convenios: ConvenioCatalogo[]; precos: Preco[] };
 
-export function NovoContatoForm({ hoje, catalogo }: { hoje: string; catalogo: Catalogo }) {
+export function NovoContatoForm({ hoje, catalogo, responsavelPadrao = "" }: { hoje: string; catalogo: Catalogo; responsavelPadrao?: string }) {
   const [state, action] = useActionState(registrarContato, inicial);
   const [exame, setExame] = useState("");
   const [convenio, setConvenio] = useState("Particular");
@@ -83,7 +83,7 @@ export function NovoContatoForm({ hoje, catalogo }: { hoje: string; catalogo: Ca
         <Seletor id="c-origem" name="origem_registro" opcoes={ORIGENS_REGISTRO} vazio="Não informar" />
       </Campo>
       <FichaDoExame exame={fichaExame} preco={preco} />
-      <CamposAcompanhamento key={versao} pre="c" />
+      <CamposAcompanhamento key={versao} pre="c" responsavelPadrao={responsavelPadrao} />
       <label className="switch crm-largo">
         <input type="checkbox" name="respondeu" defaultChecked />
         <span className="switch-track" aria-hidden="true" />

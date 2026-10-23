@@ -78,7 +78,8 @@ function conferirContato(situacao: string, motivo: string, retorno: string, data
   return null;
 }
 
-function conferirIdentificacao(codigo: string, telefone: string): string | null {
+function conferirIdentificacao(codigo: string, telefone: string, situacao?: string): string | null {
+  if (situacao === "Agendado" && !codigo) return "Agendado: informe o código da marcação do Klingo. A marcação tem de ser feita lá; este site não agenda.";
   if (codigo && !/^[A-Za-z0-9.\-/ ]{1,30}$/.test(codigo)) return "Código do Klingo: use só números, letras, ponto, hífen ou barra.";
   if (telefone && (telefone.length < 10 || telefone.length > 13)) return "Telefone: informe DDD e número, por exemplo (71) 99999-8888.";
   return null;
@@ -111,7 +112,7 @@ export async function registrarContato(_prev: CrmState, f: FormData): Promise<Cr
   if (obs.length > MAX_OBS) return { error: `As observações podem ter no máximo ${MAX_OBS} caracteres.` };
   if (acao && !naLista(PROXIMAS_ACOES, acao)) return { error: "Próxima ação inválida." };
 
-  const ident = conferirIdentificacao(codigo, telefone);
+  const ident = conferirIdentificacao(codigo, telefone, situacao);
   if (ident) return { error: ident };
   const problema = conferirContato(situacao, motivo, retorno, data);
   if (problema) return { error: problema };
@@ -179,7 +180,7 @@ export async function atualizarContato(_prev: CrmState, f: FormData): Promise<Cr
   if (acao && !naLista(PROXIMAS_ACOES, acao)) return { error: "Próxima ação inválida." };
   if (responsavel.length > 60) return { error: "O nome do responsável pode ter no máximo 60 caracteres." };
   if (obs.length > MAX_OBS) return { error: `As observações podem ter no máximo ${MAX_OBS} caracteres.` };
-  const ident = conferirIdentificacao(codigo, telefone);
+  const ident = conferirIdentificacao(codigo, telefone, situacao);
   if (ident) return { error: ident };
   const problema = conferirContato(situacao, motivo, retorno, dataContato);
   if (problema) return { error: problema };

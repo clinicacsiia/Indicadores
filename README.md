@@ -516,6 +516,13 @@ vem dele; o dia de hoje conta só a parte do expediente que já passou.
 `sync-relatorios-dw` e, na aba Metas (como admin), clicar em "Atualizar" para
 o mês desejado (um mês por vez, máx. 31 dias).
 
+## O site só consulta o Klingo
+
+O Klingo é a fonte; o site lê e nunca grava nele. Por isso, tudo que precisa ser feito no Klingo (marcar, autorizar, confirmar, cancelar, remarcar, dar entrada de compra com valor,
+corrigir lançamento) é avisado na tela como "faça no Klingo": banner no CRM Ressonância, lembrete ao escolher a situação "Agendado" ou "Aguardando autorização" (que exige o código
+da marcação do Klingo), texto no Suprimentos para item sem custo e nota ao justificar um aviso ("justificar não corrige o Klingo"). O que o site guarda é só dele: permissões,
+metas por mês, favoritos, justificativas dos avisos e o registro da procura do paciente (que não existe no Klingo). O campo "Responsável" do registro já vem com o nome de quem está logado.
+
 ## Aba CRM Ressonância
 
 O caminho do paciente na Ressonância Magnética: procura → orçamento/autorização → agendamento → comparecimento → realização. A **procura** é
