@@ -16,6 +16,14 @@ O "filtro" que você percebe mudando o valor não é um botão de Receita × Fat
 | Emissão da fatura | O que foi **faturado** ao convênio | #13355 (Faturamento) |
 | Recebimento | O que **entrou** | #13295, #13297, #13329 |
 
+**Segundo tipo de filtro (informado depois): os filtros do próprio relatório no Klingo, como "baixado", "recebido" e "consolidado".**
+Hoje o sistema só manda o filtro de **período** (`periodo0`/`periodo`/`PERIODO`, em `extrair_laudo.consultar_relatorio` e na Edge Function `sync-relatorios-dw`). Todos os outros filtros do relatório ficam no **valor padrão do Klingo**, que ninguém registrou nem conferiu:
+- o banco não guarda os filtros de cada relatório (a resposta do Klingo traz a lista em `inputs`, mas o código só a usa para achar o filtro de data);
+- o padrão pode mudar o que entra: "baixado" × "não baixado" × todos, "recebido" × "a receber", "consolidado" × detalhado;
+- o nome do relatório às vezes já escolhe um filtro sem avisar (#13328 é "Faturas **Não Baixadas**"; #13510 é "**CONSOLIDADO** ANALÍTICO", coletado mas não usado por nenhum painel; #13376 é "Conciliação de Créditos");
+- se alguém mudar o padrão no Klingo, o número muda nos painéis **sem nenhum aviso**, e o mesmo ID passa a ter outro valor ou sumir.
+Isto é uma hipótese forte, **ainda não confirmada**: sem o token do Klingo aqui não consegui ler a lista de filtros de cada relatório. A Fase 1B abaixo resolve isso.
+
 Um mesmo ID (lançamento, fatura, atendimento) cai em meses e valores diferentes conforme o relatório e a data-base. O painel então **cruza** relatórios (ex.: Despesas busca o vencimento no #798 pelo ID do lançamento). Se o cruzamento falha, o valor vai para o mês errado ou some.
 Também há valor diferente para o mesmo ID por **bruto × líquido** (retenções) e por **mais de uma linha por ID** (um lançamento com várias contas ou categorias).
 
@@ -34,7 +42,7 @@ Também há valor diferente para o mesmo ID por **bruto × líquido** (retençõ
 6. **Mesmo ID com mais de uma linha** (#798: 191 IDs). O `relatorios.json` deduplica pela chave `Lançamento` (`keep="last"`), então pode estar **descartando contas legítimas** ou somando duas vezes, conforme o relatório. Precisa ser provado, não presumido.
 7. **O `conferir_numeros.py` está desatualizado.** Ele lê planilhas Excel de uma pasta do computador da clínica, e hoje os dados vêm do Supabase. Cobre só 4 painéis (não Indicadores, Despesas, Atendimento, Suprimentos).
 
-O que **não** consegui confirmar: o botão/filtro exato que você viu trocando o valor. As telas só têm seletor de mês (o rótulo diz competência ou vencimento) e, em Despesas, "Medida" e bruto × líquido. Veja a pergunta 1 na seção 6.
+O que **não** consegui confirmar: quais filtros do Klingo (baixado, recebido, consolidado) estão ligados em cada relatório, porque o sistema nunca os guardou e esta sessão não tem o token do Klingo. Ver Fase 1B.
 
 ## 3. Princípios da auditoria
 
@@ -55,6 +63,16 @@ Montar uma planilha/tabela única, uma linha por indicador em R$ de cada aba:
 - Gerar o rascunho automaticamente (lista de campos de dinheiro: `sigilo.CHAVES`, `RAIZ`, `COLUNAS_DE_DINHEIRO`, mais as chamadas `brl()` dos `dashboard_modelo.html`).
 - Marcar cada indicador com o termo oficial da nomenclatura do README (produção, faturado, recebido, receita, despesa, custo, repasse) e apontar onde a tela usa outro nome. Esse é o "erro de nomenclatura" que você suspeita.
 - Entregável: `docs/auditoria/inventario-dinheiro.md` (ou CSV).
+
+### Fase 1B: Inventário dos filtros do Klingo, além do período (1 dia)
+Para cada relatório ativo (cerca de 20 em uso), responder: **quais filtros ele tem e com qual valor estamos coletando.**
+1. **Capturar os filtros:** chamar cada relatório uma vez e guardar o `inputs` da resposta (id, tipo, rótulo, opções, valor padrão). Guardar numa tabela nova (ex.: `dim_relatorio_filtro`), atualizada a cada coleta.
+   Depende do token do Klingo (`KLINGO_APP_TOKEN`), que esta sessão não tem; roda no servidor ou por quem tem o token.
+2. **Comparar com a tela do Klingo:** a pessoa da área abre cada relatório, anota os filtros visíveis (baixado, recebido, consolidado, situação, unidade, convênio, tipo de lançamento) e confirma o valor que **ela** usa.
+3. **Teste de sensibilidade:** para um mês fechado (setembro/2026), pedir o mesmo relatório com cada opção de filtro (baixado × não baixado × todos, recebido × a receber, consolidado × analítico) e comparar linhas e soma por ID. Mostra quais filtros mudam o dinheiro.
+4. **Decidir e fixar:** para cada filtro que muda o valor, escolher o valor oficial e **enviá-lo explicitamente** na coleta (não depender do padrão). Se for preciso mais de uma visão do mesmo relatório (ex.: baixado e não baixado), coletar as duas e dar nome diferente a cada uma.
+5. **Vigiar o padrão:** se o `inputs` de um relatório mudar (filtro novo, opção nova, padrão diferente), abrir um aviso na aba Avisos.
+- Entregável: tabela `relatório × filtro × valor padrão × valor que usamos × muda o dinheiro? (sim/não, quanto)`.
 
 ### Fase 2: Auditoria da carga, banco e coleta (2 dias)
 Consultas SQL de leitura, todas viram verificações permanentes depois:
@@ -97,7 +115,8 @@ Candidatos já visíveis (a lista final sai das fases 2 a 5):
 5. **Relatórios vazios** (#13295, #13375): corrigir a coleta (filtro, tabela de colunas) ou esconder o cartão com "dado indisponível" em vez de mostrar R$ 0 ou um valor subestimado.
 6. **Regras de ID:** onde a chave de deduplicação descarta ou duplica dinheiro, trocar por chave que inclua o que diferencia a linha (conta, categoria, parcela).
 7. **Nomenclatura:** aplicar os termos oficiais em todas as telas, avisos e tooltips; todo cartão em R$ mostra *o que é, data-base, fonte (relatório #) e última coleta* ("selo de confiança").
-8. **Cuidado:** as migrations seguem as regras do `CLAUDE.md` (sem `drop`/`delete` pelo MCP, em chamadas pequenas, conferindo com `execute_sql`; o que sobrar vai para uma pessoa rodar no SQL Editor).
+8. **Filtros do Klingo fixados na coleta** (resultado da Fase 1B): enviar baixado/recebido/consolidado explicitamente e nomear cada visão.
+9. **Cuidado:** as migrations seguem as regras do `CLAUDE.md` (sem `drop`/`delete` pelo MCP, em chamadas pequenas, conferindo com `execute_sql`; o que sobrar vai para uma pessoa rodar no SQL Editor).
 
 ### Fase 7: Monitoramento contínuo (2 dias)
 - As verificações da fase 2 (períodos avulsos, duplicatas, relatório vazio, ID com valor divergente, total constante) viram **avisos automáticos** na aba Avisos (hoje só existe o aviso de "período suspeito").
@@ -110,7 +129,7 @@ Fases 0 a 2 primeiro (cerca de 4 dias): dão a lista de erros reais. As fases 3 
 
 ## 6. Perguntas para a pessoa de faturamento / financeiro
 
-1. Pode mandar um exemplo (print) de um filtro que muda o valor de um mesmo ID, com a aba e o ID? Hoje vejo o seletor de mês, bruto × líquido e "Medida" (Despesas).
+1. Os filtros "baixado", "recebido" e "consolidado" ficam em quais relatórios do Klingo (nome ou número)? Pode mandar um print da tela de filtros de um deles e um exemplo de ID cujo valor muda? Isso confirma a Fase 1B.
 2. Qual é o número **oficial** de produção de um mês: o do #26 (Receita Produzida por Centro de Resultado), o do #13402 (Visão Gerencial) ou outro? Cancelados, cortesias, glosados e atendimentos sem convênio contam?
 3. "Receita" para a diretoria é **produção** (realizado), **faturado** ou **recebido** (caixa)? Em cada aba, qual?
 4. O Financeiro deve mostrar o que **vence** no mês (caixa previsto) ou o que **pertence** ao mês (competência)? Pode ser os dois, mas cada um com nome diferente.
