@@ -203,9 +203,15 @@ reset role;
 -- O banco de verdade tem v_relatorio_linha_vigente e last_seen_at; aqui basta o mesmo formato.
 alter table public.fact_relatorio_linha add column last_seen_at timestamptz not null default now();
 create view public.v_relatorio_linha_vigente as select * from public.fact_relatorio_linha;
+-- Coletas do #13825 (a função crm_rm_agenda_atualizada_em olha só as que deram certo).
+create table public.sync_relatorio_runs (id bigint generated always as identity primary key, relatorio_id uuid, status text not null, finished_at timestamptz);
 \i supabase/migrations/20261023170100_crm_rm_agenda_klingo.sql
+\i supabase/migrations/20261024140000_crm_rm_agenda_klingo_rapida.sql
 
 insert into public.dim_relatorio (klingo_id) values ('13825');
+insert into public.sync_relatorio_runs (relatorio_id, status, finished_at)
+  select r.id, v.status, v.fim from public.dim_relatorio r, (values ('success', timestamptz '2026-10-24 09:00+00'), ('success', timestamptz '2026-10-24 10:00+00'), ('error', timestamptz '2026-10-24 12:00+00')) as v(status, fim)
+  where r.klingo_id = '13825';
 create function pg_temp.marcacao(cod text, proc text, oper text, quando text, aberta text, atendido text, vista timestamptz, periodo date) returns void language sql as $$
   insert into public.fact_relatorio_linha (relatorio_id, periodo, last_seen_at, linha)
   select r.id, periodo, vista, jsonb_build_object('col0', cod, 'col1', case when atendido = 'S' then cod || '9' end, 'col2', '555', 'col3', '2026-10-01 09:00:00',
@@ -234,19 +240,23 @@ select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda
 select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30') where codigo_marcacao = '105' and atendido and id_atendimento = '1059' and exame = 'RM FETAL' and forma_pagamento = 'Convênio'$q$), 1, 'agenda do Klingo: exame RM fora do catálogo entra, atendido');
 select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30') where codigo_marcacao in ('103', '104', '106')$q$), 0, 'agenda do Klingo: tomografia, pacote e linha sem data ficam de fora');
 select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-12-31')$q$), 4, 'agenda do Klingo: o período decide (inclui a 107)');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from (select public.crm_rm_agenda_atualizada_em() v) x where v = timestamptz '2026-10-24 10:00+00'$q$), 1, 'última leitura: fim da coleta que deu certo mais recente, sem contar a que falhou');
 reset role;
 select pg_temp.como('00000000-0000-0000-0000-00000000000b');  -- Ana, só preenche
 select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$), 3, 'agenda do Klingo: quem preenche vê toda a agenda');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from (select public.crm_rm_agenda_atualizada_em() v) x where v is not null$q$), 1, 'última leitura: quem preenche também vê');
 reset role;
 select pg_temp.como('00000000-0000-0000-0000-00000000000c');  -- Bia, só vê
 select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$), 3, 'agenda do Klingo: quem vê o CRM vê toda a agenda');
 reset role;
 select pg_temp.como('00000000-0000-0000-0000-00000000000d');  -- Caio, sem permissão
 select pg_temp.espera(pg_temp.conta($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$), 0, 'agenda do Klingo: sem acesso ao CRM, nada');
+select pg_temp.espera(pg_temp.conta($q$select count(*) from (select public.crm_rm_agenda_atualizada_em() v) x where v is not null$q$), 0, 'última leitura: sem acesso ao CRM, nulo');
 select pg_temp.deve_falhar($q$select count(*) from public.fact_relatorio_linha$q$, 'permission denied');
 reset role;
 set role anon;
 select pg_temp.deve_falhar($q$select count(*) from public.crm_rm_agenda_klingo('2026-10-01', '2026-11-30')$q$, 'permission denied');
+select pg_temp.deve_falhar($q$select public.crm_rm_agenda_atualizada_em()$q$, 'permission denied');
 reset role;
 
 select 'CRM RM OK' as resultado;

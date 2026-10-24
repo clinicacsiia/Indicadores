@@ -2991,6 +2991,21 @@ p.crm-item-meta,
   color: var(--brand);
   font-weight: 600;
 }
+.crm-atualizacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.crm-atualizacao-texto {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.crm-atualizacao-texto[data-demora="true"] {
+  color: var(--warn);
+}
 .btn-pequeno {
   min-height: 34px;
   padding: 0 12px;
