@@ -251,6 +251,11 @@ trouxe 283 respostas (174 em set e 109 em out) e o filtro de período foi compro
 foi aplicado pelo `apply_migration` (um `insert ... on conflict`); a coleta mensal, pelo `execute_sql` em duas partes (o texto de `observacoes` com o mapa das colunas fica pendurado no MCP; o mapa está
 no comentário da migration); a função, pelo `apply_migration` (`create or replace`, sem `drop`). Primeira coleta mensal sem erro: setembro com 8.549 linhas e outubro com 6.595. Ver "Aba CRM Ressonância".
 
+**24/10/2026, `20261024140000_crm_rm_agenda_klingo_rapida.sql`:** a aba CRM Ressonância mostrava "Não foi possível carregar os registros" porque `crm_rm_agenda_klingo` levava 9 a 20 s e o papel `authenticated` cancela
+consulta com mais de 8 s (`statement_timeout`; aparece como "canceling statement due to statement timeout" nos logs do Postgres). A função achava o relatório por join com `dim_relatorio` e o planejador varria a
+`fact_relatorio_linha` inteira; buscando o `id` do #13825 antes, ele usa o índice `(relatorio_id, periodo)` e cada leitura leva ~0,7 s, com o mesmo resultado (conferido por hash: 2.796 marcações antes e depois).
+Também criou `crm_rm_agenda_atualizada_em()` (fim da última coleta que deu certo). Aplicada pelo `apply_migration` (`create or replace`, sem `drop`).
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -601,7 +606,7 @@ Fonte: **"Agendamentos - Visão Consolidada por Marcação"**, uma linha por mar
 - **Coleta mensal, revendo os 2 últimos meses** (`granularidade = 'mes'`, `primeiro_mes = 2026-09-01`, `revisar_meses = 2`, todas as colunas). O único filtro de data do relatório
   (`periodo0`) é a data em que a marcação foi **feita**, não a do exame; como cancelamento, atendimento e confirmação mudam depois, coletar por dia olharia cada dia uma vez só e
   deixaria o status velho. O mês corrente é refeito a cada ~5 h pela coleta automática. Um mês traz ~8,5 mil linhas (limite do motor: 16 mil por chamada): se passar disso, mudar para
-  coleta por dia. A tela mostra a hora da última leitura.
+  coleta por dia. Todas as abas mostram a data da última leitura (`crm_rm_agenda_atualizada_em()`), em amarelo quando passa de 12 h; o botão "Atualizar tela" só relê o banco: a ida ao Klingo é a coleta automática (ou "Atualizar tudo" no Início).
 - **`crm_rm_agenda_klingo(p_de, p_ate)`** (por data do exame) devolve só RM: o procedimento tem de estar em `crm_rm_exame` (ou começar com `RM `, `ANGIO-RM`, `COLANGIO`, para exame novo que
   ainda não entrou no catálogo); tomografia, `PCTE` e `CONTRASTE` ficam de fora. Nomes comparados sem acento (o relatório diz "AMOR SAÚDE", o catálogo "AMOR SAUDE"). Marcação repetida entre a
   coleta do dia e a do mês vale pela mais recente.

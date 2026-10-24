@@ -31,6 +31,7 @@ import {
   type Horario,
   type Preco,
 } from "@/lib/crm-rm";
+import { BarraAtualizacao } from "./BarraAtualizacao";
 import { EditarContatoForm, NovoContatoForm } from "./ContatoForm";
 import { SecaoAgenda } from "./SecaoAgenda";
 import { SecaoIndicadores } from "./SecaoIndicadores";
@@ -157,13 +158,22 @@ export default async function CrmRmPage({ searchParams }: Props) {
   // Agenda: vem sozinha do Klingo. A fila (e o número na aba Meu dia) olha os últimos 7 dias em qualquer aba;
   // Agenda e Indicadores olham o período escolhido.
   const ultimos7 = hojeEmBrasilia(-7);
-  const ag = await lerAgenda(supabase, aba === "agenda" || aba === "indicadores" ? (inicio < ultimos7 ? inicio : ultimos7) : ultimos7);
+  const [ag, lida] = await Promise.all([
+    lerAgenda(supabase, aba === "agenda" || aba === "indicadores" ? (inicio < ultimos7 ? inicio : ultimos7) : ultimos7),
+    supabase.rpc("crm_rm_agenda_atualizada_em"),
+  ]);
 
-  const falhou = Boolean(c.error || ag.erro);
-  if (falhou) console.error("Falha ao carregar o CRM da RM:", c.error?.message ?? ag.erro);
+  if (c.error) console.error("Falha ao carregar os contatos do CRM da RM:", c.error.message);
+  if (ag.erro) console.error("Falha ao carregar a agenda do Klingo no CRM da RM:", ag.erro);
   const contatos = (c.data ?? []) as unknown as Contato[];
   const horarios = ag.linhas.map((a) => doKlingo(a, hoje));
-  const atualizadoEm = horarios.reduce<string | null>((mais, x) => (mais === null || x.atualizado_em > mais ? x.atualizado_em : mais), null);
+  // Fim da última coleta do #13825; se a função não responder, vale a leitura mais recente entre as marcações carregadas.
+  const atualizadoEm =
+    (typeof lida.data === "string" ? lida.data : null) ??
+    horarios.reduce<string | null>((mais, x) => (mais === null || x.atualizado_em > mais ? x.atualizado_em : mais), null);
+  // A coleta é automática a cada ~5 h: passar de 12 h sem leitura nova é sinal de coleta parada.
+  const HORAS_ATE_DESATUALIZADA = 12;
+  const desatualizada = atualizadoEm !== null && Date.now() - new Date(atualizadoEm).getTime() > HORAS_ATE_DESATUALIZADA * 3_600_000;
 
   const exemplos = contatos.some((x) => x.exemplo);
   // O que cai no período escolhido (a fila usa `horarios` inteiro: os últimos 7 dias valem mesmo com o filtro em 7 dias).
@@ -216,12 +226,20 @@ export default async function CrmRmPage({ searchParams }: Props) {
           Os registros marcados como <strong>Exemplo</strong> são só de demonstração, para você ver a tela funcionando. O administrador pode apagá-los.
         </p>
       )}
-      {falhou && (
+      {c.error && (
         <div className="notice" role="alert">
           <IconAlerta />
-          <span>Não foi possível carregar os registros agora. Tente de novo em instantes.</span>
+          <span>Não foi possível carregar os contatos registrados agora. Tente de novo em instantes.</span>
         </div>
       )}
+      {ag.erro && (
+        <div className="notice" role="alert">
+          <IconAlerta />
+          <span>Não foi possível carregar a agenda do Klingo agora. Toque em “Atualizar tela” em instantes; se continuar, avise um administrador.</span>
+        </div>
+      )}
+
+      <BarraAtualizacao lidoEm={atualizadoEm ? dataHoraBR(atualizadoEm) : null} demora={desatualizada} />
 
       <nav className="config-abas" aria-label="Seções do CRM da Ressonância">
         {abas.map((a) => (
