@@ -19,10 +19,12 @@ import {
   calcularMarketing,
   codigoContato,
   doKlingo,
+  mesDoCalendario,
   montarFila,
   podePreencherCrmRm,
   podeVerCrmRm,
   resumirAgenda,
+  semanasDoMes,
   tamanhoDaFila,
   type AgendaKlingo,
   type ConvenioCatalogo,
@@ -40,7 +42,7 @@ import { Identificacao, Kpi, Nota, PacienteHorario, Painel, ResumoContato, Resum
 
 export const metadata: Metadata = { title: "CRM Ressonância" };
 
-type Props = { searchParams: Promise<{ aba?: string; dias?: string; busca?: string; st?: string }> };
+type Props = { searchParams: Promise<{ aba?: string; dias?: string; busca?: string; st?: string; visao?: string; mes?: string; dia?: string }> };
 type Aba = "meu-dia" | "atender" | "agenda" | "indicadores" | "guia";
 
 const PERIODOS = [
@@ -67,8 +69,9 @@ const NA_LISTA = 40;
 /** A fila de trabalho não respeita o filtro de período: pendência velha continua sendo pendência. */
 const JANELA_FILA = 180;
 
-function hrefDe(aba: Aba, dias: number, busca?: string, st?: string) {
+function hrefDe(aba: Aba, dias: number, busca?: string, st?: string, lista?: boolean) {
   const q = new URLSearchParams({ aba });
+  if (lista) q.set("visao", "lista");
   if (dias !== 30) q.set("dias", String(dias));
   if (busca) q.set("busca", busca);
   if (st && st !== "todas") q.set("st", st);
@@ -97,7 +100,7 @@ const metaRM = () => {
 };
 
 export default async function CrmRmPage({ searchParams }: Props) {
-  const { aba: abaParam, dias: diasParam, busca: buscaParam, st: stParam } = await searchParams;
+  const { aba: abaParam, dias: diasParam, busca: buscaParam, st: stParam, visao: visaoParam, mes: mesParam, dia: diaParam } = await searchParams;
   const profile = await getCurrentProfile();
   const pVer = podeVerCrmRm(profile);
   const pPreencher = podePreencherCrmRm(profile);
@@ -137,6 +140,11 @@ export default async function CrmRmPage({ searchParams }: Props) {
   // O Klingo entrou em operação em setembro/2026: "Tudo" começa no ano, o que já cobre tudo (o PostgreSQL não aceita o ano 0000).
   const inicio = dias > 0 ? hojeEmBrasilia(-dias + 1) : "2026-01-01";
   const busca = (buscaParam ?? "").trim().slice(0, 40);
+  // Agenda: calendário do mês é o padrão; "visao=lista" traz a lista corrida por período.
+  const visaoAgenda = visaoParam === "lista" ? "lista" : "calendario";
+  const mesAgenda = mesDoCalendario(mesParam, hoje);
+  const diaAgenda = diaParam && semanasDoMes(mesAgenda).flat().includes(diaParam) ? diaParam : null;
+  const noCalendario = aba === "agenda" && visaoAgenda === "calendario";
 
   const supabase = await createClient();
 
@@ -159,7 +167,14 @@ export default async function CrmRmPage({ searchParams }: Props) {
   // Agenda e Indicadores olham o período escolhido.
   const ultimos7 = hojeEmBrasilia(-7);
   const [ag, lida] = await Promise.all([
-    lerAgenda(supabase, aba === "agenda" || aba === "indicadores" ? (inicio < ultimos7 ? inicio : ultimos7) : ultimos7),
+    lerAgenda(
+      supabase,
+      noCalendario
+        ? (`${mesAgenda}-01` < ultimos7 ? `${mesAgenda}-01` : ultimos7)
+        : aba === "agenda" || aba === "indicadores"
+          ? (inicio < ultimos7 ? inicio : ultimos7)
+          : ultimos7,
+    ),
     supabase.rpc("crm_rm_agenda_atualizada_em"),
   ]);
 
@@ -178,6 +193,7 @@ export default async function CrmRmPage({ searchParams }: Props) {
   const exemplos = contatos.some((x) => x.exemplo);
   // O que cai no período escolhido (a fila usa `horarios` inteiro: os últimos 7 dias valem mesmo com o filtro em 7 dias).
   const doPeriodo = horarios.filter((x) => x.data_exame >= inicio);
+  const doMes = noCalendario ? horarios.filter((x) => x.data_exame.startsWith(mesAgenda)) : [];
   const passados = doPeriodo.filter((x) => x.data_exame <= hoje);
   const futuros = doPeriodo.filter((x) => x.data_exame > hoje && x.status === "Agendado").length;
   const marcacoesNovas = doPeriodo.filter((x) => x.agendado_em !== null && x.agendado_em.slice(0, 10) >= inicio).length;
@@ -250,10 +266,10 @@ export default async function CrmRmPage({ searchParams }: Props) {
         ))}
       </nav>
 
-      {(aba === "atender" || aba === "agenda" || aba === "indicadores") && (
+      {(aba === "atender" || aba === "indicadores" || (aba === "agenda" && !noCalendario)) && (
         <nav className="crm-periodos" aria-label="Período">
           {PERIODOS.map((p) => (
-            <Link key={p.dias} href={hrefDe(aba, p.dias, busca, aba === "agenda" ? filtroAgenda.id : undefined)} className="crm-periodo" aria-current={p.dias === dias ? "true" : undefined}>
+            <Link key={p.dias} href={hrefDe(aba, p.dias, busca, aba === "agenda" ? filtroAgenda.id : undefined, aba === "agenda")} className="crm-periodo" aria-current={p.dias === dias ? "true" : undefined}>
               {p.rotulo}
             </Link>
           ))}
@@ -336,8 +352,11 @@ export default async function CrmRmPage({ searchParams }: Props) {
 
       {aba === "agenda" && (
         <SecaoAgenda
-          horarios={doPeriodo}
+          horarios={noCalendario ? doMes : doPeriodo}
           hoje={hoje}
+          visao={visaoAgenda}
+          mes={mesAgenda}
+          dia={diaAgenda}
           dias={dias}
           busca={busca}
           filtros={FILTROS_AGENDA}

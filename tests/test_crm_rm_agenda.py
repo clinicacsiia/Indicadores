@@ -11,7 +11,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 
 ROTEIRO = """
-import { calcular, doKlingo, montarFila, resumirAgenda, statusDoKlingo, tamanhoDaFila } from "./crm-rm.ts";
+import { calcular, contarPorDia, doKlingo, mesDoCalendario, montarFila, resumirAgenda, semanasDoMes, somarMeses, statusDoKlingo, tamanhoDaFila } from "./crm-rm.ts";
 const HOJE = "2026-10-23";
 const emDias = (n: number) => new Date(Date.parse(`${HOJE}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
@@ -77,6 +77,19 @@ const contatos: any[] = [1, 2].map((id) => ({ id, situacao: "Agendado", data_con
 const ind = calcular(contatos, hs.filter((h) => h.data_exame <= HOJE), 1, 20);
 const resumo = resumirAgenda(hs, () => "Crânio");
 
+// Calendário: as mesmas marcações agrupadas por dia, e as contas de mês.
+const porDia = contarPorDia(hs);
+const sem = semanasDoMes("2026-10");
+const calendario = {
+  ontem: porDia.get(ontem),
+  futuro: porDia.get(emDias(5)),
+  vazio: porDia.get(emDias(2)) ?? null,
+  meses: [mesDoCalendario("2026-13", HOJE), mesDoCalendario(undefined, HOJE), mesDoCalendario("2026-03", HOJE), mesDoCalendario("26-3", HOJE), mesDoCalendario("2026-00", HOJE)],
+  soma: [somarMeses("2026-12", 1), somarMeses("2026-01", -1), somarMeses("2026-10", 0), somarMeses("2026-10", 14), somarMeses("2026-10", -10)],
+  outubro: { semanas: sem.length, primeira: sem[0], ultima: sem[sem.length - 1], tudoSeteEmSete: sem.every((s) => s.length === 7), dias: sem.flat().filter((d) => d !== null).length },
+  fevereiro2028: { semanas: semanasDoMes("2028-02").length, dias: semanasDoMes("2028-02").flat().filter((d) => d !== null).length, primeira: semanasDoMes("2028-02")[0] },
+};
+
 console.log(JSON.stringify({
   regras, confirmacoes, telefones, filas,
   ind: {
@@ -88,6 +101,7 @@ console.log(JSON.stringify({
   },
   convenios: resumo.porConvenio.map((l) => [l.nome, l.marcacoes, l.feitos, l.faltas, l.cancelados]),
   usuarios: resumo.porResponsavel.map((r) => [r.nome, r.marcacoes, r.cancelados, r.pctCancelado]),
+  calendario,
 }));
 """
 
@@ -147,6 +161,25 @@ class AgendaDoKlingoTest(unittest.TestCase):
         usuarios = {u[0]: u[1:] for u in self.saida["usuarios"]}
         self.assertEqual(usuarios["bia"], [2, 2, 100.0])
         self.assertEqual(usuarios["ana"], [9, 0, 0.0])
+
+    def test_calendario_da_agenda(self):
+        c = self.saida["calendario"]
+        # ontem: 6 feitas, 2 faltas, 1 cancelada + 1 remarcada (as duas contam como canceladas); daqui a 5 dias: 1 aberta
+        self.assertEqual(c["ontem"], {"total": 10, "abertas": 0, "feitas": 6, "faltas": 2, "canceladas": 2})
+        self.assertEqual(c["futuro"], {"total": 1, "abertas": 1, "feitas": 0, "faltas": 0, "canceladas": 0})
+        self.assertIsNone(c["vazio"])
+        # mês inválido ou ausente cai no mês de hoje (2026-10)
+        self.assertEqual(c["meses"], ["2026-10", "2026-10", "2026-03", "2026-10", "2026-10"])
+        self.assertEqual(c["soma"], ["2027-01", "2025-12", "2026-10", "2027-12", "2025-12"])
+        # outubro de 2026 começa numa quinta: 4 células vazias, 31 dias, 5 semanas de 7 dias
+        o = c["outubro"]
+        self.assertEqual((o["semanas"], o["dias"], o["tudoSeteEmSete"]), (5, 31, True))
+        self.assertEqual(o["primeira"], [None, None, None, None, "2026-10-01", "2026-10-02", "2026-10-03"])
+        self.assertEqual(o["ultima"], ["2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31"])
+        # fevereiro de 2028 (bissexto) começa numa terça e tem 29 dias
+        f = c["fevereiro2028"]
+        self.assertEqual((f["semanas"], f["dias"]), (5, 29))
+        self.assertEqual(f["primeira"][:3], [None, None, "2028-02-01"])
 
 
 if __name__ == "__main__":

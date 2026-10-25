@@ -476,6 +476,51 @@ export function resumirAgenda(horarios: Horario[], grupoDoExame: (nome: string) 
   };
 }
 
+// ───────── Calendário da agenda ─────────
+
+/** Marcações de um dia, por situação: abertas = exame de hoje em diante; canceladas incluem as remarcadas. */
+export type ContagemDia = { total: number; abertas: number; feitas: number; faltas: number; canceladas: number };
+
+/** "2026-10" vale se o mês for de 01 a 12; qualquer outra coisa vira o mês de `hoje`. */
+export function mesDoCalendario(texto: string | undefined, hoje: string): string {
+  return texto && /^\d{4}-(0[1-9]|1[0-2])$/.test(texto) ? texto : hoje.slice(0, 7);
+}
+
+/** Anda `n` meses (pode ser negativo): "2026-12" + 1 = "2027-01". */
+export function somarMeses(mes: string, n: number): string {
+  const [ano, m] = mes.split("-").map(Number);
+  const total = ano * 12 + (m - 1) + n;
+  return `${String(Math.floor(total / 12)).padStart(4, "0")}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+/** O mês em semanas de domingo a sábado: cada célula é o dia "AAAA-MM-DD", ou null fora do mês. */
+export function semanasDoMes(mes: string): (string | null)[][] {
+  const [ano, m] = mes.split("-").map(Number);
+  const antes = new Date(Date.UTC(ano, m - 1, 1)).getUTCDay();
+  const dias = new Date(Date.UTC(ano, m, 0)).getUTCDate();
+  const celulas: (string | null)[] = [
+    ...Array<null>(antes).fill(null),
+    ...Array.from({ length: dias }, (_, i) => `${mes}-${String(i + 1).padStart(2, "0")}`),
+  ];
+  while (celulas.length % 7 !== 0) celulas.push(null);
+  return Array.from({ length: celulas.length / 7 }, (_, s) => celulas.slice(s * 7, s * 7 + 7));
+}
+
+/** Quantas marcações há em cada dia de exame, separadas por situação. */
+export function contarPorDia(horarios: Horario[]): Map<string, ContagemDia> {
+  const dias = new Map<string, ContagemDia>();
+  for (const h of horarios) {
+    const c = dias.get(h.data_exame) ?? { total: 0, abertas: 0, feitas: 0, faltas: 0, canceladas: 0 };
+    c.total += 1;
+    if (h.status === "Agendado") c.abertas += 1;
+    else if (h.status === "Realizado") c.feitas += 1;
+    else if (h.status === "Faltou") c.faltas += 1;
+    else c.canceladas += 1;
+    dias.set(h.data_exame, c);
+  }
+  return dias;
+}
+
 // ───────── Marketing ─────────
 
 export type Marketing = {
