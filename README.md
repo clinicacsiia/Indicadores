@@ -613,6 +613,9 @@ Fonte: **"Agendamentos - Visão Consolidada por Marcação"**, uma linha por mar
   (`periodo0`) é a data em que a marcação foi **feita**, não a do exame; como cancelamento, atendimento e confirmação mudam depois, coletar por dia olharia cada dia uma vez só e
   deixaria o status velho. O mês corrente é refeito a cada ~5 h pela coleta automática. Um mês traz ~8,5 mil linhas (limite do motor: 16 mil por chamada): se passar disso, mudar para
   coleta por dia. Todas as abas mostram a data da última leitura (`crm_rm_agenda_atualizada_em()`), em amarelo quando passa de 12 h; o botão "Atualizar tela" só relê o banco: a ida ao Klingo é a coleta automática (ou "Atualizar tudo" no Início).
+- **Aba Agenda = calendário do mês** (padrão; `?aba=agenda&mes=2026-10&dia=2026-10-24`). Cada dia mostra o total de marcações e quantas estão abertas, realizadas, com falta e canceladas ou remarcadas (azul, verde, vermelho, cinza); a barrinha
+  embaixo compara o dia com o mais cheio do mês. Tocar num dia abre, abaixo, as marcações dele por horário, com paciente, telefone e confirmação. O filtro de situação e a busca valem para o calendário e para a lista; "Lista"
+  (`visao=lista`) traz a lista corrida por período de antes. Tudo é renderizado no servidor, sem JavaScript no navegador. As contas do calendário estão em `lib/crm-rm.ts` (`semanasDoMes`, `contarPorDia`) e têm teste.
 - **`crm_rm_agenda_klingo(p_de, p_ate)`** (por data do exame) devolve só RM: o procedimento tem de estar em `crm_rm_exame` (ou começar com `RM `, `ANGIO-RM`, `COLANGIO`, para exame novo que
   ainda não entrou no catálogo); tomografia, `PCTE` e `CONTRASTE` ficam de fora. Nomes comparados sem acento (o relatório diz "AMOR SAÚDE", o catálogo "AMOR SAUDE"). Marcação repetida entre a
   coleta do dia e a do mês vale pela mais recente.

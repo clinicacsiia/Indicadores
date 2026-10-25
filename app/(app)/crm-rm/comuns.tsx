@@ -121,15 +121,14 @@ export function ResumoContato({ c, verValores }: { c: Contato; verValores: boole
 }
 
 /** Linha de resumo de uma marcação do Klingo. */
-export function ResumoHorario({ h, verValores }: { h: Horario; verValores: boolean }) {
+export function ResumoHorario({ h, verValores, semData }: { h: Horario; verValores: boolean; semData?: boolean }) {
   return (
     <div className="crm-item-topo">
       <span className="status-pill" data-status={pilula(h.status)}>
         {h.status}
       </span>
       <span className="crm-item-meta">
-        {dataBR(h.data_exame)}
-        {h.horario ? ` ${hhmm(h.horario)}` : ""} · {h.exame} · {h.convenio ?? h.forma_pagamento}
+        {semData ? hhmm(h.horario) || "Sem horário" : `${dataBR(h.data_exame)}${h.horario ? ` ${hhmm(h.horario)}` : ""}`} · {h.exame} · {h.convenio ?? h.forma_pagamento}
         {` · marcação ${h.codigo_marcacao}`}
         {verValores && h.valor !== null && h.valor > 0 ? ` · ${brl(h.valor)}` : ""}
       </span>

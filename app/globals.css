@@ -2991,6 +2991,221 @@ p.crm-item-meta,
   color: var(--brand);
   font-weight: 600;
 }
+/* Calendário da agenda (aba Agenda do CRM Ressonância) */
+.panel .crm-periodos {
+  padding: 8px 20px 4px;
+}
+.cal {
+  display: grid;
+  gap: 10px;
+  padding: 0 20px 16px;
+}
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cal-titulo {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+.cal-titulo::first-letter {
+  text-transform: uppercase;
+}
+.cal-nav .btn-pequeno {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  text-decoration: none;
+}
+.cal-semana,
+.cal-grade {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.cal-semana span {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.cal-grade {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cal-dia {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  min-height: 96px;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+.cal-dia:hover {
+  border-color: var(--brand);
+}
+.cal-dia[data-vazio="true"] {
+  background: transparent;
+  color: var(--ink-2);
+}
+.cal-dia[data-sel="true"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+.cal-num {
+  align-self: flex-start;
+  min-width: 24px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cal-dia[data-hoje="true"] .cal-num {
+  background: var(--brand);
+  color: #fff;
+}
+.cal-total {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.cal-chip {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cal-chip[data-tipo="abertas"] {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.cal-chip[data-tipo="feitas"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.cal-chip[data-tipo="faltas"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.cal-chip[data-tipo="canceladas"] {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.cal-barra {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--brand);
+  opacity: 0.55;
+}
+.cal-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.cal-legenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-legenda .cal-chip {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid currentColor;
+  line-height: 14px;
+}
+.cal-hora + .cal-hora {
+  margin-top: 4px;
+}
+.cal-hora-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 14px;
+  font-weight: 700;
+}
+.cal-hora-titulo span {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+@media (max-width: 640px) {
+  .cal {
+    padding: 0 12px 14px;
+  }
+  .cal-semana,
+  .cal-grade {
+    gap: 3px;
+  }
+  .cal-dia {
+    min-height: 66px;
+    gap: 2px;
+    padding: 4px;
+  }
+  .cal-num {
+    min-width: 18px;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+  .cal-total {
+    font-size: 15px;
+  }
+  .cal-chips {
+    gap: 2px;
+  }
+  .cal-chip {
+    min-width: 15px;
+    padding: 0 3px;
+    font-size: 10px;
+    line-height: 15px;
+  }
+}
 .crm-atualizacao {
   display: flex;
   flex-wrap: wrap;
