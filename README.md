@@ -569,6 +569,12 @@ atendente adivinhava o preço e cada pessoa escrevia o convênio de um jeito. Ag
 **Preparo, contraste, duração e autorização nascem vazios de propósito**: são conteúdo clínico e administrativo da clínica, que preenche no Table
 Editor. Até lá a tela diz "não cadastrado — pergunte à equipe técnica" em vez de inventar orientação de preparo.
 
+### Ordem da aba Indicadores
+
+Primeiro **"Agenda do Klingo"** (marcações, exames feitos, absenteísmo, antecedência média, valores, faltas × confirmação, forma de pagamento, convênio, grupo de exame, quem marca e exames mais
+marcados): tudo vem do #13825 e não depende de digitação. Depois **"Registro da equipe (CRM)"** (solicitações, conversão, cobertura, funil, perdas, canal, tempo de resposta): enquanto não há
+nenhum contato no período, a tela mostra um aviso no lugar desses blocos, em vez de uma fila de zeros, e as tabelas mistas (forma de pagamento e exames mais marcados) escondem as colunas do CRM.
+
 ### Indicadores de marketing
 
 Pacientes novos × recorrentes, perdas por preço (com o valor médio de quem perdeu contra o de quem fechou), antecedência média, demanda que a
