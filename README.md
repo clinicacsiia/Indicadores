@@ -256,6 +256,10 @@ consulta com mais de 8 s (`statement_timeout`; aparece como "canceling statement
 `fact_relatorio_linha` inteira; buscando o `id` do #13825 antes, ele usa o índice `(relatorio_id, periodo)` e cada leitura leva ~0,7 s, com o mesmo resultado (conferido por hash: 2.796 marcações antes e depois).
 Também criou `crm_rm_agenda_atualizada_em()` (fim da última coleta que deu certo). Aplicada pelo `apply_migration` (`create or replace`, sem `drop`).
 
+**26/10/2026, `20261026120000_sync_runs_indice_relatorio_periodo.sql`:** o site ficava lento e a agenda do CRM voltava a falhar por `statement_timeout` nos horários em que a coleta do Klingo rodava.
+As consultas do site são rápidas sozinhas (agenda ~0,3 s, Início ~0,2 s), mas ficavam 10 a 20 vezes mais lentas com o banco ocupado. O que mais ocupava era `proximos_trabalhos` (coleta automática, a cada 5 min):
+~5 s e 472 mil blocos por chamada, por falta de índice em `sync_relatorio_runs (relatorio_id, periodo, status)`. Com o índice: ~0,2 s e 46 mil blocos. Aplicada pelo `apply_migration` (só `create index`).
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
