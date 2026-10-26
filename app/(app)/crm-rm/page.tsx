@@ -79,10 +79,13 @@ type Cliente = Awaited<ReturnType<typeof createClient>>;
 
 async function lerAgenda(supabase: Cliente, de: string): Promise<{ linhas: AgendaKlingo[]; erro: string | null; cortada: boolean }> {
   const linhas: AgendaKlingo[] = [];
+  const ler = (pagina: number) =>
+    supabase.rpc("crm_rm_agenda_klingo", { p_de: de, p_ate: ATE_AGENDA }).range(pagina * PAGINA_AGENDA, (pagina + 1) * PAGINA_AGENDA - 1);
   for (let pagina = 0; pagina < MAX_PAGINAS_AGENDA; pagina++) {
-    const { data, error } = await supabase
-      .rpc("crm_rm_agenda_klingo", { p_de: de, p_ate: ATE_AGENDA })
-      .range(pagina * PAGINA_AGENDA, (pagina + 1) * PAGINA_AGENDA - 1);
+    let { data, error } = await ler(pagina);
+    // 57014 = passou de 8 s (statement_timeout). Sozinha a leitura leva menos de 1 s; isso acontece quando a coleta do Klingo
+    // está ocupando o banco, e uma segunda tentativa costuma passar.
+    if (error?.code === "57014") ({ data, error } = await ler(pagina));
     if (error) return { linhas, erro: error.message, cortada: false };
     const lote = (data ?? []) as unknown as AgendaKlingo[];
     linhas.push(...lote);
@@ -140,28 +143,26 @@ export default async function CrmRmPage({ searchParams }: Props) {
 
   const supabase = await createClient();
 
+  // Contatos digitados pela equipe. RLS entrega tudo a quem vê o CRM e só o próprio a quem apenas preenche.
+  const deContatos = aba === "meu-dia" ? hojeEmBrasilia(-JANELA_FILA) : inicio;
+  // Agenda: vem sozinha do Klingo. A fila (e o número na aba Meu dia) olha os últimos 7 dias em qualquer aba;
+  // Agenda e Indicadores olham o período escolhido.
+  const ultimos7 = hojeEmBrasilia(-7);
+
+  // Tudo independente: uma espera só (a mais lenta) em vez de três em fila.
   // Catálogo: a lista de exames e convênios com o nome exato do Klingo, e o preço praticado.
-  const [cat, conv, pr] = await Promise.all([
+  const [cat, conv, pr, c, ag, lida] = await Promise.all([
     supabase.from("crm_rm_exame").select(CAMPOS_EXAME).eq("ativo", true).order("grupo").order("atendimentos", { ascending: false }),
     supabase.from("crm_rm_convenio").select(CAMPOS_CONVENIO).eq("ativo", true).order("tipo").order("atendimentos", { ascending: false }),
     supabase.rpc("crm_rm_precos", { p_meses: 6 }),
+    supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).gte("data_contato", deContatos).order("data_contato", { ascending: false }).order("id", { ascending: false }).limit(LIMITE),
+    lerAgenda(supabase, aba === "agenda" || aba === "indicadores" ? (inicio < ultimos7 ? inicio : ultimos7) : ultimos7),
+    supabase.rpc("crm_rm_agenda_atualizada_em"),
   ]);
   const exames = (cat.data ?? []) as unknown as ExameCatalogo[];
   const convenios = (conv.data ?? []) as unknown as ConvenioCatalogo[];
   const precos = (pr.data ?? []) as unknown as Preco[];
   const grupoDoExame = (nome: string) => exames.find((e) => e.nome === nome)?.grupo ?? "Outros";
-
-  // Contatos digitados pela equipe. RLS entrega tudo a quem vê o CRM e só o próprio a quem apenas preenche.
-  const deContatos = aba === "meu-dia" ? hojeEmBrasilia(-JANELA_FILA) : inicio;
-  const c = await supabase.from("crm_rm_contato").select(CAMPOS_CONTATO).gte("data_contato", deContatos).order("data_contato", { ascending: false }).order("id", { ascending: false }).limit(LIMITE);
-
-  // Agenda: vem sozinha do Klingo. A fila (e o número na aba Meu dia) olha os últimos 7 dias em qualquer aba;
-  // Agenda e Indicadores olham o período escolhido.
-  const ultimos7 = hojeEmBrasilia(-7);
-  const [ag, lida] = await Promise.all([
-    lerAgenda(supabase, aba === "agenda" || aba === "indicadores" ? (inicio < ultimos7 ? inicio : ultimos7) : ultimos7),
-    supabase.rpc("crm_rm_agenda_atualizada_em"),
-  ]);
 
   if (c.error) console.error("Falha ao carregar os contatos do CRM da RM:", c.error.message);
   if (ag.erro) console.error("Falha ao carregar a agenda do Klingo no CRM da RM:", ag.erro);
