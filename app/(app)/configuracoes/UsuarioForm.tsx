@@ -14,8 +14,6 @@ type Props = {
   role: "admin" | "viewer";
   veMetas: boolean;
   veFinanceiro: boolean;
-  crmRmVer: boolean;
-  crmRmPreencher: boolean;
   visaoAtendimento: string;
   paineis: { id: string; nome: string; liberado: boolean }[];
   ehVoce: boolean;
@@ -33,7 +31,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, crmRmVer, crmRmPreencher, visaoAtendimento, paineis, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtendimento, paineis, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -48,7 +46,6 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, crmRmVer, 
           veMetas ? "Metas" : null,
           nPaineis > 0 ? `${nPaineis} ${nPaineis === 1 ? "painel" : "painéis"}` : null,
           visaoAtendimento ? `Atendimento só de ${RESPONSAVEIS_ATENDIMENTO.find((r) => r.id === visaoAtendimento)?.nome ?? visaoAtendimento}` : null,
-          crmRmVer || crmRmPreencher ? "CRM Ressonância" : null,
           veFinanceiro ? "Dados financeiros" : null,
         ]
           .filter(Boolean)
@@ -125,24 +122,6 @@ export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, crmRmVer, 
             <div className="user-paineis">
               <VisaoAtendimento id={id} valor={visaoAtendimento} />
               {papel === "admin" && <span className="switch-hint">Administradores sempre veem a clínica inteira.</span>}
-            </div>
-
-            <div className="user-paineis" role="group" aria-labelledby={`crm-${id}`}>
-              <span className="field-label user-paineis-titulo" id={`crm-${id}`}>
-                CRM Ressonância (funil da Ressonância Magnética)
-              </span>
-              <div className="user-switches">
-                <label className="switch">
-                  <input type="checkbox" name="crm_rm_preencher" defaultChecked={crmRmPreencher} />
-                  <span className="switch-track" aria-hidden="true" />
-                  <span className="switch-text">Pode registrar contatos e horários (vê só o que registrou)</span>
-                </label>
-                <label className="switch">
-                  <input type="checkbox" name="crm_rm" defaultChecked={crmRmVer} />
-                  <span className="switch-track" aria-hidden="true" />
-                  <span className="switch-text">Pode ver os indicadores e todas as listas</span>
-                </label>
-              </div>
             </div>
 
             <div className="user-paineis" role="group" aria-labelledby={`dados-${id}`}>
