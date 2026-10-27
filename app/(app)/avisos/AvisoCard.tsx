@@ -1,6 +1,7 @@
 import {
   ROTULO_EVENTO,
   ROTULO_NIVEL,
+  ROTULO_QUEM,
   dataCurta,
   dataDia,
   dataHora,
@@ -30,6 +31,40 @@ function Historico({ eventos }: { eventos: EventoAviso[] }) {
         ))}
       </ol>
     </details>
+  );
+}
+
+// O essencial à vista, sem abrir nada: por onde entrar no Klingo, o que fazer e de quem é.
+function Resumo({ aviso }: { aviso: Aviso }) {
+  const { caminho, fazer, quem } = aviso.guia;
+  if (!fazer && !caminho?.length) return null;
+  return (
+    <dl className="aviso-resumo">
+      {caminho && caminho.length > 0 && (
+        <div>
+          <dt>Onde olhar no Klingo</dt>
+          <dd>
+            {caminho.map((c, i) => (
+              <span key={i} className="aviso-caminho">
+                {c}
+              </span>
+            ))}
+          </dd>
+        </div>
+      )}
+      {fazer && (
+        <div>
+          <dt>O que fazer</dt>
+          <dd>{fazer}</dd>
+        </div>
+      )}
+      {quem && ROTULO_QUEM[quem] && (
+        <div>
+          <dt>Quem resolve</dt>
+          <dd>{ROTULO_QUEM[quem]}</dd>
+        </div>
+      )}
+    </dl>
   );
 }
 
@@ -211,6 +246,7 @@ export function AvisoCard({ aviso, eventos }: { aviso: Aviso; eventos: EventoAvi
         </div>
       )}
 
+      {aviso.status === "aberto" && <Resumo aviso={aviso} />}
       <Guia aviso={aviso} />
       {aviso.status === "aberto" && <FecharAviso id={aviso.id} persistente={aviso.persistente} />}
       <Historico eventos={eventos} />

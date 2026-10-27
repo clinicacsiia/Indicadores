@@ -27,6 +27,9 @@ export type GuiaAviso = {
   relatorios?: { id: number; nome: string; url: string }[];
   passos?: string[];
   resolve?: string;
+  caminho?: string[]; // por onde entrar no menu do Klingo
+  fazer?: string; // a ação que resolve, em uma frase
+  quem?: "csi" | "gestao" | "klingo";
   dica?: string;
   atualizacao?: { em: string; texto: string };
 };
@@ -87,6 +90,12 @@ export const MAX_JUSTIFICATIVA = 1000;
 export type MotivoReabrir = "nao_resolvi" | "nao_explicou";
 // Resolvidos mais antigos que isso saem da lista (continuam no banco com o histórico).
 export const DIAS_RESOLVIDOS = 90;
+
+export const ROTULO_QUEM: Record<string, string> = {
+  csi: "Equipe da CSI: corrigir no Klingo",
+  gestao: "Gestão: decidir e justificar",
+  klingo: "Cobrar do Klingo/Yotech",
+};
 
 export const ROTULO_NIVEL: Record<NivelAviso, string> = { critico: "Crítico", atencao: "Atenção", info: "Informação" };
 export const PESO_NIVEL: Record<NivelAviso, number> = { critico: 3, atencao: 2, info: 1 };
