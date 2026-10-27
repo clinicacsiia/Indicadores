@@ -356,6 +356,87 @@ REGRAS = [
       "Cancele ou exclua o atendimento de teste no Klingo, para ele não contar nos totais e nas metas."],
      "Some quando não houver mais registro de teste."),
 ]
+# Onde achar no MENU do Klingo e o que fazer, em uma frase (o manual de avisos da clinica, em forma de dado). "caminho" = por onde entrar a partir da tela
+# inicial do Klingo; "fazer" = a acao que resolve; "quem" = csi (a equipe corrige no Klingo), gestao (decidir e justificar) ou klingo (cobrar o Klingo/Yotech).
+QUEM = {"csi": "Equipe da CSI: corrigir no Klingo", "gestao": "Gestão: decidir e justificar", "klingo": "Cobrar do Klingo/Yotech"}
+COMO = {
+    "fat_espera_envio": (["Faturamento > Faturas"], "Localize a fatura pelo número, envie ao convênio e registre o protocolo. Se o convênio está no prazo habitual dele (GEAP, HAPVIDA, Hospital Santa Izabel, SUS), use Justificar e fechar com a data de envio.", "csi"),
+    "fat_nunca_enviou": (["Faturamento > Faturas"], "Confirme se o envio desse convênio é feito fora do Klingo (portal) e registre o envio na fatura.", "csi"),
+    "fat_canceladas": (["Faturamento > Faturas, filtrando a situação Cancelada"], "Cancelar para refazer pode ser normal: justifique explicando o motivo (por exemplo, refaturamento por glosa) ou investigue por que o convênio cancela tanto.", "gestao"),
+    "fat_sem_valor": (["Faturamento > Faturas"], "Abra a fatura: se está sem guias, cancele; se estava esperando guia, preencha o valor.", "csi"),
+    "fat_sem_protocolo": (["Faturamento > Faturas", "Relatórios > Relatórios - Guias Protocoladas (#13454)"], "Pegue o número do protocolo no convênio (e-mail ou portal) e informe na fatura. Sem protocolo não dá para conciliar o pagamento.", "csi"),
+    "fat_sem_fatura": (["Faturamento > Guias: Operadora = o convênio, Mês, Situação A Faturar (AF)"], "Se as guias existem, gere a fatura em Faturamento > Faturas. Se não existem, o problema está na produção lançada, não no faturamento. Se o convênio só fatura no fim do mês, justifique com a data de fechamento.", "csi"),
+    "fat_falta_faturar": (["Faturamento > Guias: Situação A Faturar (AF), Mês", "Relatórios > Guias - Controle de Produção do Faturamento por Convênio - Mensal (#13329)"], "Fature as guias pendentes de cada operadora da lista.", "csi"),
+    "fat_vencidas": (["Faturamento > Faturas", "Relatórios > Fatura - Faturas Não Baixadas - Mensal (#13328)"], "Para cada fatura, confira se o convênio pagou. Se pagou, dê a baixa (Faturamento > Arquivo Retorno, ou Financeiro > Posição de Recebimentos/Glosas). Se não pagou, cobre o convênio e justifique.", "csi"),
+    "fat_pouco_recebido": (["Financeiro > Posição de Recebimentos/Glosas", "Financeiro > Conciliação Bancária"], "Identifique no extrato os créditos de cada convênio e vincule-os às faturas.", "csi"),
+    "fat_glosa": (["Faturamento > Faturas e Relatórios > Faturamento - Glosas e Recursos (#13375)"], "Decida entre recorrer ou aceitar a glosa de cada convênio e justifique a decisão.", "gestao"),
+    "fat_aberto_sem_valor": (["Faturamento > Faturas"], "Abra a fatura: se ficou sem guias ou com valor zerado por erro, cancele ou refaça; se esperava guia, preencha o valor.", "csi"),
+    "fat_receita_queda": (["Relatórios > Receita Produzida (#26)"], "Veja se algum dia ficou sem lançamentos ou se algum convênio parou de aparecer; se a queda é real (sazonal, feriados), justifique.", "gestao"),
+    "fat_producao_diverge": (["Relatórios > Receita Produzida (#26) e Controle por Convênio (#13329)"], "Procure o convênio que mais difere: costuma ser guia lançada depois do fechamento ou valor alterado.", "csi"),
+    "fin_pagar_maior": (["Financeiro > Visão Geral (Contas a Pagar e Contas a Receber)"], "Não é erro de dado: justifique informando que a receita que ainda vai ser vendida no mês não está nessa conta.", "gestao"),
+    "fin_vencidas": (["Financeiro > Lançamento (despesas vencidas)"], "Para cada despesa, veja se já foi paga. Se foi, registre o pagamento escolhendo a Conta de pagamento. Se não foi, ela está em atraso: pague ou justifique.", "csi"),
+    "fin_proximos_7": (["Financeiro > Visão Geral", "Financeiro > Fluxo de Caixa"], "É alerta de caixa: confirme com a diretoria o plano de pagamento e justifique com ele.", "gestao"),
+    "fin_creditos_convenio": (["Financeiro > Posição de Recebimentos/Glosas", "Financeiro > Conciliação Bancária"], "Identifique no extrato os créditos de cada convênio e vincule-os às faturas. Enquanto isso não for feito, o caixa dos convênios não fecha.", "csi"),
+    "fin_data_invalida": (["Financeiro > Lançamento, buscando pelo número do lançamento"], "Abra o lançamento e corrija o ano (0206 vira 2026) na data de vencimento. Repita para os outros da lista.", "csi"),
+    "fin_sem_conciliacao": (["Financeiro > Conciliação Bancária (e Conciliação Cartão de Crédito)", "Relatórios > Conciliação Organizada (Lançamentos) (#13758)"], "Importe o extrato do banco e concilie lançamento por lançamento. Se a conciliação ainda não é rotina, justifique com a data em que vai começar.", "csi"),
+    "des_zero": (["Financeiro > Lançamento, período do mês do aviso"], "Preencha o valor do lançamento ou exclua se ele não é mais necessário.", "csi"),
+    "des_repetidas": (["Financeiro > Lançamento, período do mês do aviso (o aviso traz os números dos lançamentos)"], "Abra cada grupo. Se foi lançado duas vezes por engano, cancele o duplicado. Se são parcelas ou itens iguais de verdade, justifique.", "csi"),
+    "des_sem_fornecedor": (["Financeiro > Lançamento, buscando pelo número do lançamento"], "Abra o lançamento e informe o fornecedor.", "csi"),
+    "sup_encerrados": (["Suprimentos > Atendimento"], "Confira se foi cancelamento ou falta de estoque. Se for, justifique.", "gestao"),
+    "sup_parciais": (["Suprimentos > Atendimento"], "Veja com o estoque o que ficou faltando entregar; se foi decisão, justifique.", "gestao"),
+    "sup_sem_setor": (["Suprimentos > Atendimento, abrindo cada solicitação"], "Preencha o setor (centro de custo) na solicitação.", "csi"),
+    "sup_pendentes": (["Suprimentos > Atendimento", "Relatórios > Solicitações Pendentes e Faltas - Diário (#13225)"], "Se o material já foi entregue, registre o atendimento da solicitação. Se não foi, atenda ou cancele. A fila fica inflada enquanto isso não for feito.", "csi"),
+    "sup_setores": (["Suprimentos > Atendimento, por setor solicitante"], "Atenda ou cancele os pedidos desse setor (junto com o aviso de pedidos parados).", "csi"),
+    "sup_sem_baixa": (["Suprimentos > Movimentações"], "Lance a baixa de consumo dos procedimentos. Sem baixa, o saldo mostra mais material do que existe.", "csi"),
+    "sup_baixa_zero": (["Suprimentos > Movimentações, filtrando baixas"], "Corrija a quantidade das baixas zeradas, ou apague o registro vazio se foi erro.", "csi"),
+    "sup_entregue_sem_baixa": (["Suprimentos > Movimentações", "Relatórios > Consumo por Grupo, Local e Item (#13220)"], "Lance a baixa de consumo desses itens por setor. Sem ela não se sabe o custo por procedimento.", "csi"),
+    "sup_sem_lancamento": (["Suprimentos > Item de Estoque", "Suprimentos > Gestão de Estoque"], "Lance a entrada ou o inventário inicial. Medicamentos de sedação exigem controle rigoroso. Se o item deixou de ser usado, inative-o.", "csi"),
+    "sup_zerado": (["Suprimentos > Saldos"], "Faça a compra ou registre a entrada. Se o item não é mais usado, cancele o pedido.", "csi"),
+    "sup_falta": (["Suprimentos > Saldos, comparando com Atendimento"], "Atenda o que o estoque cobre e abra compra do resto (Suprimentos > Compra).", "csi"),
+    "sup_baixo": (["Suprimentos > Saldos"], "Abra compra desses itens (Suprimentos > Compra).", "csi"),
+    "sup_valor_concentrado": (["Suprimentos > Item de Estoque, abrindo o item da lista"], "Confira se o custo cadastrado é por frasco ou caixa enquanto a quantidade está em mL. Se estiver, corrija a unidade ou o custo.", "csi"),
+    "sup_sem_custo": (["Suprimentos > Item de Estoque (custo unitário)"], "Cadastre o valor unitário dos itens sem custo. Sem isso o custo de consumo não é calculável.", "csi"),
+    "sup_saldo_negativo": (["Suprimentos > Saldos"], "Lance a entrada que falta ou corrija a baixa.", "csi"),
+    "sup_transferencias": (["Suprimentos > Movimentações, tipo Transferência"], "Complete o lançamento que ficou sem par (saída ou entrada).", "csi"),
+    "sup_baixas_bloco": (["Suprimentos > Movimentações, no dia do bloco"], "Foi lançamento retroativo, não consumo daquele dia. Justifique e combine o lançamento diário.", "gestao"),
+    "sup_um_usuario": (["Suprimentos > Movimentações, coluna de usuário"], "Não se corrige. Defina um segundo responsável pelos lançamentos e justifique.", "gestao"),
+    "ind_guias_pendentes": (["Faturamento > Guias, Situação Pendente na Recepção (PR)", "Relatórios > Guias com Pendências da Recepção (#98) e Atendimentos com Pendências de Guias da Recepção (#108)"], "Entregue a lista à recepção, separada por motivo. Cada guia é corrigida na recepção e sai do status PR.", "csi"),
+    "ind_sem_protocolo": (["Faturamento > Faturas"], "Informe o protocolo em cada fatura enviada: o aviso cai nos dois painéis (Faturamento e Indicadores).", "csi"),
+    "ind_sem_conciliacao": (["Financeiro > Conciliação Bancária"], "Concilie as baixas com o extrato do banco.", "csi"),
+    "ind_baixas_mistura": (["Relatórios > relatório de Baixas, no Editor de Relatório"], "Inclua a coluna “Lançamento - Tipo”. Com ela o painel separa receita de despesa.", "csi"),
+    "ind_glosas_vazio": (["Relatórios > Faturamento - Glosas e Recursos (#13375)"], "Só passa a ter linhas quando houver glosa registrada. Se já houve glosa, confira o filtro; se não, justifique “ainda sem glosas”.", "gestao"),
+    "ind_recebido_diverge": (["Relatórios > Guias e Controle por Convênio (#13329)"], "Procure o convênio com diferença e a guia lançada fora do mês.", "csi"),
+    "ind_sem_fonte": (["Relatórios > relatório de antecipação de baixas"], "Guia retida pela operadora só aparece no portal da operadora. Para o Antecipado, peça ao Klingo um campo de antecipação no relatório de baixas, ou justifique.", "klingo"),
+    "cesta_menor_fat": (["Relatórios > Atendimentos - Base Cesta de Exames - Mensal (#13280)", "Faturamento > Guias"], "O painel já ajusta sozinho (distribui a diferença): nada a corrigir, basta justificar.", "gestao"),
+    "cesta_atend_queda": (["Relatórios > Base Cesta de Exames (#13280), comparando o mês com o anterior até o mesmo dia"], "Se a queda é real (sazonal, agenda, feriados), justifique. Se falta lançamento, procure a recepção.", "gestao"),
+    "cesta_ticket_queda": (["Relatórios > Base Cesta de Exames (#13280)", "Relatórios > TABELAS DE PREÇO (#12003)"], "Veja os exames e convênios com valor menor que no mês anterior e as linhas de R$ 0.", "gestao"),
+    "cesta_multi_queda": (["Relatórios > Base Cesta de Exames (#13280)"], "Veja quais exames costumam sair juntos e se a recepção está registrando tudo no mesmo atendimento.", "gestao"),
+    "cesta_valor_zero": (["Relatórios > Base Cesta de Exames (#13280), no mês do aviso", "Relatórios > TABELAS DE PREÇO (#12003)"], "Retorno e cortesia não se cobram: são esperados. Para Consulta Particular e Consulta Planserv, confira se falta preço na tabela do convênio e cadastre. Depois justifique o que sobrar.", "gestao"),
+    "cesta_poucos_multi": (["Relatórios > Base Cesta de Exames (#13280), filtrando o convênio"], "Confira no Klingo se o convênio registra cada exame como atendimento separado. Se for regra do convênio, justifique.", "gestao"),
+    "cesta_combos_vazios": (["Relatórios > Base Cesta de Exames (#13280), colunas Combo e Grupo do Procedimento"], "Não há combos cadastrados no Klingo, por isso o painel deduz pelo nome. Justifique, ou peça ao Klingo para cadastrar combos.", "klingo"),
+    "cesta_idade": (["Menu principal, caixa Paciente no topo, buscando o número do paciente"], "Abra o cadastro e corrija a data de nascimento. A idade impossível é agrupada em “90+” até lá.", "csi"),
+    "cesta_sem_sexo": (["Relatórios > Exames por Faixa Etária e Sexo (#13284), buscando o paciente com sexo N/I"], "Abra o cadastro desses pacientes e preencha o sexo.", "csi"),
+    "ate_abertos": (["Relatórios > Atendimentos - Visão Gerencial de Produtividade, Espera e Receita - Mensal (#13402)"], "Esse status só muda no Klingo (por exemplo, no fechamento da conta). Confirme com o suporte do Klingo e marque como resolvido.", "klingo"),
+    "ate_sem_horario": (["Assistência > Atendimento", "Relatórios > Atendimentos (#13402)"], "Sem início e fim não há espera nem duração. Oriente os usuários da coluna Usuário Responsável a marcar início e fim.", "csi"),
+    "ate_valor_zero": (["Relatórios > Atendimentos (#13402)", "Relatórios > TABELAS DE PREÇO (#12003)"], "Se for cortesia ou retorno, justifique. Se falta preço na tabela do convênio, cadastre o preço para o faturamento não deixar de receber.", "gestao"),
+    "ate_horario": (["Assistência > Atendimento"], "Corrija os horários no atendimento ou oriente os usuários a marcar na hora certa. Esses atendimentos ficam fora das médias de espera e duração.", "csi"),
+    "ate_fim_junto": (["Assistência > Atendimento"], "A duração real não existe, então fica fora das médias. Oriente os usuários a marcar início e fim de verdade.", "csi"),
+    "ate_sem_checkin": (["Recepção"], "Sem check-in não dá para medir a espera. Peça à recepção que faça o check-in de todo paciente.", "csi"),
+    "ate_etapa_aberta": (["Recepção"], "O paciente já foi embora, mas o fluxo não fechou. Feche as etapas pendentes na Recepção.", "csi"),
+    "ate_ea_curta": (["Assistência > Atendimento"], "A etapa é aberta e fechada no mesmo instante e não mede o exame. Oriente os profissionais a abrir “Em Atendimento” quando o exame começa e a Finalizar quando termina.", "csi"),
+    "ate_sem_final": (["Assistência > Atendimento"], "Finalize esses atendimentos.", "csi"),
+    "ate_dif_fluxo": (["Relatórios > Atendimentos (#13402) e Tempos de Espera e Fluxo na Recepção (#13404)"], "Confira se os dois relatórios usam o mesmo período e unidade; o resto é check-in que faltou na recepção.", "csi"),
+    "ate_espera": (["Relatórios > Tempos de Espera e Fluxo na Recepção - Mensal (#13404)"], "Não é erro de dado: é espera real. Reúna a recepção, ataque a fila de chamada nos horários de pico e justifique com o plano.", "gestao"),
+    "ate_duracao": (["Relatórios > Atendimentos (#13402)"], "Veja se faz exames mais longos ou se esquece de finalizar. Se for exame mais complexo, justifique.", "gestao"),
+    "ate_producao": (["Relatórios > Atendimentos (#13402), por profissional"], "Compare com a agenda dele: poucos dias de atendimento ou demanda baixa explicam a diferença. Justifique depois de conferir.", "gestao"),
+    "ate_queda": (["Relatórios > Atendimentos (#13402), comparando com o mês anterior"], "Se a queda é real (sazonal, agenda, feriados), justifique. Se falta lançamento, procure a recepção.", "gestao"),
+    "ate_metas": (["Relatórios > Acompanhamento de Metas por Unidade e Procedimento - Mensal (#13339)"], "Decisão de gestão. Se a meta está certa, justifique com o plano para recuperar. Se a meta é alta ou a demanda é baixa, veja “Metas que parecem desalinhadas”.", "gestao"),
+    "ate_metas_revisar": (["Relatórios > Acompanhamento de Metas (#13339)"], "O painel não mexe no metas.json: a decisão é da gestão. Revise a meta ou justifique que a demanda é baixa.", "gestao"),
+    "ate_sem_meta": (["Relatórios > Acompanhamento de Metas (#13339)"], "Isso não se corrige no Klingo. Se algum desses procedimentos deve ter meta, inclua no metas.json do app de indicadores. Se não deve, justifique.", "gestao"),
+    "ate_dif_metas": (["Relatórios > Atendimentos (#13402) e Acompanhamento de Metas (#13339)"], "As bases são atualizadas em horários diferentes: atualize as duas. Se persistir, confira os filtros dos relatórios.", "csi"),
+    "ate_fora_expediente": (["Relatórios > Atendimentos (#13402)"], "O expediente e os dias de atendimento são os do painel Metas. Se a clínica atendeu de fato nesses dias, ajuste o calendário. Senão, justifique.", "gestao"),
+    "ate_teste": (["Assistência > Atendimento"], "Cancele o atendimento de teste no Klingo: ele conta nos totais e nas metas até sair.", "csi"),
+}
 _COMPILADAS = [(p, re.compile(rx), i, rels, passos, res) for p, rx, i, rels, passos, res in REGRAS]
 
 
@@ -406,6 +487,9 @@ def anotar(painel: str, alertas: list[dict], escopo: str = "") -> list[dict]:
         _, _, ident, rels, passos, resolve = achou
         a["id"], a["escopo"] = ident, (escopo if ident in ESCOPO_MES else "")
         a["guia"] = {"relatorios": [_relatorio(r) for r in rels], "passos": passos, "resolve": resolve}
+        if ident in COMO:
+            caminho, fazer, quem = COMO[ident]
+            a["guia"].update({"caminho": caminho, "fazer": fazer, "quem": quem})
         if ident in DICAS:
             a["guia"]["dica"] = DICAS[ident]
         if ident in ATUALIZACOES:

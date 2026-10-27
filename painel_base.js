@@ -53,7 +53,10 @@ function guiaHtml(a) {
   }
   const dica = g.dica ? `<p class="al-dica"><b>Dica:</b> ${esc(g.dica)}</p>` : '';
   const atualizacao = g.atualizacao ? `<p class="al-dica"><b>Painel atualizado em ${dataBR(g.atualizacao.em)}:</b> ${esc(g.atualizacao.texto)}</p>` : '';
-  return `<div class="al-guia" hidden><h4>Onde olhar</h4><div class="al-links">${links}</div>` +
+  const QUEM = { csi: 'Equipe da CSI: corrigir no Klingo', gestao: 'Gestão: decidir e justificar', klingo: 'Cobrar do Klingo/Yotech' };
+  const resumo = (g.caminho && g.caminho.length ? `<p><b>Onde olhar no Klingo:</b> ${g.caminho.map(esc).join(' · ')}</p>` : '') +
+    (g.fazer ? `<p><b>O que fazer:</b> ${esc(g.fazer)}</p>` : '') + (QUEM[g.quem] ? `<p><b>Quem resolve:</b> ${QUEM[g.quem]}</p>` : '');
+  return `<div class="al-guia" hidden>${resumo ? `<div class="al-dica">${resumo}</div>` : ''}<h4>Relatórios</h4><div class="al-links">${links}</div>` +
     `<h4>Passo a passo</h4><ol>${passos}</ol>${dica}${atualizacao}${tab}` +
     `<p class="al-resolve"><b>Quando o painel considera resolvido:</b> ${esc(g.resolve)} Depois de corrigir no Klingo, use <b>Atualizar agora</b> para conferir.</p></div>`;
 }

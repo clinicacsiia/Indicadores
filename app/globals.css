@@ -2610,6 +2610,30 @@ select {
   background: var(--brand-soft);
   color: var(--ink);
 }
+.aviso-resumo {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--brand);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--brand-soft);
+}
+.aviso-resumo dt {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.aviso-resumo dd {
+  margin: 2px 0 0;
+  color: var(--ink);
+}
+.aviso-caminho {
+  display: block;
+  font-weight: 600;
+}
 .aviso-dica[data-tom="ok"] {
   border-left-color: var(--ok);
   background: var(--ok-soft);

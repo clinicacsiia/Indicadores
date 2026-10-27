@@ -80,6 +80,16 @@ class ColetarTest(unittest.TestCase):
         self.assertNotIn("dica", outro["guia"])
         self.assertNotIn("atualizacao", outro["guia"])
 
+    def test_todo_alerta_ensina_onde_olhar_o_que_fazer_e_quem_resolve(self):
+        self.assertEqual({r[2] for r in gp.REGRAS}, set(gp.COMO))
+        for ident, (caminho, fazer, quem) in gp.COMO.items():
+            self.assertTrue(caminho and fazer, ident)
+            self.assertIn(quem, gp.QUEM, ident)
+        a = {"nivel": "atencao", "titulo": "Faturas ativas sem valor", "texto": "x"}
+        gp.anotar("faturamento", [a])
+        self.assertEqual(a["guia"]["caminho"], ["Faturamento > Faturas"])
+        self.assertEqual(a["guia"]["quem"], "csi")
+
     def test_sem_meses_nao_sincroniza(self):
         chamadas = []
         antes = avisos.arm.sincronizar_avisos
