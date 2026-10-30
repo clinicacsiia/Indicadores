@@ -54,7 +54,7 @@ def lista_despesas(df: pd.DataFrame, hoje: date, limite: int, vencidas: bool) ->
 def itens_despesas(df: pd.DataFrame, hoje: date, vencidas: bool, com_atraso: bool = False) -> dict:
     """Tabela 'quais sao' dos lancamentos: vencidas=True ordena pelo maior valor; senao, pelo vencimento mais proximo."""
     colunas = ["Lançamento", "Histórico", "Categoria", "Empresa", "Vencimento"] + (["Dias de atraso"] if com_atraso else []) + ["Valor"]
-    linhas = [[x["id"], x["historico"], x["categoria"], x["empresa"], gp.dbr(x["vencimento"])] + ([x["dias"]] if com_atraso else []) + [gp.reais(x["valor"])]
+    linhas = [[gp.cerquilha(x["id"]), x["historico"], x["categoria"], x["empresa"], gp.dbr(x["vencimento"])] + ([x["dias"]] if com_atraso else []) + [gp.reais(x["valor"])]
               for x in lista_despesas(df, hoje, gp.MAX_ITENS, vencidas)]
     return gp.tabela(colunas, linhas, total=len(df), numericas=(0, len(colunas) - 1) + ((len(colunas) - 2,) if com_atraso else ()))
 
@@ -263,9 +263,9 @@ def gerar(de: str | None = None, ate: str | None = None, devolver_html: bool = F
         if len(invalidas):
             atencao.append({"nivel": "atencao", "titulo": "Lançamentos com data inválida",
                             "itens": gp.tabela(["Lançamento", "Histórico", "Data com erro", "Emissão", "Valor"],
-                                               [[r["Lançamento"], r["Histórico"], r["Alerta"], gp.dbr(r["Emissão"]), gp.reais(r["Valor"])] for _, r in invalidas.iterrows()],
+                                               [[gp.cerquilha(r["Lançamento"]), r["Histórico"], r["Alerta"], gp.dbr(r["Emissão"]), gp.reais(r["Valor"])] for _, r in invalidas.iterrows()],
                                                total=len(invalidas), numericas=(0, 4)),
-                            "texto": f"<b>{len(invalidas)}</b> lançamento(s) têm data com erro de digitação (ex.: {html.escape(str(invalidas.iloc[0]['Alerta']))}, lançamento {int(invalidas.iloc[0]['Lançamento'])}). "
+                            "texto": f"<b>{len(invalidas)}</b> lançamento(s) têm data com erro de digitação (ex.: {html.escape(str(invalidas.iloc[0]['Alerta']))}, lançamento {gp.cerquilha(invalidas.iloc[0]['Lançamento'])}). "
                                      "Eles ficam fora dos cálculos por vencimento até a data ser corrigida no Klingo."})
         conciliados = float(lanc["Conciliado"].notna().mean() * 100) if "Conciliado" in lanc else 0.0
         extras["conciliado_pct"] = conciliados

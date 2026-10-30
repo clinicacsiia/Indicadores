@@ -474,6 +474,13 @@ def tabela(colunas: list[str], linhas: list[list], total: int | None = None, num
     return {"colunas": colunas, "linhas": linhas, "total": int(total if total is not None else len(linhas)), "numericas": list(numericas)}
 
 
+def cerquilha(c) -> str:
+    """Numero de guia/lancamento/fatura com '#' na frente (ex.: #123), para achar no Klingo; vazio se nao ha numero."""
+    if c is None or (not isinstance(c, str) and c != c) or c == "":
+        return ""
+    return f"#{int(c)}" if not isinstance(c, str) else f"#{c}"
+
+
 def anotar(painel: str, alertas: list[dict], escopo: str = "") -> list[dict]:
     """Poe id, escopo e guia nos alertas que tem regra. Devolve a mesma lista."""
     for a in alertas:
