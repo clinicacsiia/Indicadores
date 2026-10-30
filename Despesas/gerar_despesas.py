@@ -235,7 +235,7 @@ def linha_lancamento(r) -> dict:
 
 def itens_lancamentos(x: pd.DataFrame) -> dict:
     """Tabela 'quais sao' dos alertas sobre lancamentos."""
-    linhas = [["" if pd.isna(r["ID"]) else int(r["ID"]), gp.dbr(r["Vencimento"]), r["Despesa"], texto(r["Fornecedor"], "(sem fornecedor)"), texto(r["Descrição"]), gp.reais(r["Bruto"])]
+    linhas = [[gp.cerquilha(r["ID"]), gp.dbr(r["Vencimento"]), r["Despesa"], texto(r["Fornecedor"], "(sem fornecedor)"), texto(r["Descrição"]), gp.reais(r["Bruto"])]
               for _, r in x.iterrows()]
     return gp.tabela(["Lançamento", "Vencimento", "Categoria", "Fornecedor", "Descrição", "Valor"], linhas, total=len(x), numericas=(0, 5))
 

@@ -322,7 +322,7 @@ def alertas_gerais(d: dict, glosas: dict, hoje: date) -> list[dict]:
             ops = ", ".join(f"{html.escape(str(o))} ({n})" for o, n in pend["Operadora - Nome"].value_counts().head(3).items())
             out.append({"nivel": "atencao", "titulo": "Guias pendentes de correção",
                         "itens": gp.tabela(["Guia (Id)", "Nº da guia (prestador)", "Data", "Convênio", "Paciente", "Pendência / motivo"],
-                                           [[r["Guia - Id"], r["Guia - Número da Guia do Prestador"], gp.dbr(r["Guia - Data"]), r["Operadora - Nome"], r["Paciente - Nome"],
+                                           [[f"#{int(r['Guia - Id'])}", r["Guia - Número da Guia do Prestador"], gp.dbr(r["Guia - Data"]), r["Operadora - Nome"], r["Paciente - Nome"],
                                              r["Guia - Pendência / Motivo Glosa"]] for _, r in pend.sort_values("Guia - Data").iterrows()], total=len(pend), numericas=(0,)),
                         "texto": f"<b>{len(pend)}</b> guia(s) estão “Pendente Recepção” (todas as competências). Motivos mais comuns: {top}. Mais guias nas operadoras: {ops}."})
     if len(f):
