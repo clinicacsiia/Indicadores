@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { PAINEIS, PERMISSAO_ATENDIMENTO_VISAO, PERMISSAO_FINANCEIRA, RESPONSAVEIS_ATENDIMENTO } from "@/lib/paineis";
+import { PERMISSAO_JORNADA } from "@/lib/jornada";
 import { BLOQUEIO_PENDENTE, DOMINIO_INTERNO } from "@/lib/acesso";
 import { metasConfig, mesesParaMudarMeta, SERVICOS_METAS } from "@/lib/metas/config";
 import { agoraSaoPaulo, agruparAlteracoes, metaDoMes } from "@/lib/metas/calculo";
@@ -59,6 +60,7 @@ export async function salvarUsuario(
   if ("error" in visao) return { error: visao.error };
   const acesso: Record<string, boolean | string> = {
     metas: formData.get("metas") === "on",
+    [PERMISSAO_JORNADA]: formData.get(PERMISSAO_JORNADA) === "on",
     [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
     // Painéis em Python: cada um é uma chave em profiles.permissions (o id do painel).
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
@@ -251,6 +253,7 @@ export async function aprovarSolicitacao(
   if ("error" in visao) return { error: visao.error };
   const permissions: Record<string, boolean | string> = {
     metas: formData.get("metas") === "on",
+    [PERMISSAO_JORNADA]: formData.get(PERMISSAO_JORNADA) === "on",
     [PERMISSAO_FINANCEIRA]: formData.get(PERMISSAO_FINANCEIRA) === "on",
     ...Object.fromEntries(PAINEIS.map((p) => [p.id, formData.get(`painel_${p.id}`) === "on"])),
     ...visao.acesso,
