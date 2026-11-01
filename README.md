@@ -815,13 +815,8 @@ Migration `20261101190000_jornada_portal_paciente.sql` (teste em `supabase/tests
 - **Efeito para a equipe:** confirmar presença marca o cartão ("✔ site"), fecha a tarefa "Confirmar presença" e cria "Registrar no Klingo a confirmação feita pelo paciente" (o site ainda **não escreve no Klingo**); pedir remarcação cria tarefa (vence em 1 h), sobe a prioridade e entra na conversa; mensagem do paciente cria a tarefa
   "Responder a mensagem do paciente", que a resposta da equipe fecha sozinha. Tudo fica no histórico do cartão. A equipe conversa em duas abas no cartão: **Equipe** (interna) e **Paciente** (o paciente lê).
 - **Proteções:** código errado é contado por origem (hash do IP + `PORTAL_SAL`, opcional): 30 por hora e a origem é bloqueada (`tentativas_por_hora`); no máximo 20 mensagens por hora por cartão (`mensagens_por_hora`); mensagem de 1 a 1000 letras; o paciente só confirma/remarca cartão de hoje em diante que ainda esteja em "A confirmar" ou "Confirmado".
-- **Para ligar:** `update public.jornada_config set portal_ativo = true;` (só depois de resolver o jurídico **e de dar um endereço público ao site**: a Vercel protege os endereços `.vercel.app` com login da Vercel, e o paciente não passa dali; ver a pendência "Dar um endereço público ao portal"). Desligar: `... = false`.
+- **Para ligar:** `update public.jornada_config set portal_ativo = true;` (só depois de resolver o jurídico). Desligar: `... = false`.
 - **Não faz:** laudo, resultado de exame, documentos, login com senha/código por SMS, aviso automático ao paciente (a equipe envia o link) e escrita no Klingo.
-
-### Espaço do banco e limpeza do histórico
-
-O plano gratuito limita o banco a 500 MB e a coleta tem um freio em **470 MB** (`proximos_trabalhos` não devolve nada acima disso). Em 01/11/2026: 424 MB, crescendo ~1 MB por dia; 334 MB são `fact_relatorio_linha` (o #13404 é 21%) e 43 MB `sync_relatorio_runs`.
-`supabase/limpeza_historico.sql` (rodar no SQL Editor; o MCP não apaga) mostra e apaga as versões de linha substituídas há mais de 14 dias (nunca em relatório com `reter_sempre`) e as execuções antigas da coleta, e explica por que **não** se roda `VACUUM FULL` na tabela grande.
 
 ### Regras para somar e cruzar os dados
 
