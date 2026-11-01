@@ -255,6 +255,10 @@ no comentário da migration); a função, pelo `apply_migration` (`create or rep
 As consultas do site são rápidas sozinhas (agenda ~0,3 s, Início ~0,2 s), mas ficavam 10 a 20 vezes mais lentas com o banco ocupado. O que mais ocupava era `proximos_trabalhos` (coleta automática, a cada 5 min):
 ~5 s e 472 mil blocos por chamada, por falta de índice em `sync_relatorio_runs (relatorio_id, periodo, status)`. Com o índice: ~0,2 s e 46 mil blocos. Aplicada pelo `apply_migration` (só `create index`).
 
+**01/11/2026, `20261101120000_coleta_ritmo.sql`:** coleta adaptativa da Jornada (ver "Coleta adaptativa da Jornada"). Aplicada em 6 partes pelo `apply_migration` (tabelas; regras do ritmo; trigger, `acordar_coleta`, `status_ritmo_coleta`
+e `proximos_trabalhos_ritmo`; trigger e `proximos_trabalhos` novos; pendência, relatórios no ritmo e cron; e o ajuste do vencimento ao minuto cheio) — só `create`, `grant` e `insert`. Antes dela, a Edge Function
+`sync-relatorios-dw` foi publicada na versão que entende `{"ritmo": true}` (versão 16): ordem importa, porque o cron novo chama a função com esse campo.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -681,6 +685,37 @@ where klingo_id = '13339';
 - Vários relatórios (Faturamento, Financeiro, Cesta etc.) também são baixados pelos painéis em Python
   para `painel_dados`. Não é preciso mantê-los nos dois lugares: se um painel já cobre o relatório,
   deixe `ativo = false` aqui (`update public.dim_relatorio set ativo = false where klingo_id = '...'`).
+
+### Coleta adaptativa da Jornada (1 minuto) e barra de atualização
+
+Os relatórios do acompanhamento do paciente são lidos num ritmo próprio, que se ajusta ao movimento (migration `20261101120000_coleta_ritmo.sql`; teste
+`supabase/tests/coleta_ritmo.sql`, ver o cabeçalho). Hoje entram: **#13404** (Fluxo na Recepção, do dia, mínimo 1 min) e **#13825** (Agendamentos por Marcação, do mês,
+mínimo **15 min** por enquanto: ele filtra pela data em que a marcação foi *feita* e cada leitura traz ~8,5 mil linhas em ~16 s; vira 1 min quando existir o relatório por data
+do exame, ver o aviso abaixo).
+
+| Marcha | Quando | Intervalo |
+| --- | --- | --- |
+| Ao vivo | dentro do expediente de coleta (06:30–18:30, segunda a sábado, sem feriado) ou com movimento | o mínimo do relatório |
+| Calmo | fora do expediente, depois de 15 leituras seguidas sem mudança | 5, 15 e 60 min (um degrau por leitura) |
+| Dormindo | idem, no teto (`teto_min`, 60) | 60 min, e nunca além da abertura do expediente seguinte |
+
+- **Movimento** = a leitura gravou linha nova ou alterada em `fact_relatorio_linha` (`first_seen_at` depois do início da leitura), ou alguém abriu o painel (`acordar_coleta`,
+  no máximo a cada 20 s, só acorda quem não estava ao vivo). Volta ao mínimo na hora; só desacelera de novo depois de 15 leituras sem mudança.
+- **Como funciona:** o cron `coleta-ritmo-1min` roda todo minuto e só chama a Edge Function (`{"modo":"auto","ritmo":true}`) se algum relatório de `coleta_ritmo` venceu
+  (`proximos_trabalhos_ritmo`). Um trigger em `sync_relatorio_runs` (`coleta_ritmo_registrar`) atualiza marcha e próxima leitura ao fim de cada leitura; o vencimento conta do
+  **minuto cheio em que a leitura começou**, senão a leitura sairia a cada 2 min. Erro: espera 5, 10, 20 e 30 min (não usa a pausa de 6 h do disjuntor). A lista geral
+  (`proximos_trabalhos`, cron de 5 min) deixou de ler o dia/mês corrente de quem tem ritmo; os períodos anteriores seguem nela.
+- **Configuração** (SQL Editor): `coleta_ritmo_config` (expediente, `dias_semana` ISO, `feriados`, `teto_min`, `passos`, `leituras_para_desacelerar`) e, por relatório,
+  `coleta_ritmo.minimo_min`/`ativo`. Relatório novo no ritmo: `insert into public.coleta_ritmo (relatorio_id, minimo_min, intervalo_atual_min) select id, 1, 1 from public.dim_relatorio where klingo_id = '...'`
+  (o filtro de período do relatório precisa estar comprovado). Para parar: `update public.coleta_ritmo set ativo = false` (volta para a lista geral) e `cron.unschedule('coleta-ritmo-1min')`.
+- **Barra de atualização** (`app/components/BarraColeta.tsx`, `lib/coleta-ritmo.ts`; hoje na tela Início, pronta para o quadro da Jornada): "Ao vivo / Calmo / Dormindo / Atrasado /
+  Falha na leitura", há quanto tempo foi a última leitura, quando é a próxima (relógio do servidor) e, em "Por relatório", o último movimento. Lê `status_ritmo_coleta()` a cada 10 s
+  e acorda a coleta ao abrir ou voltar para a aba.
+- **Pendência "Jornada do paciente: relatórios do Klingo a criar ou alterar"** (aba Avisos, painel Atendimento, escopo `jornada`; `jornada_pendencias_sincronizar()`, todo dia às 06:00):
+  descreve o relatório **"Jornada do Paciente - Marcações por Data do Exame"** (filtro por data do exame e por "Alterado em", uma linha por marcação, com Id da Marcação, Id do
+  Atendimento, Prontuário, situação, confirmação, check-in, início/fim, laudo, autorização e carimbo de última alteração) e pede **Id do Atendimento / Id da Marcação / Prontuário** nos
+  relatórios #13404 e #13402. Resolve sozinha quando o relatório existir e as colunas aparecerem. O escopo `jornada` existe para a conferência do painel Python (escopos `""` e `AAAA-MM`) não resolvê-la por engano.
+- **Limite:** sem o relatório por data do exame, a leitura de 1 min só enxerga marcações **novas**; cancelamento, confirmação e atendimento de marcação antiga só aparecem na releitura do mês.
 
 ### Regras para somar e cruzar os dados
 
