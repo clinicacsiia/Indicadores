@@ -1,5 +1,5 @@
--- Testa as migrations 20261101140000_jornada_modelo.sql, 20261101150000_jornada_pendencias.sql e 20261101160000_jornada_sincronizar.sql e 20261101170000_jornada_tempo_real.sql (quadro da Jornada: colunas,
--- regras do Klingo, movimentos à mão, chat, permissões, pendências, a leitura do #13825 que cria e move os cards e os avisos em tempo real) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
+-- Testa as migrations 20261101140000_jornada_modelo.sql, 20261101150000_jornada_pendencias.sql e 20261101160000_jornada_sincronizar.sql e 20261101170000_jornada_tempo_real.sql e 20261101180000_jornada_automacoes.sql (quadro da Jornada: colunas,
+-- regras do Klingo, movimentos à mão, chat, permissões, pendências, a leitura do #13825 que cria e move os cards, os avisos em tempo real e as automações da equipe) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
 --
 --   createdb jornada_teste && psql -v ON_ERROR_STOP=1 -d jornada_teste -f supabase/tests/jornada.sql    (na raiz do repositório)
 --
@@ -62,6 +62,7 @@ insert into public.dim_relatorio (klingo_id, nome, granularidade, filtro_periodo
 \i supabase/migrations/20261101150000_jornada_pendencias.sql
 \i supabase/migrations/20261101160000_jornada_sincronizar.sql
 \i supabase/migrations/20261101170000_jornada_tempo_real.sql
+\i supabase/migrations/20261101180000_jornada_automacoes.sql
 
 -- gente: admin, quem tem a permissão da Jornada, quem não tem
 insert into public.profiles (id, email, role, permissions, status) values
@@ -333,7 +334,7 @@ declare n integer; a public.aviso%rowtype;
 begin
   perform public.jornada_pendencias_sincronizar();
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 16 then raise exception 'esperava 16 avisos abertos (1 de relatórios + 15 pendências), achei %', n; end if;
+  if n <> 19 then raise exception 'esperava 19 avisos abertos (1 de relatórios + 18 pendências), achei %', n; end if;
   select * into a from public.aviso where painel = 'atendimento' and chave = 'jornada|api_escrita_klingo';
   if not found or a.nivel <> 'atencao' or not a.persistente or a.sensivel or jsonb_array_length(a.guia -> 'passos') < 1 then raise exception 'pendência da API do Klingo mal formada: %', row_to_json(a); end if;
   if a.titulo not like 'Jornada (etapa 2): %' then raise exception 'título sem a etapa: %', a.titulo; end if;
@@ -341,7 +342,7 @@ begin
   -- a conferência do painel Python não resolve as pendências da Jornada
   perform public.aviso_sincronizar('atendimento', array['', '2026-11'], 1, '[]'::jsonb);
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 16 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
+  if n <> 19 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
 
   -- pendência desativada some sozinha; nova aparece
   update public.jornada_pendencia set ativa = false where chave = 'feriados';
@@ -545,6 +546,135 @@ begin
   select count(*) into n from realtime.messages;
   reset role;
   if n <> 0 then raise exception 'a política vale só para canais "jornada:"'; end if;
+end $$;
+
+-- ---------------------------------------------------------------- 13. automações da equipe: checklist, tarefas, prioridade e escala
+do $$
+declare
+  hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+  ana uuid := '00000000-0000-0000-0000-00000000000b'; adm uuid := '00000000-0000-0000-0000-00000000000a'; bia uuid := '00000000-0000-0000-0000-00000000000c';
+  c1 bigint; c2 bigint; c3 bigint; cf bigint; cf2 bigint; ck bigint; res jsonb; n integer; ver integer; t bigint; dif integer;
+begin
+  if (select count(*) from public.jornada_regra) <> 5 or (select count(*) from public.jornada_checklist_modelo) <> 6 then raise exception 'regras e modelo de checklist semeados errado'; end if;
+
+  -- checklist ao entrar na coluna: 3 itens em Chegou, sem repetir ao sair e voltar
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('K1', hoje, 'CSI 1', 'confirmado') returning id into ck;
+  if (select count(*) from public.jornada_tarefa where card_id = ck) <> 0 then raise exception 'em Confirmado não há checklist'; end if;
+  perform set_config('request.jwt.claim.sub', ana::text, true);
+  select versao into ver from public.jornada_card where id = ck;
+  perform public.jornada_mover_card(ck, 'chegou', ver);
+  if (select count(*) from public.jornada_tarefa where card_id = ck and origem = 'sistema' and chave like 'ck:%') <> 3 then raise exception 'Chegou devia trazer 3 tarefas'; end if;
+  perform public.jornada_mover_card(ck, 'finalizado', ver + 1);
+  update public.jornada_card set coluna = 'chegou' where id = ck;                      -- voltar não repete
+  if (select count(*) from public.jornada_tarefa where card_id = ck) <> 3 then raise exception 'voltar à coluna não pode repetir o checklist'; end if;
+  update public.jornada_regra set ativa = false where chave = 'checklist_por_coluna';
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('K2', hoje, 'CSI 1', 'chegou') returning id into c1;
+  if (select count(*) from public.jornada_tarefa where card_id = c1) <> 0 then raise exception 'regra desligada não cria checklist'; end if;
+  update public.jornada_regra set ativa = true where chave = 'checklist_por_coluna';
+
+  -- confirmar presença: hoje e amanhã sim, daqui a 3 dias não; vence às 16h do dia anterior; não repete
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('R1', hoje, 'CSI 1', 'a_confirmar') returning id into c1;
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('R2', hoje + 1, 'CSI 1', 'a_confirmar') returning id into c2;
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('R3', hoje + 3, 'CSI 1', 'a_confirmar') returning id into c3;
+  res := public.jornada_aplicar_regras();
+  if not exists (select 1 from public.jornada_tarefa where card_id = c1 and chave = 'confirmar') or not exists (select 1 from public.jornada_tarefa where card_id = c2 and chave = 'confirmar') then raise exception 'R1 e R2 devem ter a tarefa de confirmar'; end if;
+  if exists (select 1 from public.jornada_tarefa where card_id = c3) then raise exception 'R3 (daqui a 3 dias) não tem tarefa ainda'; end if;
+  if (select vence_em from public.jornada_tarefa where card_id = c2 and chave = 'confirmar') <> ((hoje)::timestamp + interval '16 hours') at time zone 'America/Sao_Paulo' then raise exception 'confirmar de amanhã vence hoje às 16h'; end if;
+  res := public.jornada_aplicar_regras();
+  if (res ->> 'tarefas_confirmar')::integer <> 0 then raise exception 'segunda rodada não cria tarefa repetida: %', res; end if;
+  update public.jornada_regra set ativa = false where chave = 'confirmar_proximo_dia';
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('R4', hoje, 'CSI 1', 'a_confirmar') returning id into cf;
+  perform public.jornada_aplicar_regras();
+  if exists (select 1 from public.jornada_tarefa where card_id = cf) then raise exception 'regra desligada não cria tarefa'; end if;
+  update public.jornada_regra set ativa = true where chave = 'confirmar_proximo_dia';
+
+  -- faltou: ontem sim, há 5 dias não
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('F1', hoje - 1, 'CSI 1', 'faltou') returning id into cf;
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('F2', hoje - 5, 'CSI 1', 'faltou') returning id into cf2;
+  perform public.jornada_aplicar_regras();
+  if not exists (select 1 from public.jornada_tarefa where card_id = cf and chave = 'remarcar') then raise exception 'quem faltou ontem ganha a tarefa de remarcar'; end if;
+  if exists (select 1 from public.jornada_tarefa where card_id = cf2) then raise exception 'falta antiga não gera tarefa'; end if;
+
+  -- prioridade por atraso (Chegou: prazo de 30 min)
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna, coluna_desde) values ('A1', hoje, 'CSI 1', 'chegou', now() - interval '40 minutes') returning id into c1;
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna, coluna_desde) values ('A2', hoje, 'CSI 1', 'chegou', now() - interval '90 minutes') returning id into c2;
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna, coluna_desde, prioridade) values ('A3', hoje, 'CSI 1', 'chegou', now() - interval '5 minutes', 3) returning id into c3;
+  perform public.jornada_aplicar_regras();
+  if (select prioridade from public.jornada_card where id = c1) <> 2 then raise exception 'atrasado devia ter prioridade 2'; end if;
+  if (select prioridade from public.jornada_card where id = c2) <> 3 then raise exception 'com o dobro do prazo devia ter prioridade 3'; end if;
+  if (select prioridade from public.jornada_card where id = c3) <> 0 then raise exception 'dentro do prazo volta a 0'; end if;
+  if not exists (select 1 from public.jornada_evento where card_id = c2 and tipo = 'prioridade' and origem = 'sistema' and (detalhe ->> 'para')::integer = 3) then raise exception 'faltou o evento de prioridade'; end if;
+  select count(*) into n from public.jornada_evento where card_id = c1 and tipo = 'prioridade';
+  perform public.jornada_aplicar_regras();
+  if (select count(*) from public.jornada_evento where card_id = c1 and tipo = 'prioridade') <> n then raise exception 'não repete o evento de prioridade'; end if;
+
+  -- escala: sem escala nada muda; com escala os cartões sem responsável se dividem
+  update public.jornada_card set responsavel = null where coluna = 'a_confirmar';
+  res := public.jornada_aplicar_regras();
+  if (res ->> 'atribuidos')::integer <> 0 then raise exception 'sem escala não atribui'; end if;
+  insert into public.jornada_escala (coluna, usuario) values ('a_confirmar', adm), ('a_confirmar', ana);
+  res := public.jornada_aplicar_regras();
+  if exists (select 1 from public.jornada_card where coluna = 'a_confirmar' and arquivado_em is null and responsavel is null and paciente_chave not like 'manual:%' and data_ref between hoje - 1 and hoje + 1) then raise exception 'sobrou cartão sem responsável na janela'; end if;
+  select abs((select count(*) from public.jornada_card where responsavel = adm and coluna = 'a_confirmar') - (select count(*) from public.jornada_card where responsavel = ana and coluna = 'a_confirmar')) into dif;
+  if dif > 1 then raise exception 'a escala devia dividir por igual, diferença %', dif; end if;
+  if not exists (select 1 from public.jornada_evento where tipo = 'atribuido' and origem = 'sistema') then raise exception 'faltou o evento de atribuição do sistema'; end if;
+  if (select count(*) from public.jornada_card where coluna = 'a_confirmar' and data_ref = hoje + 3 and responsavel is not null) <> 0 then raise exception 'cartão fora da janela não é atribuído'; end if;
+end $$;
+
+-- tarefas feitas à mão, e o que o quadro mostra delas
+do $$
+declare
+  hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+  ana uuid := '00000000-0000-0000-0000-00000000000b'; bia uuid := '00000000-0000-0000-0000-00000000000c';
+  c bigint; t bigint; v public.v_jornada_quadro%rowtype; n integer;
+begin
+  select id into c from public.jornada_card where paciente_chave = 'K2';
+  perform set_config('request.jwt.claim.sub', bia::text, true);
+  begin perform public.jornada_criar_tarefa(c, 'Ligar para o paciente'); raise exception 'sem permissão devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'Sem permissão%' then raise; end if; end;
+
+  perform set_config('request.jwt.claim.sub', ana::text, true);
+  begin perform public.jornada_criar_tarefa(c, 'ab'); raise exception 'título curto devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'A tarefa precisa%' then raise; end if; end;
+  begin perform public.jornada_criar_tarefa(999999, 'Ligar para o paciente'); raise exception 'card inexistente devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'Card não encontrado%' then raise; end if; end;
+  t := public.jornada_criar_tarefa(c, 'Ligar para o paciente', now() - interval '1 hour');
+  set local role authenticated;
+  select * into v from public.v_jornada_quadro where id = c;
+  reset role;
+  if v.n_tarefas_abertas <> 1 or v.n_tarefas_vencidas <> 1 then raise exception 'o quadro devia mostrar 1 aberta e 1 vencida: %', row_to_json(v); end if;
+
+  perform public.jornada_marcar_tarefa(t);
+  select feita_em, feita_por into strict v.coluna_desde, v.responsavel from public.jornada_tarefa where id = t;
+  if v.responsavel <> ana then raise exception 'devia guardar quem fez'; end if;
+  set local role authenticated;
+  select * into v from public.v_jornada_quadro where id = c;
+  reset role;
+  if v.n_tarefas_abertas <> 0 then raise exception 'feita não conta como aberta'; end if;
+  perform public.jornada_marcar_tarefa(t, false);
+  if (select feita_em from public.jornada_tarefa where id = t) is not null then raise exception 'reabrir devia limpar a conclusão'; end if;
+  select count(*) into n from public.jornada_evento where card_id = c and tipo = 'tarefa';
+  if n <> 3 then raise exception 'devia haver 3 eventos de tarefa (criada, feita, reaberta), há %', n; end if;
+  begin perform public.jornada_marcar_tarefa(999999); raise exception 'tarefa inexistente devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'Tarefa não encontrada%' then raise; end if; end;
+
+  -- quem não tem a permissão não vê tarefas; só o administrador lê as regras
+  perform set_config('request.jwt.claim.sub', bia::text, true);
+  set local role authenticated;
+  if (select count(*) from public.jornada_tarefa) <> 0 then raise exception 'sem permissão não vê tarefas'; end if;
+  reset role;
+  perform set_config('request.jwt.claim.sub', ana::text, true);
+  set local role authenticated;
+  if (select count(*) from public.jornada_regra) <> 0 or (select count(*) from public.jornada_escala) <> 0 then raise exception 'regras e escala são do administrador'; end if;
+  reset role;
+  if has_function_privilege('authenticated', 'public.jornada_aplicar_regras()', 'execute') then raise exception 'só o serviço aplica as regras'; end if;
+  if has_function_privilege('anon', 'public.jornada_criar_tarefa(bigint,text,timestamptz)', 'execute') then raise exception 'anon não cria tarefa'; end if;
+  if not exists (select 1 from cron.agendados where nome = 'jornada-regras' and agenda = '*/5 * * * *') then raise exception 'cron das regras não agendado'; end if;
+
+  -- a tarefa avisa o quadro (o número no cartão se atualiza)
+  select count(*) into n from realtime.messages where topic = 'jornada:quadro';
+  perform public.jornada_marcar_tarefa(t);
+  if (select count(*) from realtime.messages where topic = 'jornada:quadro') <= n then raise exception 'mudar a tarefa devia avisar o quadro'; end if;
 end $$;
 
 \echo JORNADA OK

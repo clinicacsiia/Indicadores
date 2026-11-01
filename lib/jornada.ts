@@ -41,6 +41,8 @@ export type CardJornada = {
   vazio: boolean;
   atrasado: boolean;
   minutos_na_coluna: number;
+  n_tarefas_abertas: number;
+  n_tarefas_vencidas: number;
 };
 
 export type StatusExame = "agendado" | "confirmado" | "atendido" | "cancelado" | "remarcado" | "faltou";
@@ -55,6 +57,15 @@ export type ExameJornada = {
   status: StatusExame;
   confirm_status: string | null;
   cancelamento_motivo: string | null;
+};
+
+export type TarefaJornada = {
+  id: number;
+  card_id: number;
+  titulo: string;
+  origem: "sistema" | "pessoa";
+  vence_em: string | null;
+  feita_em: string | null;
 };
 
 export type TransicaoJornada = { de: string; para: string };
@@ -142,11 +153,12 @@ export type Filtros = {
   operadora: string; // "" = todas
   busca: string;
   responsavel: string; // "" = todos · "meus" · "sem" (sem responsável) · id de uma pessoa
+  soComTarefa: boolean;
   soAtrasados: boolean;
   mostrarVazios: boolean;
 };
 
-export const FILTROS_PADRAO: Filtros = { periodo: "7dias", unidade: "", operadora: "", busca: "", responsavel: "", soAtrasados: false, mostrarVazios: false };
+export const FILTROS_PADRAO: Filtros = { periodo: "7dias", unidade: "", operadora: "", busca: "", responsavel: "", soComTarefa: false, soAtrasados: false, mostrarVazios: false };
 
 // AAAA-MM-DD + n dias (sem fuso: só calendário)
 export function somarDias(dia: string, n: number): string {
@@ -182,6 +194,7 @@ export function filtrarCards(cards: CardJornada[], examesPorCard: Map<number, Ex
     if (f.unidade && c.unidade !== f.unidade) return false;
     if (c.vazio && !f.mostrarVazios) return false;
     if (f.soAtrasados && !c.atrasado) return false;
+    if (f.soComTarefa && c.n_tarefas_abertas === 0) return false;
     if (f.responsavel === "meus" && c.responsavel !== usuarioId) return false;
     if (f.responsavel === "sem" && c.responsavel) return false;
     if (f.responsavel && f.responsavel !== "meus" && f.responsavel !== "sem" && c.responsavel !== f.responsavel) return false;
@@ -267,4 +280,26 @@ export function iniciais(nome: string | null | undefined): string {
   const partes = (nome ?? "").trim().split(/\s+/).filter(Boolean);
   if (partes.length === 0) return "?";
   return (partes[0][0] + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
+}
+
+// Ordem dentro da coluna: prioridade (3 primeiro), depois o horário do atendimento.
+export function compararCartoes(a: CardJornada, b: CardJornada, horaA: string, horaB: string): number {
+  return b.prioridade - a.prioridade || horaA.localeCompare(horaB) || a.id - b.id;
+}
+
+// "vence 16:00", "venceu há 2 h", "vence amanhã 09:00" para a lista de tarefas.
+export function rotuloVencimento(vence: string | null, agora = Date.now()): { texto: string; vencida: boolean } {
+  if (!vence) return { texto: "", vencida: false };
+  const t = Date.parse(vence);
+  if (Number.isNaN(t)) return { texto: "", vencida: false };
+  if (t < agora) {
+    const min = Math.round((agora - t) / 60000);
+    return { texto: `venceu há ${tempoNaColuna(min)}`, vencida: true };
+  }
+  const hoje = hojeBrasilia(new Date(agora));
+  const dia = hojeBrasilia(new Date(t));
+  const hora = horaCurta(vence);
+  if (dia === hoje) return { texto: `vence ${hora}`, vencida: false };
+  if (dia === somarDias(hoje, 1)) return { texto: `vence amanhã ${hora}`, vencida: false };
+  return { texto: `vence ${diaCurto(dia)} ${hora}`, vencida: false };
 }

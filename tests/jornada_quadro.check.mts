@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { noPeriodo, somarDias, filtrarCards, agruparExames, FILTROS_PADRAO, linkWhatsApp, tempoNaColuna, semAcento, hojeBrasilia, podeVerJornada, diaCurto, destinosPermitidos, cartaoMovido, erroDeMover, iniciais } from "../lib/jornada.ts";
+import { noPeriodo, somarDias, filtrarCards, agruparExames, FILTROS_PADRAO, linkWhatsApp, tempoNaColuna, semAcento, hojeBrasilia, podeVerJornada, diaCurto, destinosPermitidos, cartaoMovido, erroDeMover, iniciais, compararCartoes, rotuloVencimento } from "../lib/jornada.ts";
 import { duracaoCurta, estadoDoRelatorio, estadoGeral, segundosAte } from "../lib/coleta-ritmo.ts";
 
 assert.equal(somarDias("2026-11-30", 1), "2026-12-01");
@@ -18,7 +18,7 @@ assert.equal(tempoNaColuna(35), "35 min"); assert.equal(tempoNaColuna(125), "2 h
 assert.equal(diaCurto("2026-11-03"), "03/11");
 assert.ok(podeVerJornada({ role: "admin", permissions: {} }) && podeVerJornada({ role: "viewer", permissions: { jornada: true } }) && !podeVerJornada({ role: "viewer", permissions: {} }) && !podeVerJornada(null));
 
-const card = (id: number, over: object = {}) => ({ id, paciente_chave: "100" + id, paciente_nome: "Maria da Conceição", data_ref: hoje, unidade: "CSI 1", coluna: "a_confirmar", coluna_nome: "A confirmar", etapa: "agendamento", origem: "klingo", ordem: 4, coluna_desde: "", responsavel: null, prioridade: 0, versao: 1, n_exames: 1, n_ativos: 1, n_mensagens: 0, vazio: false, atrasado: false, minutos_na_coluna: 5, ...over }) as any;
+const card = (id: number, over: object = {}) => ({ id, paciente_chave: "100" + id, paciente_nome: "Maria da Conceição", data_ref: hoje, unidade: "CSI 1", coluna: "a_confirmar", coluna_nome: "A confirmar", etapa: "agendamento", origem: "klingo", ordem: 4, coluna_desde: "", responsavel: null, prioridade: 0, versao: 1, n_exames: 1, n_ativos: 1, n_mensagens: 0, vazio: false, atrasado: false, minutos_na_coluna: 5, n_tarefas_abertas: 0, n_tarefas_vencidas: 0, ...over }) as any;
 const ex = (card_id: number, over: object = {}) => ({ card_id, marcacao_id: "M" + card_id, atendimento_id: null, procedimento: "RM JOELHO", operadora: "AMIL", agendado_para: "2026-11-04T13:30:00Z", status: "agendado", confirm_status: null, cancelamento_motivo: null, ...over }) as any;
 const cards = [card(1), card(2, { unidade: "CSI 2", paciente_nome: "José" }), card(3, { vazio: true }), card(4, { atrasado: true }), card(5, { data_ref: "2026-11-20" })];
 const mapa = agruparExames([ex(1), ex(2, { operadora: "SUS", procedimento: "US ABDOME" }), ex(3), ex(4), ex(5)]);
@@ -33,6 +33,18 @@ assert.deepEqual(f({ busca: "1002" }), [2]);               // por prontuário
 assert.deepEqual(f({ busca: "M4" }), [4]);                 // por nº da marcação
 assert.deepEqual(f({ soAtrasados: true }), [4]);
 assert.deepEqual(f({ periodo: "30dias" }), [1, 2, 4, 5]);
+
+// tarefas
+const comTarefa = [card(1, { n_tarefas_abertas: 2 }), card(2), card(3, { n_tarefas_abertas: 1, n_tarefas_vencidas: 1 })];
+assert.deepEqual(filtrarCards(comTarefa, mapa, { ...FILTROS_PADRAO, periodo: "hoje", soComTarefa: true }, hoje).map((c) => c.id), [1, 3]);
+assert.ok(compararCartoes(card(1, { prioridade: 3 }), card(2), "a", "a") < 0);                        // prioridade 3 vem antes
+assert.ok(compararCartoes(card(1), card(2), "2026-11-04T10", "2026-11-04T09") > 0);                    // mesma prioridade: o mais cedo primeiro
+const ag = Date.parse("2026-11-04T15:00:00Z");                                                         // 12:00 em Brasília
+assert.deepEqual(rotuloVencimento("2026-11-04T19:00:00Z", ag), { texto: "vence 16:00", vencida: false });
+assert.deepEqual(rotuloVencimento("2026-11-05T12:00:00Z", ag), { texto: "vence amanhã 09:00", vencida: false });
+assert.deepEqual(rotuloVencimento("2026-11-04T13:00:00Z", ag), { texto: "venceu há 2 h 00", vencida: true });
+assert.deepEqual(rotuloVencimento("2026-11-09T12:00:00Z", ag), { texto: "vence 09/11 09:00", vencida: false });
+assert.deepEqual(rotuloVencimento(null, ag), { texto: "", vencida: false });
 
 // responsável
 const comResp = [card(1, { responsavel: "u1" }), card(2, { responsavel: "u2" }), card(3), card(4, { responsavel: "u1" })];

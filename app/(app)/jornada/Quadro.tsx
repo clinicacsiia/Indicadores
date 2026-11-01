@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   agruparExames,
   cartaoMovido,
+  compararCartoes,
   destinosPermitidos,
   diaCurto,
   erroDeMover,
@@ -63,7 +64,7 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
       if (l) l.push(c);
       else mapa.set(c.coluna, [c]);
     }
-    for (const l of mapa.values()) l.sort((a, b) => horaPrimeiro(a, examesPorCard).localeCompare(horaPrimeiro(b, examesPorCard)) || a.id - b.id);
+    for (const l of mapa.values()) l.sort((a, b) => compararCartoes(a, b, horaPrimeiro(a, examesPorCard), horaPrimeiro(b, examesPorCard)));
     return mapa;
   }, [filtrados, examesPorCard]);
 
@@ -239,6 +240,11 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
           </label>
         </div>
         <div className="jornada-opcoes">
+          <label className="switch">
+            <input type="checkbox" checked={f.soComTarefa} onChange={(e) => mudar("soComTarefa", e.target.checked)} />
+            <span className="switch-track" aria-hidden="true" />
+            <span className="switch-text">Só com tarefa pendente</span>
+          </label>
           <label className="switch">
             <input type="checkbox" checked={f.soAtrasados} onChange={(e) => mudar("soAtrasados", e.target.checked)} />
             <span className="switch-track" aria-hidden="true" />
@@ -435,6 +441,7 @@ function Cartao({
       className="jornada-cartao"
       data-atrasado={card.atrasado ? "true" : undefined}
       data-vazio={card.vazio ? "true" : undefined}
+      data-prioridade={card.prioridade >= 2 ? String(card.prioridade) : undefined}
       draggable={arrastavel}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = "move";
@@ -461,6 +468,11 @@ function Cartao({
         {responsavel && (
           <span className="jornada-resp" title={`Responsável: ${responsavel}`}>
             {iniciais(responsavel)}
+          </span>
+        )}
+        {card.n_tarefas_abertas > 0 && (
+          <span className="jornada-tarefas-n" data-vencida={card.n_tarefas_vencidas > 0 ? "true" : undefined} title={`${card.n_tarefas_abertas} tarefa(s) aberta(s)${card.n_tarefas_vencidas > 0 ? `, ${card.n_tarefas_vencidas} vencida(s)` : ""}`}>
+            ☑ {card.n_tarefas_abertas}
           </span>
         )}
         {card.n_mensagens > 0 && <span title="Mensagens da equipe">💬 {card.n_mensagens}</span>}

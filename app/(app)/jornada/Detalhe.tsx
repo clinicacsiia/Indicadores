@@ -14,6 +14,7 @@ import {
   type MembroEquipe,
 } from "@/lib/jornada";
 import { Chat } from "./Chat";
+import { Tarefas } from "./Tarefas";
 
 type EventoCard = { quando: string; tipo: string; origem: string; de_coluna: string | null; para_coluna: string | null; detalhe: Record<string, unknown> };
 
@@ -194,6 +195,8 @@ export function Detalhe({
           </div>
         </section>
 
+        <Tarefas cardId={card.id} versaoTarefas={`${card.n_tarefas_abertas}/${card.n_tarefas_vencidas}`} />
+
         <Chat cardId={card.id} usuarioId={usuarioId} />
 
         <section>
@@ -232,7 +235,11 @@ function textoEvento(h: EventoCard, nomeColuna: Map<string, string>): string {
     case "divergencia":
       return `${quem} indica "${para ?? "—"}", mas o cartão está em "${de ?? "—"}" e não foi puxado para trás.`;
     case "atribuido":
-      return `${quem}: responsável alterado.`;
+      return `${quem}: responsável alterado${typeof h.detalhe?.motivo === "string" ? ` (${h.detalhe.motivo})` : ""}.`;
+    case "prioridade":
+      return `${quem}: prioridade ${String(h.detalhe?.de ?? "?")} → ${String(h.detalhe?.para ?? "?")}${typeof h.detalhe?.motivo === "string" ? ` (${h.detalhe.motivo})` : ""}.`;
+    case "tarefa":
+      return `${quem}: tarefa ${h.detalhe?.acao === "feita" ? "feita" : h.detalhe?.acao === "reaberta" ? "reaberta" : "criada"}${typeof h.detalhe?.titulo === "string" ? ` — ${h.detalhe.titulo}` : ""}.`;
     default:
       return `${quem}: ${h.tipo}.`;
   }

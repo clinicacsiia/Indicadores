@@ -267,6 +267,9 @@ de cada mês calculada uma vez por mês (calculada por linha, levava 10 s). Prim
 
 **01/11/2026, `20261101170000_jornada_tempo_real.sql`:** tempo real, nome de quem escreve e lista da equipe (ver "Jornada do paciente: mover, atribuir, conversar e tempo real"). Aplicada em duas partes pelo `apply_migration` (funções e coluna; gatilhos e política do canal) — só `create`, `alter table add column`, `grant` e `insert`.
 
+**01/11/2026, `20261101180000_jornada_automacoes.sql`:** automações da equipe (ver "Jornada do paciente: automações da equipe"). Aplicada em quatro partes pelo `apply_migration` (tabelas e tarefas; regras e gatilhos; visão do quadro e pendências; cron). Troca a restrição de tipos de `jornada_evento`
+(`alter table ... drop constraint` e `add constraint`, que o MCP aplica sem travar) para aceitar "tarefa" e "prioridade". Primeira execução das regras feita à mão (6 tarefas de "nova data", era domingo) antes de ligar o cron `jornada-regras`.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -777,6 +780,25 @@ Migration `20261101170000_jornada_tempo_real.sql` (teste em `supabase/tests/jorn
 - **Não verificado:** a conexão do Realtime (o ambiente de desenvolvimento não abre WebSocket). Em 01/11/2026 a tabela `realtime.messages` não tinha nenhuma partição, então `realtime.send` descartava o aviso (sem erro, só um WARNING). Ver a pendência
   "Conferir se o tempo real está funcionando". Mover, atribuir, mensagem e equipe foram testados no banco real dentro de uma transação desfeita.
 - **Ainda não tem:** tarefas e checklist por cartão, mensagens "não lidas", quem está vendo o cartão (presença), criar cartão de contato à mão e as automações (etapas seguintes).
+
+### Jornada do paciente: automações da equipe (etapa 5)
+
+Migration `20261101180000_jornada_automacoes.sql` (teste em `supabase/tests/jornada.sql`, seção 13); tela: `app/(app)/jornada/Tarefas.tsx`. **Ainda não há mensagem automática ao paciente** (depende do portal e do jurídico): estas automações são internas.
+
+| Regra (`jornada_regra`) | O que faz sozinha |
+| --- | --- |
+| `checklist_por_coluna` | Ao entrar numa coluna, o cartão ganha as tarefas do modelo da coluna (`jornada_checklist_modelo`; iniciais: Chegou = pedido médico, documento e carteirinha, guia e autorização; Laudo pendente; Laudo entregue; Guia/faturamento). Dispara na hora (gatilho), uma vez por item. |
+| `confirmar_proximo_dia` | Cartão em **A confirmar** com atendimento hoje ou amanhã ganha "Confirmar presença com o paciente", que vence às 16h do dia anterior (parâmetros `dias_antes`, `vence_hora`). |
+| `remarcar_faltou` | Cartão em **Faltou** (ontem ou hoje) ganha "Ligar e oferecer nova data". |
+| `prioridade_por_atraso` | Passou do prazo da coluna: prioridade 2; com o dobro do prazo: 3 (cartão com borda laranja/vermelha e no topo da coluna); volta a 0 quando sai do atraso. Cada subida fica no histórico. |
+| `atribuir_por_escala` | Cartão de ontem, hoje e amanhã sem responsável vai para quem está escalado na coluna (`jornada_escala`) e tem menos cartões abertos. **Sem escala cadastrada não faz nada** (ver a pendência). |
+
+- **Cron:** `jornada-regras`, a cada 5 min (`jornada_aplicar_regras()`); o checklist não espera o cron. A mesma tarefa automática não se repete no cartão (índice único `card_id + chave`).
+- **Ligar/desligar e ajustar** (SQL Editor; só o administrador lê estas tabelas): `update public.jornada_regra set ativa = false where chave = '...'`; parâmetros em `parametros`; itens do checklist em `jornada_checklist_modelo`; escala:
+  `insert into public.jornada_escala (coluna, usuario) select 'chegou', id from public.profiles where email = '...'`.
+- **Na tela:** o cartão mostra `☑ n` (tarefas abertas; vermelho se alguma venceu); ao abrir, a seção **Tarefas** tem caixas de marcar, o selo "auto" nas criadas pelo sistema, o vencimento e um campo para criar tarefa; o filtro **Só com tarefa pendente**; o
+  histórico mostra tarefas, prioridade e atribuições do sistema. Tarefa criada, feita ou reaberta pela equipe fica no histórico (`jornada_criar_tarefa`, `jornada_marcar_tarefa`).
+- **Não faz:** checklist por tipo de exame (preparo, contraste, termo), porque falta o catálogo de preparo; concluir cartão sozinho depois do NPS; mensagens ao paciente.
 
 ### Regras para somar e cruzar os dados
 

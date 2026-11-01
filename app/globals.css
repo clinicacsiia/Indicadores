@@ -2942,6 +2942,77 @@ select {
   }
 }
 
+.jornada-cartao[data-prioridade="2"] {
+  border-left-color: var(--warn);
+}
+.jornada-cartao[data-prioridade="3"] {
+  border-left-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
+}
+.jornada-tarefas-n {
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.jornada-tarefas-n[data-vencida="true"] {
+  color: var(--danger);
+  font-weight: 600;
+}
+.jornada-tarefas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jornada-tarefas h3 {
+  margin: 0;
+}
+.jornada-tarefas-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jornada-tarefa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+.jornada-tarefas-lista li[data-feita="true"] .jornada-tarefa-titulo {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+.jornada-tarefas-lista li[data-vencida="true"] .jornada-tarefa {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.jornada-tarefa-titulo {
+  flex: 1 1 200px;
+  font-size: 14px;
+}
+.jornada-tarefa-auto {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.jornada-tarefa-vence {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.jornada-tarefas-lista li[data-vencida="true"] .jornada-tarefa-vence {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 /* ───────── Avisos (pendências de todos os painéis) ───────── */
 
 .nav-contador {
