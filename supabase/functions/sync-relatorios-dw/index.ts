@@ -27,8 +27,6 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 //   relatório (`dim_relatorio.janela_dias`, máx. 90) e busca só esses, até acabar o lote ou
 //   o tempo (100 s). O dia de hoje só é refeito a cada 5 h (`frescor_minutos`, o botão manual
 //   usa 10 min). Relatório que falha 3 vezes seguidas fica 6 h pausado (disjuntor).
-//   `{"modo":"auto","ritmo":true}` é a coleta adaptativa da Jornada (cron `coleta-ritmo-1min`): lê só os relatórios de
-//   `coleta_ritmo` que já venceram (`proximos_trabalhos_ritmo`); quem decide o intervalo é o banco (marcha ao vivo/calmo/dormindo).
 // - `dim_relatorio.colunas_essenciais`: se preenchido, só essas colunas são gravadas.
 // - `dim_relatorio.filtro_periodo`: id do filtro de período de cada relatório (a maioria
 //   "periodo0"); a resposta é conferida e, se o Klingo não aplicou o período, o dia vira erro.
@@ -406,12 +404,11 @@ Deno.serve(async (req: Request) => {
     const limite = Math.min(Math.max(Math.trunc(Number(body.limite ?? 30)) || 30, 1), MAX_LOTE_AUTO);
     // Frescor do dia de hoje: 5 h por padrão (agendamento); o botão manual pede menos (ex.: 10 min).
     const frescor = Math.min(Math.max(Math.trunc(Number(body.frescor_minutos ?? 300)) || 300, 1), 1440);
-    // {"ritmo": true} = a coleta de 1 minuto da Jornada: só os relatórios de `coleta_ritmo` que já venceram (a marcha de cada um é do banco).
-    const ritmo = body.ritmo === true;
-    const { data: pendentes, error: pendentesError } = ritmo
-      ? await supabase.rpc("proximos_trabalhos_ritmo", { p_limite: limite })
-      : await supabase.rpc("proximos_trabalhos", { p_limite: limite, p_frescor_minutos: frescor });
-    if (pendentesError) return json({ error: `Falha ao ler ${ritmo ? "proximos_trabalhos_ritmo" : "proximos_trabalhos"}: ${pendentesError.message}` }, 500);
+    const { data: pendentes, error: pendentesError } = await supabase.rpc("proximos_trabalhos", {
+      p_limite: limite,
+      p_frescor_minutos: frescor,
+    });
+    if (pendentesError) return json({ error: `Falha ao ler proximos_trabalhos: ${pendentesError.message}` }, 500);
     const lista = (pendentes ?? []) as Array<{ relatorio_id: string; periodo: string; restantes: number }>;
     restantesAuto = lista.length > 0 ? Number(lista[0].restantes) : 0;
     if (lista.length === 0) return json({ modo: "auto", processados: 0, restantes: 0, linhas_sincronizadas: 0, erros: [] });

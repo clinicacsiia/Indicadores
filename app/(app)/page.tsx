@@ -15,7 +15,6 @@ import {
   type StatusRelatorio,
 } from "@/lib/inicio";
 import { IconAlerta, IconCalendario } from "@/app/components/icons";
-import { BarraColeta } from "@/app/components/BarraColeta";
 import { AtualizarTudoForm } from "./atualizar-tudo-form";
 import { AtualizarSozinho } from "./atualizar-sozinho";
 import { FavoritosPaineis } from "./favoritos-paineis";
@@ -64,8 +63,6 @@ export default async function Home() {
       </header>
 
       <AtualizarSozinho rapido={renovando.length > 0} />
-
-      <BarraColeta />
 
       <AtualizarTudoForm />
 

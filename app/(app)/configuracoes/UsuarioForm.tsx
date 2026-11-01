@@ -13,7 +13,6 @@ type Props = {
   email: string;
   role: "admin" | "viewer";
   veMetas: boolean;
-  veJornada: boolean;
   veFinanceiro: boolean;
   visaoAtendimento: string;
   paineis: { id: string; nome: string; liberado: boolean }[];
@@ -32,7 +31,7 @@ function BotaoSalvar() {
   );
 }
 
-export function UsuarioForm({ id, email, role, veMetas, veJornada, veFinanceiro, visaoAtendimento, paineis, ehVoce }: Props) {
+export function UsuarioForm({ id, email, role, veMetas, veFinanceiro, visaoAtendimento, paineis, ehVoce }: Props) {
   const [state, action] = useActionState(salvarUsuario, inicial);
   const [papel, setPapel] = useState(role);
 
@@ -45,7 +44,6 @@ export function UsuarioForm({ id, email, role, veMetas, veJornada, veFinanceiro,
       ? "Acesso total"
       : [
           veMetas ? "Metas" : null,
-          veJornada ? "Jornada" : null,
           nPaineis > 0 ? `${nPaineis} ${nPaineis === 1 ? "painel" : "painéis"}` : null,
           visaoAtendimento ? `Atendimento só de ${RESPONSAVEIS_ATENDIMENTO.find((r) => r.id === visaoAtendimento)?.nome ?? visaoAtendimento}` : null,
           veFinanceiro ? "Dados financeiros" : null,
@@ -110,11 +108,6 @@ export function UsuarioForm({ id, email, role, veMetas, veJornada, veFinanceiro,
                   <input type="checkbox" name="metas" defaultChecked={veMetas} />
                   <span className="switch-track" aria-hidden="true" />
                   <span className="switch-text">Metas</span>
-                </label>
-                <label className="switch">
-                  <input type="checkbox" name="jornada" defaultChecked={veJornada} />
-                  <span className="switch-track" aria-hidden="true" />
-                  <span className="switch-text">Jornada do paciente (quadro com todos os pacientes)</span>
                 </label>
                 {paineis.map((p) => (
                   <label className="switch" key={p.id}>
