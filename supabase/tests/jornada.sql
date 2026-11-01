@@ -1,5 +1,5 @@
--- Testa as migrations 20261101140000_jornada_modelo.sql, 20261101150000_jornada_pendencias.sql e 20261101160000_jornada_sincronizar.sql e 20261101170000_jornada_tempo_real.sql e 20261101180000_jornada_automacoes.sql (quadro da Jornada: colunas,
--- regras do Klingo, movimentos à mão, chat, permissões, pendências, a leitura do #13825 que cria e move os cards, os avisos em tempo real e as automações da equipe) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
+-- Testa as migrations 20261101140000_jornada_modelo.sql, 20261101150000_jornada_pendencias.sql e 20261101160000_jornada_sincronizar.sql e 20261101170000_jornada_tempo_real.sql e 20261101180000_jornada_automacoes.sql e 20261101190000_jornada_portal_paciente.sql (quadro da Jornada: colunas,
+-- regras do Klingo, movimentos à mão, chat, permissões, pendências, a leitura do #13825 que cria e move os cards, os avisos em tempo real, as automações da equipe e o portal do paciente) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
 --
 --   createdb jornada_teste && psql -v ON_ERROR_STOP=1 -d jornada_teste -f supabase/tests/jornada.sql    (na raiz do repositório)
 --
@@ -63,6 +63,7 @@ insert into public.dim_relatorio (klingo_id, nome, granularidade, filtro_periodo
 \i supabase/migrations/20261101160000_jornada_sincronizar.sql
 \i supabase/migrations/20261101170000_jornada_tempo_real.sql
 \i supabase/migrations/20261101180000_jornada_automacoes.sql
+\i supabase/migrations/20261101190000_jornada_portal_paciente.sql
 
 -- gente: admin, quem tem a permissão da Jornada, quem não tem
 insert into public.profiles (id, email, role, permissions, status) values
@@ -334,7 +335,7 @@ declare n integer; a public.aviso%rowtype;
 begin
   perform public.jornada_pendencias_sincronizar();
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 19 then raise exception 'esperava 19 avisos abertos (1 de relatórios + 18 pendências), achei %', n; end if;
+  if n <> 22 then raise exception 'esperava 22 avisos abertos (1 de relatórios + 21 pendências), achei %', n; end if;
   select * into a from public.aviso where painel = 'atendimento' and chave = 'jornada|api_escrita_klingo';
   if not found or a.nivel <> 'atencao' or not a.persistente or a.sensivel or jsonb_array_length(a.guia -> 'passos') < 1 then raise exception 'pendência da API do Klingo mal formada: %', row_to_json(a); end if;
   if a.titulo not like 'Jornada (etapa 2): %' then raise exception 'título sem a etapa: %', a.titulo; end if;
@@ -342,7 +343,7 @@ begin
   -- a conferência do painel Python não resolve as pendências da Jornada
   perform public.aviso_sincronizar('atendimento', array['', '2026-11'], 1, '[]'::jsonb);
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 19 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
+  if n <> 22 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
 
   -- pendência desativada some sozinha; nova aparece
   update public.jornada_pendencia set ativa = false where chave = 'feriados';
@@ -675,6 +676,134 @@ begin
   select count(*) into n from realtime.messages where topic = 'jornada:quadro';
   perform public.jornada_marcar_tarefa(t);
   if (select count(*) from realtime.messages where topic = 'jornada:quadro') <= n then raise exception 'mudar a tarefa devia avisar o quadro'; end if;
+end $$;
+
+-- ---------------------------------------------------------------- 14. portal do paciente (link seguro, confirmar, remarcar, conversa)
+do $$
+declare
+  hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+  ana uuid := '00000000-0000-0000-0000-00000000000b'; bia uuid := '00000000-0000-0000-0000-00000000000c';
+  c bigint; cf bigint; r jsonb; tok text; tok2 text; n integer; i integer; chaves text;
+begin
+  insert into public.jornada_paciente (prontuario, nome, celular, telefone) values ('PT1', 'FULANO DE TAL SILVA', '11999990001', '1133334444') on conflict (prontuario) do nothing;
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('PT1', hoje + 1, 'CSI 1', 'a_confirmar') returning id into c;
+  insert into public.jornada_exame (card_id, marcacao_id, procedimento, operadora, status, agendado_para) values
+    (c, 'PX1', 'RM JOELHO', 'AMIL', 'agendado', ((hoje + 1)::timestamp + interval '10 hours 30 minutes') at time zone 'America/Sao_Paulo');
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('PT2', hoje - 1, 'CSI 1', 'finalizado') returning id into cf;
+
+  -- desligado por padrão: ninguém gera link e a página responde "desligado"
+  if public.jornada_portal_ativo() then raise exception 'o portal deve nascer desligado'; end if;
+  perform set_config('request.jwt.claim.sub', ana::text, true);
+  begin perform public.jornada_portal_gerar_link(c); raise exception 'portal desligado: gerar link devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'O portal do paciente está desligado%' then raise; end if; end;
+  begin perform public.jornada_enviar_mensagem_paciente(c, 'oi'); raise exception 'portal desligado: mensagem ao paciente devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'O portal do paciente está desligado%' then raise; end if; end;
+  if (public.portal_ver('qualquer', 'ip1') ->> 'motivo') <> 'desligado' then raise exception 'portal_ver devia dizer desligado'; end if;
+
+  update public.jornada_config set portal_ativo = true;
+
+  -- sem permissão: não gera
+  perform set_config('request.jwt.claim.sub', bia::text, true);
+  begin perform public.jornada_portal_gerar_link(c); raise exception 'sem permissão devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'Sem permissão%' then raise; end if; end;
+  perform set_config('request.jwt.claim.sub', ana::text, true);
+  begin perform public.jornada_portal_gerar_link(999999); raise exception 'card inexistente devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'Card não encontrado%' then raise; end if; end;
+  begin perform public.jornada_portal_gerar_link((select id from public.jornada_card where paciente_chave = 'manual:7')); raise exception 'card manual devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'Este cartão ainda não tem paciente%' then raise; end if; end;
+
+  -- gerar: o código aparece uma vez e só o hash fica guardado
+  r := public.jornada_portal_gerar_link(c);
+  tok := r ->> 'token';
+  if char_length(tok) <> 64 or tok !~ '^[0-9a-f]+$' then raise exception 'o código devia ter 64 caracteres hexadecimais: %', tok; end if;
+  if exists (select 1 from public.jornada_portal_acesso where token_hash = tok) or not exists (select 1 from public.jornada_portal_acesso where token_hash = encode(sha256(convert_to(tok, 'UTF8')), 'hex')) then raise exception 'devia guardar só o hash'; end if;
+  if (r ->> 'expira_em')::timestamptz < now() + interval '2 days' then raise exception 'o link devia valer pelo menos até depois do dia do atendimento'; end if;
+
+  -- a página: primeiro nome, exames; nada de telefone, prontuário, convênio ou valor
+  r := public.portal_ver(tok, 'ip1');
+  if not (r ->> 'ok')::boolean or r ->> 'nome' <> 'Fulano' or jsonb_array_length(r -> 'exames') <> 1 or (r #>> '{exames,0,hora}') <> '10:30' or (r #>> '{exames,0,exame}') <> 'RM JOELHO' or not (r ->> 'pode_agir')::boolean then raise exception 'página do paciente errada: %', r; end if;
+  if r::text ~* '(11999990001|1133334444|PT1|AMIL|celular|telefone|prontuario|operadora|valor)' then raise exception 'a página do paciente vazou dado interno: %', r; end if;
+  if (select n_acessos from public.jornada_portal_acesso where token_hash = encode(sha256(convert_to(tok, 'UTF8')), 'hex')) <> 1 then raise exception 'devia contar o acesso'; end if;
+
+  -- trocar o link mata o anterior
+  tok2 := (public.jornada_portal_gerar_link(c)) ->> 'token';
+  if (public.portal_ver(tok, 'ip2') ->> 'motivo') <> 'invalido' then raise exception 'o link antigo devia morrer'; end if;
+  if not (public.portal_ver(tok2, 'ip2') ->> 'ok')::boolean then raise exception 'o link novo devia valer'; end if;
+  tok := tok2;
+
+  -- expirado e revogado não valem
+  update public.jornada_portal_acesso set expira_em = now() - interval '1 minute' where card_id = c and revogado_em is null;
+  if (public.portal_ver(tok, 'ip3') ->> 'motivo') <> 'invalido' then raise exception 'link expirado devia ser inválido'; end if;
+  update public.jornada_portal_acesso set expira_em = now() + interval '1 day' where card_id = c and revogado_em is null;
+  perform public.jornada_portal_revogar_link(c);
+  if (public.portal_ver(tok, 'ip3') ->> 'motivo') <> 'invalido' then raise exception 'link revogado devia ser inválido'; end if;
+  tok := (public.jornada_portal_gerar_link(c)) ->> 'token';
+
+  -- confirmar presença: marca o cartão, fecha a tarefa de confirmar e cria a de registrar no Klingo; repetir não duplica
+  perform public.jornada_aplicar_regras();
+  if not exists (select 1 from public.jornada_tarefa where card_id = c and chave = 'confirmar' and feita_em is null) then raise exception 'devia existir a tarefa de confirmar presença'; end if;
+  r := public.portal_confirmar(tok, 'ip4');
+  if not (r ->> 'ok')::boolean then raise exception 'confirmar devia dar certo: %', r; end if;
+  perform public.portal_confirmar(tok, 'ip4');
+  if (select portal_confirmou_em from public.jornada_card where id = c) is null then raise exception 'devia guardar a confirmação'; end if;
+  if not exists (select 1 from public.jornada_tarefa where card_id = c and chave = 'confirmar' and feita_em is not null) then raise exception 'a tarefa de confirmar devia ficar feita'; end if;
+  if (select count(*) from public.jornada_tarefa where card_id = c and chave = 'klingo_confirmar') <> 1 then raise exception 'devia haver uma tarefa de registrar no Klingo'; end if;
+  if (select count(*) from public.jornada_evento where card_id = c and detalhe ->> 'acao' = 'paciente_confirmou_pelo_site') <> 1 then raise exception 'o evento de confirmação não pode repetir'; end if;
+
+  -- pedir para remarcar: mensagem do paciente, tarefa e prioridade
+  r := public.portal_remarcar(tok, 'Só posso à tarde', 'ip4');
+  if not (r ->> 'ok')::boolean then raise exception 'remarcar devia dar certo: %', r; end if;
+  if not exists (select 1 from public.jornada_mensagem where card_id = c and canal = 'paciente' and autor_tipo = 'paciente' and texto = 'Preciso remarcar. Só posso à tarde') then raise exception 'faltou a mensagem do pedido'; end if;
+  if not exists (select 1 from public.jornada_tarefa where card_id = c and chave like 'pedido_remarcar:%' and feita_em is null) then raise exception 'faltou a tarefa do pedido de remarcação'; end if;
+  if (select prioridade from public.jornada_card where id = c) < 2 then raise exception 'o pedido devia subir a prioridade'; end if;
+
+  -- mensagem do paciente: vira tarefa "responder"; a resposta da equipe fecha a tarefa
+  r := public.portal_enviar_mensagem(tok, '  Posso levar um acompanhante?  ', 'ip4');
+  if not (r ->> 'ok')::boolean then raise exception 'mensagem devia entrar: %', r; end if;
+  if not exists (select 1 from public.jornada_mensagem where card_id = c and canal = 'paciente' and texto = 'Posso levar um acompanhante?') then raise exception 'a mensagem devia entrar sem espaços nas pontas'; end if;
+  if (select count(*) from public.jornada_tarefa where card_id = c and chave like 'responder:%' and feita_em is null) <> 1 then raise exception 'devia haver 1 tarefa de responder'; end if;
+  perform public.portal_enviar_mensagem(tok, 'e uma criança?', 'ip4');
+  if (select count(*) from public.jornada_tarefa where card_id = c and chave like 'responder:%') <> 1 then raise exception 'não cria uma tarefa de responder por mensagem'; end if;
+  perform public.jornada_enviar_mensagem_paciente(c, 'Pode sim, um acompanhante.');
+  if exists (select 1 from public.jornada_tarefa where card_id = c and chave like 'responder:%' and feita_em is null) then raise exception 'responder devia fechar a tarefa'; end if;
+  if (select (portal_ver ->> 'mensagens')::jsonb ->> 0 from (select public.portal_ver(tok, 'ip4') as portal_ver) x) is null then raise exception 'o paciente devia ver a conversa'; end if;
+  r := public.portal_ver(tok, 'ip4');
+  if jsonb_array_length(r -> 'mensagens') <> 4 or (r #>> '{mensagens,3,de}') <> 'equipe' or (r #>> '{mensagens,0,de}') <> 'paciente' then raise exception 'a conversa do paciente está errada: %', r -> 'mensagens'; end if;
+
+  -- a conversa INTERNA nunca aparece para o paciente
+  perform public.jornada_enviar_mensagem(c, 'segredo interno da equipe');
+  if public.portal_ver(tok, 'ip4')::text like '%segredo interno%' then raise exception 'a conversa interna vazou para o paciente'; end if;
+
+  -- texto vazio, longo e limite por hora
+  if (public.portal_enviar_mensagem(tok, '   ', 'ip4') ->> 'motivo') <> 'tamanho' or (public.portal_enviar_mensagem(tok, repeat('x', 1001), 'ip4') ->> 'motivo') <> 'tamanho' then raise exception 'tamanho da mensagem não conferido'; end if;
+  update public.jornada_config set mensagens_por_hora = 3;      -- o paciente já mandou 3 (pedido de remarcação + 2 mensagens)
+  if (public.portal_enviar_mensagem(tok, 'mais uma', 'ip4') ->> 'ok')::boolean then raise exception 'passou do limite por hora: já foram 3 mensagens e o limite é 3'; end if;
+  update public.jornada_config set mensagens_por_hora = 20;
+
+  -- cartão que já passou: o paciente não confirma nem pede remarcação
+  r := public.jornada_portal_gerar_link(cf);
+  if (public.portal_confirmar(r ->> 'token', 'ip5') ->> 'motivo') <> 'indisponivel' or (public.portal_remarcar(r ->> 'token', null, 'ip5') ->> 'motivo') <> 'indisponivel' then raise exception 'cartão passado não aceita ações do paciente'; end if;
+  if (public.portal_ver(r ->> 'token', 'ip5') ->> 'pode_agir')::boolean then raise exception 'cartão passado: pode_agir deve ser falso'; end if;
+
+  -- código errado, repetido: bloqueia a origem por 1 hora (mesmo com o código certo)
+  for i in 1..30 loop perform public.portal_ver('errado' || i, 'ipX'); end loop;
+  if (public.portal_ver('errado', 'ipX') ->> 'motivo') <> 'limite' then raise exception 'depois de 30 erros a origem devia ser bloqueada'; end if;
+  if (public.portal_ver(tok, 'ipX') ->> 'motivo') <> 'limite' then raise exception 'origem bloqueada não vê nem com o código certo'; end if;
+  if not (public.portal_ver(tok, 'outra-origem') ->> 'ok')::boolean then raise exception 'outra origem não é afetada'; end if;
+
+  -- permissões
+  if has_function_privilege('anon', 'public.portal_ver(text,text)', 'execute') or has_function_privilege('authenticated', 'public.portal_ver(text,text)', 'execute')
+     or has_function_privilege('authenticated', 'public.portal_confirmar(text,text)', 'execute') or has_function_privilege('authenticated', 'public.portal_enviar_mensagem(text,text,text)', 'execute')
+     or has_function_privilege('anon', 'public.portal_remarcar(text,text,text)', 'execute') then raise exception 'as funções do paciente só valem para a chave de serviço'; end if;
+  if not has_function_privilege('service_role', 'public.portal_ver(text,text)', 'execute') then raise exception 'o servidor do site precisa chamar portal_ver'; end if;
+  if has_function_privilege('anon', 'public.jornada_portal_gerar_link(bigint)', 'execute') then raise exception 'anon não gera link'; end if;
+  if has_column_privilege('authenticated', 'public.jornada_portal_acesso', 'token_hash', 'select') then raise exception 'a equipe não pode ler o hash do código'; end if;
+  if not has_column_privilege('authenticated', 'public.jornada_portal_acesso', 'ultimo_acesso_em', 'select') then raise exception 'a equipe vê o último acesso do link'; end if;
+  set local role authenticated;
+  if (select count(*) from public.jornada_config) <> 0 then raise exception 'a configuração do portal é do administrador'; end if;
+  reset role;
+  update public.jornada_config set portal_ativo = false;
+  if (public.portal_ver(tok, 'ip9') ->> 'motivo') <> 'desligado' then raise exception 'desligar o portal derruba todos os links na hora'; end if;
 end $$;
 
 \echo JORNADA OK

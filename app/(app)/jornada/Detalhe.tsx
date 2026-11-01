@@ -15,6 +15,7 @@ import {
 } from "@/lib/jornada";
 import { Chat } from "./Chat";
 import { Tarefas } from "./Tarefas";
+import { PortalPaciente } from "./PortalPaciente";
 
 type EventoCard = { quando: string; tipo: string; origem: string; de_coluna: string | null; para_coluna: string | null; detalhe: Record<string, unknown> };
 
@@ -41,6 +42,7 @@ export function Detalhe({
 }) {
   const [contato, setContato] = useState<{ celular: string | null; telefone: string | null } | null>(null);
   const [historico, setHistorico] = useState<EventoCard[] | null>(null);
+  const [aba, setAba] = useState<"interno" | "paciente">("interno");
 
   // o histórico se refaz quando o cartão muda de coluna (a equipe, o Klingo ou o sistema)
   useEffect(() => {
@@ -197,7 +199,19 @@ export function Detalhe({
 
         <Tarefas cardId={card.id} versaoTarefas={`${card.n_tarefas_abertas}/${card.n_tarefas_vencidas}`} />
 
-        <Chat cardId={card.id} usuarioId={usuarioId} />
+        <PortalPaciente cardId={card.id} nome={card.paciente_nome} dataRef={card.data_ref} celular={contato?.celular ?? null} confirmouEm={card.portal_confirmou_em} />
+
+        <section aria-label="Conversas">
+          <div className="jornada-abas" role="tablist" aria-label="Com quem você quer falar">
+            <button type="button" role="tab" aria-selected={aba === "interno"} className="jornada-aba" onClick={() => setAba("interno")}>
+              Equipe
+            </button>
+            <button type="button" role="tab" aria-selected={aba === "paciente"} className="jornada-aba" onClick={() => setAba("paciente")}>
+              Paciente
+            </button>
+          </div>
+          <Chat key={`${card.id}-${aba}`} cardId={card.id} usuarioId={usuarioId} canal={aba} />
+        </section>
 
         <section>
           <h3>Histórico</h3>
@@ -238,6 +252,10 @@ function textoEvento(h: EventoCard, nomeColuna: Map<string, string>): string {
       return `${quem}: responsável alterado${typeof h.detalhe?.motivo === "string" ? ` (${h.detalhe.motivo})` : ""}.`;
     case "prioridade":
       return `${quem}: prioridade ${String(h.detalhe?.de ?? "?")} → ${String(h.detalhe?.para ?? "?")}${typeof h.detalhe?.motivo === "string" ? ` (${h.detalhe.motivo})` : ""}.`;
+    case "nota":
+      return `${quem}: ${
+        { paciente_confirmou_pelo_site: "o paciente confirmou a presença pelo site", paciente_pediu_para_remarcar: "o paciente pediu para remarcar pelo site", link_do_paciente_gerado: "link do paciente gerado", link_do_paciente_revogado: "link do paciente revogado" }[String(h.detalhe?.acao)] ?? "anotação"
+      }.`;
     case "tarefa":
       return `${quem}: tarefa ${h.detalhe?.acao === "feita" ? "feita" : h.detalhe?.acao === "reaberta" ? "reaberta" : "criada"}${typeof h.detalhe?.titulo === "string" ? ` — ${h.detalhe.titulo}` : ""}.`;
     default:

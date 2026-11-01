@@ -470,6 +470,11 @@ function Cartao({
             {iniciais(responsavel)}
           </span>
         )}
+        {card.portal_confirmou_em && (
+          <span className="jornada-site" title="O paciente confirmou a presença pelo site">
+            ✔ site
+          </span>
+        )}
         {card.n_tarefas_abertas > 0 && (
           <span className="jornada-tarefas-n" data-vencida={card.n_tarefas_vencidas > 0 ? "true" : undefined} title={`${card.n_tarefas_abertas} tarefa(s) aberta(s)${card.n_tarefas_vencidas > 0 ? `, ${card.n_tarefas_vencidas} vencida(s)` : ""}`}>
             ☑ {card.n_tarefas_abertas}

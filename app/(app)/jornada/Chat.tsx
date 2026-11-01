@@ -4,11 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { MensagemJornada } from "@/lib/jornada";
 
-const COLUNAS = "id, card_id, autor, autor_nome, autor_tipo, texto, criado_em";
+const COLUNAS = "id, card_id, autor, autor_nome, autor_tipo, canal, texto, criado_em";
 
 // Chat interno do cartão (só da equipe). Cada cartão tem o seu canal privado "jornada:card:<id>": o aviso traz só o número da mensagem e o texto é lido de novo
 // pelas regras de acesso de sempre. Sem o tempo real, a conversa continua funcionando: quem envia vê a própria mensagem na hora e as dos outros chegam a cada 15 s.
-export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string }) {
+export function Chat({ cardId, usuarioId, canal }: { cardId: number; usuarioId: string; canal: "interno" | "paciente" }) {
   const [mensagens, setMensagens] = useState<MensagemJornada[] | null>(null);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -19,7 +19,7 @@ export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string 
   // lê o que ainda não chegou (depois da última mensagem conhecida)
   const buscar = useCallback(async () => {
     const supabase = createClient();
-    const { data, error } = await supabase.from("jornada_mensagem").select(COLUNAS).eq("card_id", cardId).gt("id", ultimo.current).order("id").limit(200);
+    const { data, error } = await supabase.from("jornada_mensagem").select(COLUNAS).eq("card_id", cardId).eq("canal", canal).gt("id", ultimo.current).order("id").limit(200);
     if (error || !data) return;
     const novas = data as MensagemJornada[];
     if (novas.length === 0) return;
@@ -28,7 +28,7 @@ export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string 
       const ids = new Set((atual ?? []).map((m) => m.id));
       return [...(atual ?? []), ...novas.filter((m) => !ids.has(m.id))];
     });
-  }, [cardId]);
+  }, [cardId, canal]);
 
   useEffect(() => {
     let ativo = true;
@@ -57,7 +57,7 @@ export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string 
       clearInterval(reserva);
       if (canal) void supabase.removeChannel(canal);
     };
-  }, [cardId, buscar]);
+  }, [cardId, canal, buscar]);
 
   useEffect(() => {
     fim.current?.scrollIntoView({ block: "end" });
@@ -68,7 +68,7 @@ export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string 
     if (!t || enviando) return;
     setEnviando(true);
     setErro(null);
-    const { error } = await createClient().rpc("jornada_enviar_mensagem", { p_card: cardId, p_texto: t });
+    const { error } = await createClient().rpc(canal === "paciente" ? "jornada_enviar_mensagem_paciente" : "jornada_enviar_mensagem", { p_card: cardId, p_texto: t });
     setEnviando(false);
     if (error) {
       setErro(error.message || "Não foi possível enviar.");
@@ -79,9 +79,12 @@ export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string 
   };
 
   return (
-    <section className="jornada-chat" aria-label="Conversa da equipe">
-      <h3>Conversa da equipe</h3>
-      <p className="jornada-chat-aviso">Só a equipe vê esta conversa. Não escreva diagnóstico nem resultado de exame.</p>
+    <section className="jornada-chat" aria-label={canal === "paciente" ? "Conversa com o paciente" : "Conversa da equipe"}>
+      <p className="jornada-chat-aviso">
+        {canal === "paciente"
+          ? "O PACIENTE lê esta conversa (pela página do link). Escreva com cuidado e sem diagnóstico nem resultado de exame."
+          : "Só a equipe vê esta conversa. Não escreva diagnóstico nem resultado de exame."}
+      </p>
       <div className="jornada-chat-lista" role="log" aria-live="polite">
         {mensagens === null ? (
           <p className="panel-sub">Carregando…</p>
@@ -91,7 +94,7 @@ export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string 
           mensagens.map((m) => (
             <div key={m.id} className="jornada-msg" data-minha={m.autor === usuarioId ? "true" : undefined}>
               <span className="jornada-msg-topo">
-                <strong>{m.autor === usuarioId ? "Você" : (m.autor_nome ?? "Equipe")}</strong>
+                <strong>{m.autor === usuarioId ? "Você" : m.autor_tipo === "paciente" ? "Paciente" : (m.autor_nome ?? "Equipe")}</strong>
                 <time dateTime={m.criado_em}>
                   {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(m.criado_em))}
                 </time>
@@ -112,8 +115,8 @@ export function Chat({ cardId, usuarioId }: { cardId: number; usuarioId: string 
         <textarea
           className="input"
           rows={2}
-          maxLength={2000}
-          placeholder="Escreva para a equipe (Enter envia, Shift+Enter pula linha)"
+          maxLength={canal === "paciente" ? 1000 : 2000}
+          placeholder={canal === "paciente" ? "Escreva ao paciente (Enter envia)" : "Escreva para a equipe (Enter envia, Shift+Enter pula linha)"}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           onKeyDown={(e) => {

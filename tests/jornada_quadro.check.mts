@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { noPeriodo, somarDias, filtrarCards, agruparExames, FILTROS_PADRAO, linkWhatsApp, tempoNaColuna, semAcento, hojeBrasilia, podeVerJornada, diaCurto, destinosPermitidos, cartaoMovido, erroDeMover, iniciais, compararCartoes, rotuloVencimento } from "../lib/jornada.ts";
+import { tokenValido, textoDoMotivo, diaPorExtenso, urlDoPortal, mensagemDoLink, linkWhatsAppComTexto } from "../lib/portal.ts";
 import { duracaoCurta, estadoDoRelatorio, estadoGeral, segundosAte } from "../lib/coleta-ritmo.ts";
 
 assert.equal(somarDias("2026-11-30", 1), "2026-12-01");
@@ -18,7 +19,7 @@ assert.equal(tempoNaColuna(35), "35 min"); assert.equal(tempoNaColuna(125), "2 h
 assert.equal(diaCurto("2026-11-03"), "03/11");
 assert.ok(podeVerJornada({ role: "admin", permissions: {} }) && podeVerJornada({ role: "viewer", permissions: { jornada: true } }) && !podeVerJornada({ role: "viewer", permissions: {} }) && !podeVerJornada(null));
 
-const card = (id: number, over: object = {}) => ({ id, paciente_chave: "100" + id, paciente_nome: "Maria da Conceição", data_ref: hoje, unidade: "CSI 1", coluna: "a_confirmar", coluna_nome: "A confirmar", etapa: "agendamento", origem: "klingo", ordem: 4, coluna_desde: "", responsavel: null, prioridade: 0, versao: 1, n_exames: 1, n_ativos: 1, n_mensagens: 0, vazio: false, atrasado: false, minutos_na_coluna: 5, n_tarefas_abertas: 0, n_tarefas_vencidas: 0, ...over }) as any;
+const card = (id: number, over: object = {}) => ({ id, paciente_chave: "100" + id, paciente_nome: "Maria da Conceição", data_ref: hoje, unidade: "CSI 1", coluna: "a_confirmar", coluna_nome: "A confirmar", etapa: "agendamento", origem: "klingo", ordem: 4, coluna_desde: "", responsavel: null, prioridade: 0, versao: 1, n_exames: 1, n_ativos: 1, n_mensagens: 0, vazio: false, atrasado: false, minutos_na_coluna: 5, n_tarefas_abertas: 0, n_tarefas_vencidas: 0, portal_confirmou_em: null, ...over }) as any;
 const ex = (card_id: number, over: object = {}) => ({ card_id, marcacao_id: "M" + card_id, atendimento_id: null, procedimento: "RM JOELHO", operadora: "AMIL", agendado_para: "2026-11-04T13:30:00Z", status: "agendado", confirm_status: null, cancelamento_motivo: null, ...over }) as any;
 const cards = [card(1), card(2, { unidade: "CSI 2", paciente_nome: "José" }), card(3, { vazio: true }), card(4, { atrasado: true }), card(5, { data_ref: "2026-11-20" })];
 const mapa = agruparExames([ex(1), ex(2, { operadora: "SUS", procedimento: "US ABDOME" }), ex(3), ex(4), ex(5)]);
@@ -83,4 +84,17 @@ assert.equal(estadoGeral([r({ marcha: "calmo", intervalo_min: 5, proxima_leitura
 assert.equal(estadoGeral([r({ marcha: "dormindo", intervalo_min: 60, proxima_leitura_em: "2026-11-04T15:30:00Z" })], agora), "dormindo");
 assert.equal(duracaoCurta(20), "20 s"); assert.equal(duracaoCurta(200), "3 min"); assert.equal(duracaoCurta(3900), "1 h 05");
 assert.equal(segundosAte("2026-11-04T15:00:30Z", agora), 30);
+
+// portal do paciente
+assert.ok(tokenValido("a".repeat(64)) && tokenValido("0123456789abcdef".repeat(4)));
+for (const ruim of ["", "abc", "a".repeat(63), "a".repeat(65), "A".repeat(64), "g".repeat(64), "../etc/passwd", " " + "a".repeat(63)]) assert.ok(!tokenValido(ruim), ruim);
+assert.equal(urlDoPortal("https://csi.exemplo.com.br/", "abc"), "https://csi.exemplo.com.br/p/abc");
+assert.equal(diaPorExtenso("2026-11-04"), "quarta-feira, 04/11");
+assert.equal(mensagemDoLink("MARIA DA SILVA", "2026-11-04", "https://x/p/t"), "Olá, Maria! Aqui é a Clínica CSI. Para confirmar seu atendimento de 04/11 ou falar com a nossa equipe, acesse: https://x/p/t");
+assert.ok(mensagemDoLink(null, "2026-11-04", "https://x/p/t").startsWith("Olá! Aqui"));
+assert.ok(!mensagemDoLink("Maria", "2026-11-04", "u").toLowerCase().includes("exame"));                 // sem dado clínico na mensagem
+const wa2 = linkWhatsAppComTexto("(11) 98888-7777", "Olá & tudo bem?");
+assert.equal(wa2, "https://wa.me/5511988887777?text=Ol%C3%A1%20%26%20tudo%20bem%3F");
+assert.equal(linkWhatsAppComTexto("123", "x"), null);
+for (const m of ["desligado", "limite", "invalido", "indisponivel", "muitas", "tamanho", "qualquer"]) assert.ok(textoDoMotivo(m).length > 10 && !/erro|exception|sql/i.test(textoDoMotivo(m)), m);
 console.log("JORNADA TS OK");

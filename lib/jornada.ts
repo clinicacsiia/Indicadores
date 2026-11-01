@@ -43,6 +43,7 @@ export type CardJornada = {
   minutos_na_coluna: number;
   n_tarefas_abertas: number;
   n_tarefas_vencidas: number;
+  portal_confirmou_em: string | null;
 };
 
 export type StatusExame = "agendado" | "confirmado" | "atendido" | "cancelado" | "remarcado" | "faltou";
@@ -70,7 +71,7 @@ export type TarefaJornada = {
 
 export type TransicaoJornada = { de: string; para: string };
 export type MembroEquipe = { id: string; nome: string };
-export type MensagemJornada = { id: number; card_id: number; autor: string | null; autor_nome: string | null; autor_tipo: "equipe" | "paciente" | "sistema"; texto: string; criado_em: string };
+export type MensagemJornada = { id: number; card_id: number; autor: string | null; autor_nome: string | null; autor_tipo: "equipe" | "paciente" | "sistema"; canal?: "interno" | "paciente"; texto: string; criado_em: string };
 
 export type SyncJornada = { ultima_execucao: string | null; ultimo_resultado: Record<string, number> | null };
 

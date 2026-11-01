@@ -270,6 +270,9 @@ de cada mês calculada uma vez por mês (calculada por linha, levava 10 s). Prim
 **01/11/2026, `20261101180000_jornada_automacoes.sql`:** automações da equipe (ver "Jornada do paciente: automações da equipe"). Aplicada em quatro partes pelo `apply_migration` (tabelas e tarefas; regras e gatilhos; visão do quadro e pendências; cron). Troca a restrição de tipos de `jornada_evento`
 (`alter table ... drop constraint` e `add constraint`, que o MCP aplica sem travar) para aceitar "tarefa" e "prioridade". Primeira execução das regras feita à mão (6 tarefas de "nova data", era domingo) antes de ligar o cron `jornada-regras`.
 
+**01/11/2026, `20261101190000_jornada_portal_paciente.sql`:** portal do paciente, desligado (ver "Jornada do paciente: portal do paciente e conversa com ele"). Aplicada em quatro partes pelo `apply_migration` (tabelas e permissões; funções da equipe; funções do paciente; visão e pendências) — só `create`, `alter table add column`, `grant` e `insert`. Teste de ponta a ponta no banco real
+feito com o portal ligado **dentro de uma transação desfeita**; conferido depois que `portal_ativo` segue falso e que não ficou cartão, link nem mensagem de teste.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -799,6 +802,21 @@ Migration `20261101180000_jornada_automacoes.sql` (teste em `supabase/tests/jorn
 - **Na tela:** o cartão mostra `☑ n` (tarefas abertas; vermelho se alguma venceu); ao abrir, a seção **Tarefas** tem caixas de marcar, o selo "auto" nas criadas pelo sistema, o vencimento e um campo para criar tarefa; o filtro **Só com tarefa pendente**; o
   histórico mostra tarefas, prioridade e atribuições do sistema. Tarefa criada, feita ou reaberta pela equipe fica no histórico (`jornada_criar_tarefa`, `jornada_marcar_tarefa`).
 - **Não faz:** checklist por tipo de exame (preparo, contraste, termo), porque falta o catálogo de preparo; concluir cartão sozinho depois do NPS; mensagens ao paciente.
+
+### Jornada do paciente: portal do paciente e conversa com ele (etapa 6)
+
+Migration `20261101190000_jornada_portal_paciente.sql` (teste em `supabase/tests/jornada.sql`, seção 14); página em `app/p/[token]/`, contas em `lib/portal.ts` (testadas em `tests/jornada_quadro.check.mts`), servidor em `lib/portal-servidor.ts`. **O portal nasce DESLIGADO** (`jornada_config.portal_ativo = false`): desligado, a equipe não gera link e a página responde "indisponível". Ver as pendências "Ligar o portal", "Aviso de privacidade" e "Link seguro × identificação".
+
+- **Como o paciente entra:** sem conta nem SMS. No cartão, **Paciente no site → Gerar link do paciente** (`jornada_portal_gerar_link`): o código tem 244 bits e aparece só naquela hora (o banco guarda o hash sha256). A tela copia o link ou abre o WhatsApp com a mensagem pronta
+  (só nome, dia e link; nenhum dado clínico). Vale até a virada do dia do atendimento + `link_validade_dias` (3). Gerar outro mata o anterior; "Revogar" mata na hora; desligar o portal derruba todos.
+- **Onde fica:** rota pública `/p/<código>` (o `proxy` não exige login ali; código que não tem 64 letras/números hexadecimais nem chega ao banco). `noindex` e `referrer: no-referrer`. O navegador do paciente **não fala com o Supabase**: a página (servidor) chama as funções `portal_*` com a chave de serviço
+  (`SUPABASE_SERVICE_ROLE_KEY`, só no servidor); essas funções não são executáveis por `anon` nem `authenticated`.
+- **O que o paciente vê:** primeiro nome, dia, unidade, exames (hora, nome, situação) e a conversa do canal "paciente". **Nunca** telefone, prontuário, convênio, valor, laudo nem a conversa interna (testado). **O que faz:** confirmar presença, pedir para remarcar, escrever para a equipe.
+- **Efeito para a equipe:** confirmar presença marca o cartão ("✔ site"), fecha a tarefa "Confirmar presença" e cria "Registrar no Klingo a confirmação feita pelo paciente" (o site ainda **não escreve no Klingo**); pedir remarcação cria tarefa (vence em 1 h), sobe a prioridade e entra na conversa; mensagem do paciente cria a tarefa
+  "Responder a mensagem do paciente", que a resposta da equipe fecha sozinha. Tudo fica no histórico do cartão. A equipe conversa em duas abas no cartão: **Equipe** (interna) e **Paciente** (o paciente lê).
+- **Proteções:** código errado é contado por origem (hash do IP + `PORTAL_SAL`, opcional): 30 por hora e a origem é bloqueada (`tentativas_por_hora`); no máximo 20 mensagens por hora por cartão (`mensagens_por_hora`); mensagem de 1 a 1000 letras; o paciente só confirma/remarca cartão de hoje em diante que ainda esteja em "A confirmar" ou "Confirmado".
+- **Para ligar:** `update public.jornada_config set portal_ativo = true;` (só depois de resolver o jurídico). Desligar: `... = false`.
+- **Não faz:** laudo, resultado de exame, documentos, login com senha/código por SMS, aviso automático ao paciente (a equipe envia o link) e escrita no Klingo.
 
 ### Regras para somar e cruzar os dados
 
