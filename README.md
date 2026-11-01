@@ -259,6 +259,9 @@ As consultas do site são rápidas sozinhas (agenda ~0,3 s, Início ~0,2 s), mas
 e `proximos_trabalhos_ritmo`; trigger e `proximos_trabalhos` novos; pendência, relatórios no ritmo e cron; e o ajuste do vencimento ao minuto cheio) — só `create`, `grant` e `insert`. Antes dela, a Edge Function
 `sync-relatorios-dw` foi publicada na versão que entende `{"ritmo": true}` (versão 16): ordem importa, porque o cron novo chama a função com esse campo.
 
+**01/11/2026, `20261101140000_jornada_modelo.sql` e `20261101150000_jornada_pendencias.sql`:** modelo do quadro da Jornada (ver "Jornada do paciente: o quadro"). Aplicadas em partes pelo `apply_migration` (tabelas e permissões; regras e funções;
+visão do quadro; tabela de pendências; sincronização com a aba Avisos; e `search_path` fixo em `jornada_imutavel`, apontado pelo verificador de segurança) — só `create`, `grant` e `insert`.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -716,6 +719,27 @@ do exame, ver o aviso abaixo).
   Atendimento, Prontuário, situação, confirmação, check-in, início/fim, laudo, autorização e carimbo de última alteração) e pede **Id do Atendimento / Id da Marcação / Prontuário** nos
   relatórios #13404 e #13402. Resolve sozinha quando o relatório existir e as colunas aparecerem. O escopo `jornada` existe para a conferência do painel Python (escopos `""` e `AAAA-MM`) não resolvê-la por engano.
 - **Limite:** sem o relatório por data do exame, a leitura de 1 min só enxerga marcações **novas**; cancelamento, confirmação e atendimento de marcação antiga só aparecem na releitura do mês.
+
+### Jornada do paciente: o quadro (modelo e regras, etapa 2)
+
+Migrations `20261101140000_jornada_modelo.sql` e `20261101150000_jornada_pendencias.sql`; teste `supabase/tests/jornada.sql` (cabeçalho do arquivo). Ainda **sem tela**: a leitura do Klingo
+que cria os cards e a aba do quadro vêm nas próximas etapas.
+
+- **Card** = um paciente num dia e numa unidade (`jornada_card`: prontuário + data + unidade), com os exames dentro (`jornada_exame`, uma linha por marcação do Klingo; sem valor em R$, que tem
+  permissão própria). Nome e telefones ficam em `jornada_paciente`. Tudo que acontece vira linha em `jornada_evento` (só se acrescenta; um trigger recusa alteração) e o chat do card em
+  `jornada_mensagem` (hoje só o canal `interno`; `paciente` fica reservado ao portal). `jornada_acesso` registra quem abriu cada card (LGPD, só o administrador lê).
+- **Colunas** (`jornada_coluna`, 17): manuais — Novo contato, Orçamento, Aguardando autorização, Chegou, Finalizado, Laudo pendente, Laudo entregue, Guia/faturamento, NPS e retorno, Concluído, Perdido;
+  do Klingo — A confirmar, Confirmado, Em atendimento, Cancelado, Remarcado, Faltou. Cada uma tem um prazo (`sla_min`) para o card ficar "atrasado" (valores iniciais meus; ver a pendência).
+- **Regras:** ninguém arrasta um card para coluna do Klingo, e movimento manual só pelas transições de `jornada_transicao` (`jornada_mover_card`, com trava de versão: "CONFLITO" se outra pessoa mexeu antes;
+  perder um contato exige motivo). O Klingo (`jornada_aplicar_klingo`, só o serviço) move para a frente e entre A confirmar e Confirmado, **nunca puxa para trás de uma coluna manual** (registra uma
+  "divergência", uma vez só); cancelar/remarcar vale até o atendimento começar; faltar só antes de a pessoa chegar. A matriz está em `jornada_klingo_pode_mover` e no teste.
+- **Quem vê:** a permissão `profiles.permissions.jornada` (o administrador sempre). Quem tem vê **tudo** do quadro e age nele; quem não tem não vê nada. Ninguém grava direto nas tabelas, só pelas funções.
+  A opção "Jornada" em Configurações entra com a tela do quadro; até lá, só pelo SQL (`update public.profiles set permissions = permissions || '{"jornada": true}' where email = '...'`).
+- **O que o quadro lê:** `v_jornada_quadro` (security invoker): exames ativos, mensagens, `atrasado` (passou do prazo da coluna) e `vazio` (sem exame ativo e sem mensagem numa coluna do Klingo: pode ficar oculto).
+- **Pendências para resolver de uma vez:** `jornada_pendencia` (lista que eu vou acrescentando a cada etapa) é publicada na aba Avisos (painel Atendimento, escopo `jornada`) por
+  `jornada_pendencias_sincronizar()` (todo dia às 06:00). Fechar exige justificativa; para tirar uma que deixou de valer: `update public.jornada_pendencia set ativa = false where chave = '...'`.
+  Hoje: feriados da coleta, prazos das colunas, quem cuida de cada coluna, contato/orçamento na primeira versão, jurídico do portal, API de escrita do Klingo, canal de aviso ao paciente, catálogo de preparo
+  dos exames, mais a dos relatórios do Klingo.
 
 ### Regras para somar e cruzar os dados
 
