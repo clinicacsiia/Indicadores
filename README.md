@@ -262,6 +262,9 @@ e `proximos_trabalhos_ritmo`; trigger e `proximos_trabalhos` novos; pendência, 
 **01/11/2026, `20261101140000_jornada_modelo.sql` e `20261101150000_jornada_pendencias.sql`:** modelo do quadro da Jornada (ver "Jornada do paciente: o quadro"). Aplicadas em partes pelo `apply_migration` (tabelas e permissões; regras e funções;
 visão do quadro; tabela de pendências; sincronização com a aba Avisos; e `search_path` fixo em `jornada_imutavel`, apontado pelo verificador de segurança) — só `create`, `grant` e `insert`.
 
+**01/11/2026, `20261101160000_jornada_sincronizar.sql`:** a leitura do #13825 que cria e move os cards (ver "Jornada do paciente: a leitura do Klingo e a aba do quadro"). Aplicada em partes pelo `apply_migration` — só `create`, `grant` e `insert`. A função da janela passou por três versões até ficar em SQL puro, com a última leitura
+de cada mês calculada uma vez por mês (calculada por linha, levava 10 s). Primeira rodada feita à mão antes de ligar o cron `jornada-sincronizar`.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -740,6 +743,23 @@ que cria os cards e a aba do quadro vêm nas próximas etapas.
   `jornada_pendencias_sincronizar()` (todo dia às 06:00). Fechar exige justificativa; para tirar uma que deixou de valer: `update public.jornada_pendencia set ativa = false where chave = '...'`.
   Hoje: feriados da coleta, prazos das colunas, quem cuida de cada coluna, contato/orçamento na primeira versão, jurídico do portal, API de escrita do Klingo, canal de aviso ao paciente, catálogo de preparo
   dos exames, mais a dos relatórios do Klingo.
+
+### Jornada do paciente: a leitura do Klingo e a aba do quadro (etapa 3)
+
+Migration `20261101160000_jornada_sincronizar.sql` (teste em `supabase/tests/jornada.sql`, seção 11); tela em `app/(app)/jornada/`, contas em `lib/jornada.ts` (teste `tests/test_jornada_quadro.py`, que roda `tests/jornada_quadro.check.mts` no Node).
+
+- **De onde vêm os cards:** do relatório **#13825** (colunas `col0…col17`, ver "Agenda do Klingo" no histórico do CRM). `jornada_marcacoes_janela()` pega uma linha por marcação (a leitura mais recente), só com exame de hoje-2 a hoje+30 dias, e
+  `jornada_sincronizar_klingo()` cria pacientes, cards e exames e leva cada card para a coluna que o Klingo indica, com as regras da etapa 2. **O valor em R$ não é copiado.** Unidades: CSI 1, CSI 2, CSI Pediatria (`jornada_unidade_curta`).
+- **Situação do exame** (`jornada_status_exame`): atendido (Atendido = S, vale mesmo se cancelada depois) · remarcado/cancelado (Status Cancelada; motivo "Remarcado") · faltou (aberta, sem atendimento, dia já passado) · confirmado · agendado.
+  **Coluna do card** (`jornada_coluna_do_card`): algum atendido → Em atendimento; nenhum ativo → Faltou/Remarcado/Cancelado; todos confirmados → Confirmado; senão A confirmar.
+- **Automático:** Em atendimento de um dia que passou vira Finalizado (evento "sistema"); Cancelado/Remarcado/Faltou/Concluído com mais de 7 dias e qualquer card com mais de 30 são arquivados (não apagados; cards `manual:` ficam). Se a equipe já passou o card adiante, o atraso do Klingo é ignorado sem alarme.
+- **Quando roda:** o cron `jornada-sincronizar` (todo minuto) chama `jornada_sincronizar_se_preciso()`, que só trabalha quando o #13825 foi lido de novo ou virou o dia. Hoje o #13825 é lido de 15 em 15 min, então os cards andam nesse ritmo.
+  Custo: a primeira rodada levou ~7 s (1.656 cards); sem novidade, ~1 s. A leitura do histórico do relatório varia de 0,3 a 5 s conforme o cache; **não se criou índice** porque o banco está perto do limite de espaço (aviso "banco_espaco" na aba Avisos).
+- **A tela** (menu **Jornada**, só quem tem a permissão `jornada` em Configurações; o administrador sempre): colunas lado a lado com os cartões (nome, hora, chips dos exames, unidade, tempo na coluna, atraso); filtros de dia (Ontem, Hoje, Amanhã, 7 dias, 30 dias, Tudo), unidade, convênio,
+  busca (nome sem acento, prontuário, exame, nº da marcação), "só atrasados" e "mostrar cartões sem nada a fazer" (ocultos por padrão: sem exame ativo e sem mensagem numa coluna do Klingo). Colunas vazias somem; cada coluna mostra 40 cartões e "Mostrar mais".
+  Ao abrir um cartão: contato (com link do WhatsApp), exames com situação e confirmação, e o histórico; abrir um cartão registra o acesso (`jornada_registrar_acesso`, LGPD). A tela se atualiza sozinha a cada 30 s e traz a barra de atualização da coleta.
+  **Somente leitura:** mover cartões, atribuir e o chat vêm na etapa 4.
+- **Limite:** enquanto o #13825 filtrar pela data em que a marcação foi *feita*, um cancelamento ou confirmação de marcação antiga só chega na releitura do mês (15 min). O pedido do relatório novo está na aba Avisos.
 
 ### Regras para somar e cruzar os dados
 

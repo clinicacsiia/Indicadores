@@ -1,5 +1,5 @@
--- Testa as migrations 20261101140000_jornada_modelo.sql e 20261101150000_jornada_pendencias.sql (quadro da Jornada: colunas, regras do Klingo,
--- movimentos à mão, chat, permissões e pendências) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
+-- Testa as migrations 20261101140000_jornada_modelo.sql, 20261101150000_jornada_pendencias.sql e 20261101160000_jornada_sincronizar.sql (quadro da Jornada: colunas,
+-- regras do Klingo, movimentos à mão, chat, permissões, pendências e a leitura do #13825 que cria e move os cards) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
 --
 --   createdb jornada_teste && psql -v ON_ERROR_STOP=1 -d jornada_teste -f supabase/tests/jornada.sql    (na raiz do repositório)
 --
@@ -50,6 +50,7 @@ insert into public.dim_relatorio (klingo_id, nome, granularidade, filtro_periodo
 \i supabase/migrations/20261101120000_coleta_ritmo.sql
 \i supabase/migrations/20261101140000_jornada_modelo.sql
 \i supabase/migrations/20261101150000_jornada_pendencias.sql
+\i supabase/migrations/20261101160000_jornada_sincronizar.sql
 
 -- gente: admin, quem tem a permissão da Jornada, quem não tem
 insert into public.profiles values
@@ -321,7 +322,7 @@ declare n integer; a public.aviso%rowtype;
 begin
   perform public.jornada_pendencias_sincronizar();
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 9 then raise exception 'esperava 9 avisos abertos (1 de relatórios + 8 pendências), achei %', n; end if;
+  if n <> 12 then raise exception 'esperava 12 avisos abertos (1 de relatórios + 11 pendências), achei %', n; end if;
   select * into a from public.aviso where painel = 'atendimento' and chave = 'jornada|api_escrita_klingo';
   if not found or a.nivel <> 'atencao' or not a.persistente or a.sensivel or jsonb_array_length(a.guia -> 'passos') < 1 then raise exception 'pendência da API do Klingo mal formada: %', row_to_json(a); end if;
   if a.titulo not like 'Jornada (etapa 2): %' then raise exception 'título sem a etapa: %', a.titulo; end if;
@@ -329,7 +330,7 @@ begin
   -- a conferência do painel Python não resolve as pendências da Jornada
   perform public.aviso_sincronizar('atendimento', array['', '2026-11'], 1, '[]'::jsonb);
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 9 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
+  if n <> 12 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
 
   -- pendência desativada some sozinha; nova aparece
   update public.jornada_pendencia set ativa = false where chave = 'feriados';
@@ -343,6 +344,123 @@ begin
   set local role authenticated;
   if (select count(*) from public.jornada_pendencia) <> 0 then raise exception 'quem não é admin não lê jornada_pendencia'; end if;
   reset role;
+end $$;
+
+-- ---------------------------------------------------------------- 11. a leitura do #13825 cria e move os cards
+-- uma linha do relatório (col0 marcação, col1 atendimento, col2 prontuário, col3 agendado em, col4 agendado para, col5 procedimento, col6 operadora, col10 confirmação,
+-- col11 motivo, col12 status, col13 atendido, col14 unidade, col15 nome, col16 celular, col17 telefone); `dias` = deslocamento do dia do exame em relação a hoje (Brasília)
+create function public.t_linha(p_periodo date, p_marc text, p_pront text, p_dias integer, p_confirm text, p_status text, p_atendido text, p_motivo text, p_unid text,
+                               p_proc text default 'RM JOELHO', p_nome text default 'Fulano', p_quando timestamptz default now()) returns void language sql as $$
+  insert into public.fact_relatorio_linha (relatorio_id, periodo, linha, linha_hash, first_seen_at, last_seen_at)
+  select r.id, p_periodo,
+         jsonb_build_object('col0', p_marc, 'col1', case when p_atendido = 'S' then 'A' || p_marc else '' end, 'col2', p_pront,
+           'col3', to_char((now() at time zone 'America/Sao_Paulo') - interval '5 days', 'YYYY-MM-DD HH24:MI:SS'),
+           'col4', to_char(((now() at time zone 'America/Sao_Paulo')::date + p_dias) + time '10:30', 'YYYY-MM-DD HH24:MI:SS'),
+           'col5', p_proc, 'col6', 'AMIL', 'col8', '999,00', 'col10', p_confirm, 'col11', p_motivo, 'col12', p_status, 'col13', p_atendido,
+           'col14', p_unid, 'col15', p_nome, 'col16', '11988887777', 'col17', ''),
+         md5(p_marc || p_confirm || p_status || p_atendido || p_motivo || p_quando::text), p_quando, p_quando
+  from public.dim_relatorio r where r.klingo_id = '13825' $$;
+
+do $$
+declare
+  mes date := date_trunc('month', (now() at time zone 'America/Sao_Paulo')::date::timestamp)::date;
+  csi text := 'CLÍNICA DE SAÚDE E IMAGEM - CSI'; rm text := 'CLÍNICA DE SAÚDE E IMAGEM - RM/TC'; des text := 'DESENVOAR';
+  res jsonb; n integer; hoje date := (now() at time zone 'America/Sao_Paulo')::date; col text; ver integer;
+begin
+  perform public.t_linha(mes, 'S1', 'T1', 0, 'A Confirmar', 'Aberta', 'N', '', csi);
+  perform public.t_linha(mes, 'S2', 'T1', 0, 'Confirmado',  'Aberta', 'N', '', csi, 'RX TORAX');            -- mesmo paciente, mesmo dia, mesma unidade: 2 exames num card
+  perform public.t_linha(mes, 'S3', 'T2', 0, 'Confirmado',  'Aberta', 'N', '', rm);
+  perform public.t_linha(mes, 'S4', 'T3', 0, 'Confirmado',  'Aberta', 'S', '', csi);
+  perform public.t_linha(mes, 'S5', 'T4', -1, 'Confirmado', 'Aberta', 'S', '', csi);                        -- atendido ontem
+  perform public.t_linha(mes, 'S6', 'T5', -1, 'A Confirmar', 'Aberta', 'N', '', csi);                       -- ontem, não veio
+  perform public.t_linha(mes, 'S7', 'T6', 0, 'A Confirmar', 'Cancelada', 'N', 'Remarcado.', csi);
+  perform public.t_linha(mes, 'S8', 'T7', 0, 'Confirmado',  'Cancelada', 'N', 'Atendimento unificado', rm);
+  perform public.t_linha(mes, 'S9', 'T8', 1, 'Confirmado',  'Aberta', 'N', '', des);
+  perform public.t_linha(mes, 'S10', 'T9', 60, 'A Confirmar', 'Aberta', 'N', '', csi);                      -- fora da janela (60 dias à frente)
+  perform public.t_linha(mes, 'S11', 'T10', -10, 'Confirmado', 'Aberta', 'S', '', csi);                     -- fora da janela (10 dias atrás)
+  -- a mesma marcação lida duas vezes no mês: vale a leitura mais recente
+  perform public.t_linha(mes, 'S12', 'T11', 0, 'A Confirmar', 'Aberta', 'N', '', csi, 'US ABDOME', 'Velho', now() - interval '2 hours');
+  perform public.t_linha(mes, 'S12', 'T11', 0, 'Confirmado',  'Aberta', 'N', '', csi, 'US ABDOME', 'Novo',  now() - interval '1 hour');
+
+  res := public.jornada_sincronizar_klingo();
+  if (res ->> 'exames')::integer <> 10 then raise exception 'esperava 10 exames na janela, achei %: %', res ->> 'exames', res; end if;
+  if (res ->> 'cards_criados')::integer <> 9 then raise exception 'esperava 9 cards criados, achei %', res ->> 'cards_criados'; end if;
+
+  -- colunas
+  foreach col in array array['T1:a_confirmar', 'T2:confirmado', 'T3:em_atendimento', 'T4:finalizado', 'T5:faltou', 'T6:remarcado', 'T7:cancelado', 'T8:confirmado', 'T11:confirmado'] loop
+    if (select coluna from public.jornada_card where paciente_chave = split_part(col, ':', 1)) is distinct from split_part(col, ':', 2) then
+      raise exception 'card % devia estar em %, está em %', split_part(col, ':', 1), split_part(col, ':', 2), (select coluna from public.jornada_card where paciente_chave = split_part(col, ':', 1)); end if;
+  end loop;
+  if exists (select 1 from public.jornada_card where paciente_chave in ('T9', 'T10')) then raise exception 'fora da janela não vira card'; end if;
+  if (select count(*) from public.jornada_exame e join public.jornada_card c on c.id = e.card_id where c.paciente_chave = 'T1') <> 2 then raise exception 'T1 devia ter 2 exames'; end if;
+  if (select nome from public.jornada_paciente where prontuario = 'T11') <> 'Novo' then raise exception 'devia valer a leitura mais recente'; end if;
+  if (select unidade from public.jornada_card where paciente_chave = 'T2') <> 'CSI 2' or (select unidade from public.jornada_card where paciente_chave = 'T8') <> 'CSI Pediatria' then raise exception 'unidade curta errada'; end if;
+  if (select status from public.jornada_exame where marcacao_id = 'S7') <> 'remarcado' or (select status from public.jornada_exame where marcacao_id = 'S8') <> 'cancelado' then raise exception 'status de cancelamento errado'; end if;
+  if (select status from public.jornada_exame where marcacao_id = 'S6') <> 'faltou' then raise exception 'ontem, aberta e sem atendimento é falta'; end if;
+  if (select atendimento_id from public.jornada_exame where marcacao_id = 'S4') <> 'AS4' then raise exception 'devia guardar o Id do atendimento'; end if;
+  -- o valor em R$ não vai para o quadro
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name in ('jornada_exame', 'jornada_card', 'jornada_paciente') and column_name ilike '%valor%') then raise exception 'valor não pode ir para o quadro'; end if;
+  -- T4 foi finalizado sozinho (o dia passou) e isso ficou no histórico
+  if not exists (select 1 from public.jornada_evento e join public.jornada_card c on c.id = e.card_id where c.paciente_chave = 'T4' and e.origem = 'sistema' and e.para_coluna = 'finalizado') then raise exception 'faltou o evento do sistema'; end if;
+  if (res ->> 'finalizados_sozinho')::integer <> 1 then raise exception 'esperava 1 finalizado sozinho: %', res; end if;
+
+  -- repetir não muda nada (nem gera evento novo)
+  select count(*) into n from public.jornada_evento;
+  res := public.jornada_sincronizar_klingo();
+  if (res ->> 'cards_criados')::integer <> 0 or (res ->> 'cards_movidos')::integer <> 0 or (res ->> 'divergencias')::integer <> 0 or (res ->> 'finalizados_sozinho')::integer <> 0 then raise exception 'segunda rodada devia ser vazia: %', res; end if;
+  if (select count(*) from public.jornada_evento) <> n then raise exception 'segunda rodada gerou eventos'; end if;
+
+  -- o Klingo avança: T2 foi atendido (leitura nova do mês: a linha antiga deixa de valer)
+  insert into public.sync_relatorio_runs (relatorio_id, periodo, started_at, finished_at, status)
+    select id, mes, now() + interval '1 minute', now() + interval '1 minute', 'success' from public.dim_relatorio where klingo_id = '13825';
+  perform public.t_linha(mes, 'S3', 'T2', 0, 'Confirmado', 'Aberta', 'S', '', rm, 'RM JOELHO', 'Fulano', now() + interval '2 minutes');
+  res := public.jornada_sincronizar_klingo();
+  if (select coluna from public.jornada_card where paciente_chave = 'T2') <> 'em_atendimento' then raise exception 'T2 devia ir para Em atendimento'; end if;
+  if (res ->> 'cards_movidos')::integer <> 1 then raise exception 'esperava 1 card movido: %', res; end if;
+  if (select count(*) from public.jornada_exame where marcacao_id = 'S3') <> 1 then raise exception 'a marcação não pode duplicar'; end if;
+  -- as outras marcações do mês deixaram de ser "vigentes" (não estão na leitura nova): saem da janela, mas o card já existente fica como estava
+  if (select coluna from public.jornada_card where paciente_chave = 'T1') <> 'a_confirmar' then raise exception 'T1 devia continuar como estava'; end if;
+
+  -- a equipe passa o card de T2 para Finalizado; o Klingo ainda diz "atendido" e isso não gera alarme
+  select versao into ver from public.jornada_card where paciente_chave = 'T2';
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+  perform public.jornada_mover_card((select id from public.jornada_card where paciente_chave = 'T2'), 'finalizado', ver);
+  perform public.jornada_sincronizar_klingo();
+  if (select coluna from public.jornada_card where paciente_chave = 'T2') <> 'finalizado' then raise exception 'Klingo não pode puxar T2 para trás'; end if;
+  if exists (select 1 from public.jornada_evento e join public.jornada_card c on c.id = e.card_id where c.paciente_chave = 'T2' and e.tipo = 'divergencia') then raise exception 'atraso normal do Klingo não é divergência'; end if;
+end $$;
+
+-- quando roda: só se o #13825 foi lido de novo ou virou o dia
+do $$
+declare r jsonb; v timestamptz;
+begin
+  update public.jornada_sync_estado set ultima_execucao = null, ultima_leitura_vista = null;
+  r := public.jornada_sincronizar_se_preciso();
+  if not (r ->> 'rodou')::boolean then raise exception 'a primeira vez devia rodar: %', r; end if;
+  r := public.jornada_sincronizar_se_preciso();
+  if (r ->> 'rodou')::boolean then raise exception 'sem leitura nova não devia rodar'; end if;
+  insert into public.sync_relatorio_runs (relatorio_id, periodo, started_at, finished_at, status)
+    select id, current_date, now() + interval '5 minutes', now() + interval '5 minutes', 'success' from public.dim_relatorio where klingo_id = '13825';
+  r := public.jornada_sincronizar_se_preciso();
+  if not (r ->> 'rodou')::boolean then raise exception 'leitura nova devia rodar'; end if;
+  update public.jornada_sync_estado set ultima_execucao = now() - interval '2 days';
+  r := public.jornada_sincronizar_se_preciso();
+  if not (r ->> 'rodou')::boolean then raise exception 'virou o dia: devia rodar'; end if;
+  if (select ultimo_resultado ->> 'exames' from public.jornada_sync_estado) is null then raise exception 'devia guardar o último resultado'; end if;
+  if not exists (select 1 from cron.agendados where nome = 'jornada-sincronizar') then raise exception 'cron da sincronização não agendado'; end if;
+  if has_function_privilege('authenticated', 'public.jornada_sincronizar_klingo(integer,integer)', 'execute') or has_function_privilege('authenticated', 'public.jornada_sincronizar_se_preciso()', 'execute') then raise exception 'só o serviço sincroniza'; end if;
+end $$;
+
+-- arquivamento: encerrado há mais de 7 dias sai do quadro; card digitado à mão (manual:) fica
+do $$
+declare mes date := date_trunc('month', (now() at time zone 'America/Sao_Paulo')::date::timestamp)::date;
+begin
+  insert into public.jornada_card (paciente_chave, data_ref, unidade, coluna) values ('V1', current_date - 9, 'CSI 1', 'cancelado'), ('V2', current_date - 9, 'CSI 1', 'laudo_pendente'), ('manual:7', current_date - 40, '', 'contato'), ('V3', current_date - 40, 'CSI 1', 'laudo_pendente');
+  perform public.jornada_sincronizar_klingo();
+  if (select arquivado_em from public.jornada_card where paciente_chave = 'V1') is null then raise exception 'cancelado há 9 dias devia ser arquivado'; end if;
+  if (select arquivado_em from public.jornada_card where paciente_chave = 'V2') is not null then raise exception 'laudo pendente há 9 dias ainda é trabalho: não arquiva'; end if;
+  if (select arquivado_em from public.jornada_card where paciente_chave = 'V3') is null then raise exception 'qualquer card com mais de 30 dias é arquivado'; end if;
+  if (select arquivado_em from public.jornada_card where paciente_chave = 'manual:7') is not null then raise exception 'card manual não é arquivado sozinho'; end if;
 end $$;
 
 \echo JORNADA OK

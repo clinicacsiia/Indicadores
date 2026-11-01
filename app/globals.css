@@ -2480,6 +2480,288 @@ select {
   color: var(--ink-2);
 }
 
+/* ───────── Jornada do paciente (quadro) ───────── */
+
+.jornada {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.jornada-filtros {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.jornada-periodos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.jornada-periodo {
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.jornada-periodo:hover {
+  background: var(--surface-2);
+}
+.jornada-periodo[aria-pressed="true"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 600;
+}
+.jornada-campos {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) repeat(2, minmax(150px, 1fr));
+  gap: 12px;
+}
+.jornada-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+.jornada-resumo {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.jornada-atraso-txt {
+  color: var(--warn);
+  font-weight: 600;
+}
+.jornada-quadro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 12px;
+  overflow-x: auto;
+}
+.jornada-coluna {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--ink-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.jornada-coluna[data-etapa="agendamento"] {
+  border-top-color: var(--brand);
+}
+.jornada-coluna[data-etapa="depois"] {
+  border-top-color: var(--ok);
+}
+.jornada-coluna[data-etapa="pos"] {
+  border-top-color: var(--s-agendados);
+}
+.jornada-coluna[data-etapa="excecao"] {
+  border-top-color: var(--danger);
+}
+.jornada-coluna-cabeca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jornada-coluna-cabeca h2 {
+  margin: 0;
+  font-size: 14px;
+  font-family: var(--font-display);
+}
+.jornada-coluna-n {
+  min-width: 24px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  text-align: center;
+}
+.jornada-coluna-origem {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.jornada-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.jornada-cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+.jornada-cartao:hover {
+  border-color: var(--brand);
+}
+.jornada-cartao:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.jornada-cartao[data-atrasado="true"] {
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+}
+.jornada-cartao[data-vazio="true"] {
+  opacity: 0.6;
+}
+.jornada-cartao-topo,
+.jornada-cartao-base {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.jornada-cartao-nome {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jornada-cartao-hora,
+.jornada-tempo,
+.jornada-unidade {
+  color: var(--ink-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.jornada-tempo[data-atrasado="true"] {
+  color: var(--warn);
+  font-weight: 600;
+}
+.jornada-cartao-exames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.jornada-chip {
+  max-width: 100%;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jornada-chip[data-status="confirmado"] {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.jornada-chip[data-status="atendido"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.jornada-chip[data-status="cancelado"],
+.jornada-chip[data-status="remarcado"],
+.jornada-chip[data-status="faltou"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.jornada-chip[data-status="faltou"] {
+  text-decoration: none;
+}
+.jornada-mais {
+  width: 100%;
+}
+.jornada-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(14, 28, 46, 0.35);
+}
+.jornada-detalhe {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(560px, 100vw);
+  padding: 18px 20px;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-md);
+}
+.jornada-detalhe-cabeca {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jornada-detalhe-cabeca h2,
+.jornada-detalhe h3 {
+  margin: 0;
+  font-family: var(--font-display);
+}
+.jornada-detalhe-cabeca p,
+.jornada-detalhe-coluna {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.jornada-detalhe h3 {
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+.jornada-sub {
+  color: var(--ink-3);
+}
+.jornada-historico {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.jornada-historico time {
+  color: var(--ink-3);
+}
+@media (max-width: 720px) {
+  .jornada-campos {
+    grid-template-columns: 1fr;
+  }
+  .jornada-coluna {
+    flex-basis: 85vw;
+  }
+}
+
 /* ───────── Avisos (pendências de todos os painéis) ───────── */
 
 .nav-contador {
