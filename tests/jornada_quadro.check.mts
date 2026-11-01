@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { noPeriodo, somarDias, filtrarCards, agruparExames, FILTROS_PADRAO, linkWhatsApp, tempoNaColuna, semAcento, hojeBrasilia, podeVerJornada, diaCurto } from "../lib/jornada.ts";
+import { noPeriodo, somarDias, filtrarCards, agruparExames, FILTROS_PADRAO, linkWhatsApp, tempoNaColuna, semAcento, hojeBrasilia, podeVerJornada, diaCurto, destinosPermitidos, cartaoMovido, erroDeMover, iniciais } from "../lib/jornada.ts";
 import { duracaoCurta, estadoDoRelatorio, estadoGeral, segundosAte } from "../lib/coleta-ritmo.ts";
 
 assert.equal(somarDias("2026-11-30", 1), "2026-12-01");
@@ -33,6 +33,31 @@ assert.deepEqual(f({ busca: "1002" }), [2]);               // por prontuário
 assert.deepEqual(f({ busca: "M4" }), [4]);                 // por nº da marcação
 assert.deepEqual(f({ soAtrasados: true }), [4]);
 assert.deepEqual(f({ periodo: "30dias" }), [1, 2, 4, 5]);
+
+// responsável
+const comResp = [card(1, { responsavel: "u1" }), card(2, { responsavel: "u2" }), card(3), card(4, { responsavel: "u1" })];
+const fr = (r: string) => filtrarCards(comResp, mapa, { ...FILTROS_PADRAO, periodo: "hoje", responsavel: r }, hoje, "u1").map((c) => c.id);
+assert.deepEqual(fr(""), [1, 2, 3, 4]);
+assert.deepEqual(fr("meus"), [1, 4]);
+assert.deepEqual(fr("sem"), [3]);
+assert.deepEqual(fr("u2"), [2]);
+
+// mover à mão
+const colunas = [
+  { id: "confirmado", nome: "Confirmado", ordem: 5, etapa: "agendamento", origem: "klingo", sla_min: null },
+  { id: "chegou", nome: "Chegou", ordem: 6, etapa: "depois", origem: "manual", sla_min: 30 },
+  { id: "em_atendimento", nome: "Em atendimento", ordem: 7, etapa: "depois", origem: "klingo", sla_min: 120 },
+  { id: "finalizado", nome: "Finalizado", ordem: 8, etapa: "depois", origem: "manual", sla_min: 30 },
+] as any;
+const trans = [{ de: "confirmado", para: "chegou" }, { de: "chegou", para: "finalizado" }, { de: "chegou", para: "em_atendimento" }];
+assert.deepEqual(destinosPermitidos("confirmado", trans, colunas).map((c: any) => c.id), ["chegou"]);
+assert.deepEqual(destinosPermitidos("chegou", trans, colunas).map((c: any) => c.id), ["finalizado"]);   // nunca para coluna do Klingo
+assert.deepEqual(destinosPermitidos("finalizado", trans, colunas), []);
+const mv = cartaoMovido(card(9, { coluna: "confirmado", atrasado: true, minutos_na_coluna: 50, versao: 3 }), colunas[1]);
+assert.equal(mv.coluna, "chegou"); assert.equal(mv.versao, 4); assert.equal(mv.atrasado, false); assert.equal(mv.minutos_na_coluna, 0); assert.equal(mv.origem, "manual");
+assert.equal(erroDeMover("CONFLITO: o card foi alterado por outra pessoa. Atualize a tela e tente de novo.").conflito, true);
+assert.equal(erroDeMover("Movimento não permitido: de x para y.").conflito, false);
+assert.equal(iniciais("Maria da Conceição"), "MC"); assert.equal(iniciais("ana"), "A"); assert.equal(iniciais(""), "?"); assert.equal(iniciais(null), "?");
 
 // barra de atualização
 const agora = Date.parse("2026-11-04T15:00:00Z");

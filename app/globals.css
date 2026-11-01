@@ -2762,6 +2762,186 @@ select {
   }
 }
 
+.jornada-campos {
+  grid-template-columns: minmax(200px, 2fr) repeat(3, minmax(140px, 1fr));
+}
+.jornada-tempo-real {
+  color: var(--ink-3);
+}
+.jornada-tempo-real[data-ligado="true"] {
+  color: var(--ok);
+  font-weight: 600;
+}
+.jornada-erro {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 14px;
+}
+.jornada-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.jornada-coluna[data-alvo="sim"] {
+  border-style: dashed;
+  border-color: var(--brand);
+}
+.jornada-coluna[data-alvo="sobre"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.jornada-coluna[data-alvo="nao"] {
+  opacity: 0.55;
+}
+.jornada-solte {
+  margin: 0;
+  padding: 18px 8px;
+  border: 1px dashed var(--brand);
+  border-radius: var(--radius-sm);
+  color: var(--brand);
+  font-size: 13px;
+  text-align: center;
+}
+.jornada-cartao[draggable="true"] {
+  cursor: grab;
+}
+.jornada-resp {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 700;
+}
+.jornada-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.jornada-acao {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.jornada-botoes,
+.jornada-responsavel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jornada-responsavel .select {
+  flex: 1 1 180px;
+}
+.jornada-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 42;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(440px, calc(100vw - 32px));
+  padding: 18px 20px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-md);
+}
+.jornada-modal h2,
+.jornada-modal p {
+  margin: 0;
+}
+.jornada-modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.jornada-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jornada-chat h3 {
+  margin: 0;
+}
+.jornada-chat-aviso {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.jornada-chat-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.jornada-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 88%;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  align-self: flex-start;
+}
+.jornada-msg[data-minha="true"] {
+  align-self: flex-end;
+  background: var(--brand-soft);
+  border-color: transparent;
+}
+.jornada-msg-topo {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+}
+.jornada-msg-topo time {
+  color: var(--ink-3);
+}
+.jornada-msg-texto {
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.jornada-chat-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.jornada-chat-form .input {
+  flex: 1;
+  resize: vertical;
+}
+@media (max-width: 720px) {
+  .jornada-campos {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ───────── Avisos (pendências de todos os painéis) ───────── */
 
 .nav-contador {

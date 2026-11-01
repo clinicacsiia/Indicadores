@@ -57,9 +57,22 @@ export type ExameJornada = {
   cancelamento_motivo: string | null;
 };
 
+export type TransicaoJornada = { de: string; para: string };
+export type MembroEquipe = { id: string; nome: string };
+export type MensagemJornada = { id: number; card_id: number; autor: string | null; autor_nome: string | null; autor_tipo: "equipe" | "paciente" | "sistema"; texto: string; criado_em: string };
+
 export type SyncJornada = { ultima_execucao: string | null; ultimo_resultado: Record<string, number> | null };
 
-export type DadosQuadro = { colunas: ColunaJornada[]; cards: CardJornada[]; exames: ExameJornada[]; sync: SyncJornada | null; hoje: string };
+export type DadosQuadro = {
+  colunas: ColunaJornada[];
+  transicoes: TransicaoJornada[];
+  equipe: MembroEquipe[];
+  usuarioId: string;
+  cards: CardJornada[];
+  exames: ExameJornada[];
+  sync: SyncJornada | null;
+  hoje: string;
+};
 
 const PAGINA = 1000; // o Supabase devolve no máximo 1000 linhas por pedido
 
@@ -78,9 +91,11 @@ export function hojeBrasilia(agora = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(agora);
 }
 
-export async function carregarQuadro(supabase: SupabaseClient): Promise<DadosQuadro> {
-  const [colunasRes, cards, exames, syncRes] = await Promise.all([
+export async function carregarQuadro(supabase: SupabaseClient, usuarioId: string): Promise<DadosQuadro> {
+  const [colunasRes, transicoesRes, equipeRes, cards, exames, syncRes] = await Promise.all([
     supabase.from("jornada_coluna").select("id, nome, ordem, etapa, origem, sla_min").eq("ativa", true).order("ordem"),
+    supabase.from("jornada_transicao").select("de, para"),
+    supabase.rpc("jornada_equipe"),
     lerTudo<CardJornada>((de, ate) =>
       supabase.from("v_jornada_quadro").select("*").order("id").range(de, ate) as unknown as PromiseLike<{ data: CardJornada[] | null; error: { message: string } | null }>,
     ),
@@ -94,8 +109,14 @@ export async function carregarQuadro(supabase: SupabaseClient): Promise<DadosQua
     supabase.from("jornada_sync_estado").select("ultima_execucao, ultimo_resultado").maybeSingle(),
   ]);
   if (colunasRes.error) throw new Error(colunasRes.error.message);
+  // sem as transições ou sem a lista da equipe o quadro continua valendo, só sem mover/atribuir
+  if (transicoesRes.error) console.error("Falha ao ler as transições da Jornada:", transicoesRes.error.message);
+  if (equipeRes.error) console.error("Falha ao ler a equipe da Jornada:", equipeRes.error.message);
   return {
     colunas: (colunasRes.data ?? []) as ColunaJornada[],
+    transicoes: (transicoesRes.data ?? []) as TransicaoJornada[],
+    equipe: (equipeRes.data ?? []) as MembroEquipe[],
+    usuarioId,
     cards,
     exames,
     sync: (syncRes.data as SyncJornada | null) ?? null,
@@ -120,11 +141,12 @@ export type Filtros = {
   unidade: string; // "" = todas
   operadora: string; // "" = todas
   busca: string;
+  responsavel: string; // "" = todos · "meus" · "sem" (sem responsável) · id de uma pessoa
   soAtrasados: boolean;
   mostrarVazios: boolean;
 };
 
-export const FILTROS_PADRAO: Filtros = { periodo: "7dias", unidade: "", operadora: "", busca: "", soAtrasados: false, mostrarVazios: false };
+export const FILTROS_PADRAO: Filtros = { periodo: "7dias", unidade: "", operadora: "", busca: "", responsavel: "", soAtrasados: false, mostrarVazios: false };
 
 // AAAA-MM-DD + n dias (sem fuso: só calendário)
 export function somarDias(dia: string, n: number): string {
@@ -152,7 +174,7 @@ export function noPeriodo(dataRef: string, periodo: Periodo, hoje: string): bool
 // Sem acento e sem maiúscula, para "joao" achar "João".
 export const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export function filtrarCards(cards: CardJornada[], examesPorCard: Map<number, ExameJornada[]>, f: Filtros, hoje: string): CardJornada[] {
+export function filtrarCards(cards: CardJornada[], examesPorCard: Map<number, ExameJornada[]>, f: Filtros, hoje: string, usuarioId = ""): CardJornada[] {
   const busca = semAcento(f.busca.trim());
   const soDigitos = busca.replace(/\D/g, "");
   return cards.filter((c) => {
@@ -160,6 +182,9 @@ export function filtrarCards(cards: CardJornada[], examesPorCard: Map<number, Ex
     if (f.unidade && c.unidade !== f.unidade) return false;
     if (c.vazio && !f.mostrarVazios) return false;
     if (f.soAtrasados && !c.atrasado) return false;
+    if (f.responsavel === "meus" && c.responsavel !== usuarioId) return false;
+    if (f.responsavel === "sem" && c.responsavel) return false;
+    if (f.responsavel && f.responsavel !== "meus" && f.responsavel !== "sem" && c.responsavel !== f.responsavel) return false;
     const exames = examesPorCard.get(c.id) ?? [];
     if (f.operadora && !exames.some((e) => e.operadora === f.operadora)) return false;
     if (busca) {
@@ -217,4 +242,29 @@ export function linkWhatsApp(telefone: string | null): string | null {
   if (d.length === 10 || d.length === 11) return `https://wa.me/55${d}`;
   if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return `https://wa.me/${d}`;
   return null;
+}
+
+// ---------------------------------------------------------------- mover à mão
+
+// Colunas para onde a equipe pode levar o cartão (só colunas da equipe, só por transição cadastrada).
+export function destinosPermitidos(coluna: string, transicoes: TransicaoJornada[], colunas: ColunaJornada[]): ColunaJornada[] {
+  const ids = new Set(transicoes.filter((t) => t.de === coluna).map((t) => t.para));
+  return colunas.filter((c) => ids.has(c.id) && c.origem === "manual");
+}
+
+// O cartão já na coluna nova, antes de o servidor confirmar (volta atrás se o servidor recusar).
+export function cartaoMovido(card: CardJornada, destino: ColunaJornada): CardJornada {
+  return { ...card, coluna: destino.id, coluna_nome: destino.nome, etapa: destino.etapa, origem: destino.origem, ordem: destino.ordem, versao: card.versao + 1, minutos_na_coluna: 0, atrasado: false };
+}
+
+// Mensagens de erro do servidor em português simples; "CONFLITO" quer dizer que outra pessoa mexeu antes.
+export function erroDeMover(mensagem: string): { texto: string; conflito: boolean } {
+  if (mensagem.startsWith("CONFLITO")) return { texto: "Outra pessoa mexeu neste cartão antes de você. A tela foi atualizada: confira e tente de novo.", conflito: true };
+  return { texto: mensagem || "Não foi possível mover o cartão.", conflito: false };
+}
+
+export function iniciais(nome: string | null | undefined): string {
+  const partes = (nome ?? "").trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  return (partes[0][0] + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
 }

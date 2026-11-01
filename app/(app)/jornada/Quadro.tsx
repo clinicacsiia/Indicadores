@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   agruparExames,
+  cartaoMovido,
+  destinosPermitidos,
   diaCurto,
+  erroDeMover,
   filtrarCards,
   FILTROS_PADRAO,
   horaCurta,
-  linkWhatsApp,
+  iniciais,
   PERIODOS,
   ROTULO_STATUS_EXAME,
   tempoNaColuna,
@@ -19,24 +22,39 @@ import {
   type Periodo,
 } from "@/lib/jornada";
 import { horaBrasilia } from "@/lib/coleta-ritmo";
+import { Detalhe } from "./Detalhe";
 
 const POR_COLUNA = 40; // cartões desenhados por coluna antes de "mostrar mais"
-
-type EventoCard = { quando: string; tipo: string; origem: string; de_coluna: string | null; para_coluna: string | null; detalhe: Record<string, unknown> };
+const ESPERA_AVISOS_MS = 800; // junta vários avisos do tempo real numa leitura só
 
 export function Quadro({ dados }: { dados: DadosQuadro }) {
   const [f, setF] = useState<Filtros>(FILTROS_PADRAO);
   const [aberto, setAberto] = useState<number | null>(null);
   const [limites, setLimites] = useState<Record<string, number>>({});
+  const [cards, setCards] = useState<CardJornada[]>(dados.cards);
+  const [exames, setExames] = useState<ExameJornada[]>(dados.exames);
+  const [arrastando, setArrastando] = useState<number | null>(null);
+  const [alvoSobre, setAlvoSobre] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [tempoReal, setTempoReal] = useState(false);
+  const [perdendo, setPerdendo] = useState<{ card: CardJornada; nota: string } | null>(null);
 
-  const examesPorCard = useMemo(() => agruparExames(dados.exames), [dados.exames]);
+  // a tela do servidor se refaz sozinha a cada 30 s: o que ela traz vale como o estado novo
+  useEffect(() => {
+    setCards(dados.cards);
+    setExames(dados.exames);
+  }, [dados.cards, dados.exames]);
+
+  const nomeEquipe = useMemo(() => new Map(dados.equipe.map((m) => [m.id, m.nome])), [dados.equipe]);
+  const examesPorCard = useMemo(() => agruparExames(exames), [exames]);
   const nomeColuna = useMemo(() => new Map(dados.colunas.map((c) => [c.id, c.nome])), [dados.colunas]);
+  const coluna = useCallback((id: string) => dados.colunas.find((c) => c.id === id), [dados.colunas]);
 
-  const unidades = useMemo(() => [...new Set(dados.cards.map((c) => c.unidade).filter(Boolean))].sort(), [dados.cards]);
-  const operadoras = useMemo(() => [...new Set(dados.exames.map((e) => e.operadora).filter((o): o is string => !!o))].sort((a, b) => a.localeCompare(b, "pt-BR")), [dados.exames]);
+  const unidades = useMemo(() => [...new Set(cards.map((c) => c.unidade).filter(Boolean))].sort(), [cards]);
+  const operadoras = useMemo(() => [...new Set(exames.map((e) => e.operadora).filter((o): o is string => !!o))].sort((a, b) => a.localeCompare(b, "pt-BR")), [exames]);
 
-  const filtrados = useMemo(() => filtrarCards(dados.cards, examesPorCard, f, dados.hoje), [dados.cards, examesPorCard, f, dados.hoje]);
-  const ocultos = useMemo(() => dados.cards.filter((c) => c.vazio).length, [dados.cards]);
+  const filtrados = useMemo(() => filtrarCards(cards, examesPorCard, f, dados.hoje, dados.usuarioId), [cards, examesPorCard, f, dados.hoje, dados.usuarioId]);
+  const ocultos = useMemo(() => cards.filter((c) => c.vazio).length, [cards]);
 
   const porColuna = useMemo(() => {
     const mapa = new Map<string, CardJornada[]>();
@@ -49,9 +67,63 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
     return mapa;
   }, [filtrados, examesPorCard]);
 
-  const colunasVisiveis = dados.colunas.filter((c) => porColuna.has(c.id));
+  // enquanto arrasta, as colunas de destino aparecem mesmo vazias
+  const cardArrastado = arrastando !== null ? (cards.find((c) => c.id === arrastando) ?? null) : null;
+  const destinosDoArrastado = useMemo(
+    () => new Set(cardArrastado ? destinosPermitidos(cardArrastado.coluna, dados.transicoes, dados.colunas).map((c) => c.id) : []),
+    [cardArrastado, dados.transicoes, dados.colunas],
+  );
+  const colunasVisiveis = dados.colunas.filter((c) => porColuna.has(c.id) || destinosDoArrastado.has(c.id));
   const atrasados = filtrados.filter((c) => c.atrasado).length;
-  const selecionado = aberto !== null ? (dados.cards.find((c) => c.id === aberto) ?? null) : null;
+  const selecionado = aberto !== null ? (cards.find((c) => c.id === aberto) ?? null) : null;
+
+  // ------------------------------------------------------------ tempo real: relê só os cartões avisados
+  const pendentes = useRef(new Set<number>());
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const reler = useCallback(async () => {
+    const ids = [...pendentes.current];
+    pendentes.current.clear();
+    if (ids.length === 0) return;
+    const supabase = createClient();
+    const [c, e] = await Promise.all([
+      supabase.from("v_jornada_quadro").select("*").in("id", ids),
+      supabase.from("jornada_exame").select("card_id, marcacao_id, atendimento_id, procedimento, operadora, agendado_para, status, confirm_status, cancelamento_motivo").in("card_id", ids),
+    ]);
+    if (c.error || e.error) return; // a tela do servidor ainda se refaz em até 30 s
+    const novos = new Map((c.data as CardJornada[]).map((x) => [x.id, x]));
+    const idsSet = new Set(ids);
+    setCards((atual) => {
+      const resto = atual.filter((x) => !idsSet.has(x.id));
+      return [...resto, ...novos.values()].sort((a, b) => a.id - b.id);
+    });
+    setExames((atual) => [...atual.filter((x) => !idsSet.has(x.card_id)), ...(e.data as ExameJornada[])]);
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let ativo = true;
+    let canal: ReturnType<typeof supabase.channel> | null = null;
+    void (async () => {
+      await supabase.realtime.setAuth();
+      if (!ativo) return;
+      canal = supabase
+        .channel("jornada:quadro", { config: { private: true } })
+        .on("broadcast", { event: "card" }, ({ payload }) => {
+          const id = Number((payload as { card_id?: number }).card_id);
+          if (!Number.isFinite(id)) return;
+          pendentes.current.add(id);
+          if (temporizador.current) clearTimeout(temporizador.current);
+          temporizador.current = setTimeout(() => void reler(), ESPERA_AVISOS_MS);
+        })
+        .subscribe((status) => ativo && setTempoReal(status === "SUBSCRIBED"));
+    })();
+    return () => {
+      ativo = false;
+      if (temporizador.current) clearTimeout(temporizador.current);
+      if (canal) void supabase.removeChannel(canal);
+    };
+  }, [reler]);
 
   useEffect(() => {
     if (aberto === null) return;
@@ -59,6 +131,58 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [aberto]);
+
+  // ------------------------------------------------------------ mover e atribuir
+  const mover = useCallback(
+    async (card: CardJornada, paraId: string, nota?: string) => {
+      const destino = coluna(paraId);
+      if (!destino || destino.id === card.coluna) return;
+      if (paraId === "perdido" && !nota) {
+        setPerdendo({ card, nota: "" });
+        return;
+      }
+      setAviso(null);
+      const antes = cards;
+      setCards((atual) => atual.map((c) => (c.id === card.id ? cartaoMovido(c, destino) : c)));
+      const { error } = await createClient().rpc("jornada_mover_card", { p_card: card.id, p_para: paraId, p_versao: card.versao, p_nota: nota ?? null });
+      if (error) {
+        const { texto, conflito } = erroDeMover(error.message);
+        setCards(antes);
+        setAviso(texto);
+        if (conflito) {
+          pendentes.current.add(card.id);
+          void reler();
+        }
+      }
+    },
+    [cards, coluna, reler],
+  );
+
+  const atribuir = useCallback(
+    async (card: CardJornada, responsavel: string | null) => {
+      setAviso(null);
+      const antes = cards;
+      setCards((atual) => atual.map((c) => (c.id === card.id ? { ...c, responsavel, versao: c.versao + 1 } : c)));
+      const { error } = await createClient().rpc("jornada_atribuir_card", { p_card: card.id, p_responsavel: responsavel, p_versao: card.versao });
+      if (error) {
+        const { texto, conflito } = erroDeMover(error.message);
+        setCards(antes);
+        setAviso(texto);
+        if (conflito) {
+          pendentes.current.add(card.id);
+          void reler();
+        }
+      }
+    },
+    [cards, reler],
+  );
+
+  const soltar = (paraId: string) => {
+    setAlvoSobre(null);
+    const card = cardArrastado;
+    setArrastando(null);
+    if (card && destinosDoArrastado.has(paraId)) void mover(card, paraId);
+  };
 
   const mudar = <K extends keyof Filtros>(k: K, v: Filtros[K]) => setF((atual) => ({ ...atual, [k]: v }));
   const filtrosMudaram = JSON.stringify(f) !== JSON.stringify(FILTROS_PADRAO);
@@ -100,6 +224,19 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
               ))}
             </select>
           </label>
+          <label className="field">
+            <span className="field-label">Responsável</span>
+            <select className="select" value={f.responsavel} onChange={(e) => mudar("responsavel", e.target.value)}>
+              <option value="">Todos</option>
+              <option value="meus">Só os meus</option>
+              <option value="sem">Sem responsável</option>
+              {dados.equipe.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nome}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="jornada-opcoes">
           <label className="switch">
@@ -123,11 +260,25 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
           {atrasados > 0 && (
             <>
               {" · "}
-              <span className="jornada-atraso-txt">{atrasados} atrasado{atrasados === 1 ? "" : "s"}</span>
+              <span className="jornada-atraso-txt">
+                {atrasados} atrasado{atrasados === 1 ? "" : "s"}
+              </span>
             </>
           )}
-          {dados.sync?.ultima_execucao && <> · cartões atualizados às {horaBrasilia(dados.sync.ultima_execucao)}</>}
+          {dados.sync?.ultima_execucao && <> · cartões do Klingo atualizados às {horaBrasilia(dados.sync.ultima_execucao)}</>}
+          {" · "}
+          <span className="jornada-tempo-real" data-ligado={tempoReal ? "true" : undefined} title={tempoReal ? "As mudanças da equipe aparecem na hora" : "Sem tempo real: a tela se atualiza a cada 30 s"}>
+            {tempoReal ? "● tempo real" : "○ atualiza a cada 30 s"}
+          </span>
         </p>
+        {aviso && (
+          <p className="jornada-erro" role="alert">
+            {aviso}{" "}
+            <button type="button" className="jornada-link" onClick={() => setAviso(null)}>
+              Fechar
+            </button>
+          </p>
+        )}
       </div>
 
       {colunasVisiveis.length === 0 ? (
@@ -140,8 +291,26 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
           {colunasVisiveis.map((col) => {
             const lista = porColuna.get(col.id) ?? [];
             const limite = limites[col.id] ?? POR_COLUNA;
+            const alvo = destinosDoArrastado.has(col.id);
             return (
-              <section key={col.id} className="jornada-coluna" data-etapa={col.etapa} aria-label={`${col.nome}: ${lista.length}`}>
+              <section
+                key={col.id}
+                className="jornada-coluna"
+                data-etapa={col.etapa}
+                data-alvo={arrastando !== null ? (alvo ? (alvoSobre === col.id ? "sobre" : "sim") : "nao") : undefined}
+                aria-label={`${col.nome}: ${lista.length}`}
+                onDragOver={(e) => {
+                  if (alvo) {
+                    e.preventDefault();
+                    setAlvoSobre(col.id);
+                  }
+                }}
+                onDragLeave={() => setAlvoSobre((a) => (a === col.id ? null : a))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  soltar(col.id);
+                }}
+              >
                 <header className="jornada-coluna-cabeca">
                   <h2>{col.nome}</h2>
                   <span className="jornada-coluna-n">{lista.length}</span>
@@ -149,10 +318,19 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
                     {col.origem === "klingo" ? "Klingo" : "Equipe"}
                   </span>
                 </header>
+                {lista.length === 0 && alvo && <p className="jornada-solte">Solte aqui</p>}
                 <ul className="jornada-lista">
                   {lista.slice(0, limite).map((c) => (
                     <li key={c.id}>
-                      <Cartao card={c} exames={examesPorCard.get(c.id) ?? []} mostrarDia={f.periodo !== "hoje" && f.periodo !== "amanha" && f.periodo !== "ontem"} aoAbrir={() => setAberto(c.id)} />
+                      <Cartao
+                        card={c}
+                        exames={examesPorCard.get(c.id) ?? []}
+                        responsavel={c.responsavel ? (nomeEquipe.get(c.responsavel) ?? "?") : null}
+                        mostrarDia={f.periodo !== "hoje" && f.periodo !== "amanha" && f.periodo !== "ontem"}
+                        arrastavel={destinosPermitidos(c.coluna, dados.transicoes, dados.colunas).length > 0}
+                        aoAbrir={() => setAberto(c.id)}
+                        aoArrastar={(inicio) => setArrastando(inicio ? c.id : null)}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -167,7 +345,60 @@ export function Quadro({ dados }: { dados: DadosQuadro }) {
         </div>
       )}
 
-      {selecionado && <Detalhe card={selecionado} exames={examesPorCard.get(selecionado.id) ?? []} nomeColuna={nomeColuna} aoFechar={() => setAberto(null)} />}
+      {selecionado && (
+        <Detalhe
+          card={selecionado}
+          exames={examesPorCard.get(selecionado.id) ?? []}
+          nomeColuna={nomeColuna}
+          destinos={destinosPermitidos(selecionado.coluna, dados.transicoes, dados.colunas)}
+          equipe={dados.equipe}
+          usuarioId={dados.usuarioId}
+          aoMover={(para) => void mover(selecionado, para)}
+          aoAtribuir={(quem) => void atribuir(selecionado, quem)}
+          aoFechar={() => setAberto(null)}
+        />
+      )}
+
+      {perdendo && (
+        <div className="jornada-fundo" role="presentation">
+          <form
+            className="jornada-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Motivo de perder o contato"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const nota = perdendo.nota.trim();
+              if (nota.length < 3) return;
+              const card = perdendo.card;
+              setPerdendo(null);
+              void mover(card, "perdido", nota);
+            }}
+          >
+            <h2>Por que o contato foi perdido?</h2>
+            <p>{perdendo.card.paciente_nome ?? `Prontuário ${perdendo.card.paciente_chave}`}</p>
+            <textarea
+              className="input"
+              rows={3}
+              maxLength={500}
+              autoFocus
+              required
+              minLength={3}
+              placeholder="Ex.: achou caro, foi para outra clínica, não respondeu"
+              value={perdendo.nota}
+              onChange={(e) => setPerdendo({ ...perdendo, nota: e.target.value })}
+            />
+            <div className="jornada-modal-acoes">
+              <button type="button" className="btn" onClick={() => setPerdendo(null)}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={perdendo.nota.trim().length < 3}>
+                Marcar como perdido
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </section>
   );
 }
@@ -176,13 +407,43 @@ function horaPrimeiro(c: CardJornada, mapa: Map<number, ExameJornada[]>): string
   return c.data_ref + (mapa.get(c.id)?.[0]?.agendado_para ?? "z");
 }
 
-function Cartao({ card, exames, mostrarDia, aoAbrir }: { card: CardJornada; exames: ExameJornada[]; mostrarDia: boolean; aoAbrir: () => void }) {
+function Cartao({
+  card,
+  exames,
+  responsavel,
+  mostrarDia,
+  arrastavel,
+  aoAbrir,
+  aoArrastar,
+}: {
+  card: CardJornada;
+  exames: ExameJornada[];
+  responsavel: string | null;
+  mostrarDia: boolean;
+  arrastavel: boolean;
+  aoAbrir: () => void;
+  aoArrastar: (inicio: boolean) => void;
+}) {
   const ativos = exames.filter((e) => e.status !== "cancelado" && e.status !== "remarcado");
-  const mostrados = (ativos.length > 0 ? ativos : exames).slice(0, 2);
-  const resto = (ativos.length > 0 ? ativos : exames).length - mostrados.length;
+  const lista = ativos.length > 0 ? ativos : exames;
+  const mostrados = lista.slice(0, 2);
+  const resto = lista.length - mostrados.length;
   const hora = horaCurta(exames[0]?.agendado_para ?? null);
   return (
-    <button type="button" className="jornada-cartao" data-atrasado={card.atrasado ? "true" : undefined} data-vazio={card.vazio ? "true" : undefined} onClick={aoAbrir}>
+    <button
+      type="button"
+      className="jornada-cartao"
+      data-atrasado={card.atrasado ? "true" : undefined}
+      data-vazio={card.vazio ? "true" : undefined}
+      draggable={arrastavel}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(card.id));
+        aoArrastar(true);
+      }}
+      onDragEnd={() => aoArrastar(false)}
+      onClick={aoAbrir}
+    >
       <span className="jornada-cartao-topo">
         <strong className="jornada-cartao-nome">{card.paciente_nome ?? `Prontuário ${card.paciente_chave}`}</strong>
         <span className="jornada-cartao-hora">{mostrarDia ? `${diaCurto(card.data_ref)} ${hora}` : hora}</span>
@@ -197,6 +458,11 @@ function Cartao({ card, exames, mostrarDia, aoAbrir }: { card: CardJornada; exam
       </span>
       <span className="jornada-cartao-base">
         <span className="jornada-unidade">{card.unidade || "—"}</span>
+        {responsavel && (
+          <span className="jornada-resp" title={`Responsável: ${responsavel}`}>
+            {iniciais(responsavel)}
+          </span>
+        )}
         {card.n_mensagens > 0 && <span title="Mensagens da equipe">💬 {card.n_mensagens}</span>}
         <span className="jornada-tempo" data-atrasado={card.atrasado ? "true" : undefined} title="Tempo nesta coluna">
           {card.atrasado ? "⏱ " : ""}
@@ -205,159 +471,4 @@ function Cartao({ card, exames, mostrarDia, aoAbrir }: { card: CardJornada; exam
       </span>
     </button>
   );
-}
-
-function Detalhe({ card, exames, nomeColuna, aoFechar }: { card: CardJornada; exames: ExameJornada[]; nomeColuna: Map<string, string>; aoFechar: () => void }) {
-  const [contato, setContato] = useState<{ celular: string | null; telefone: string | null } | null>(null);
-  const [historico, setHistorico] = useState<EventoCard[] | null>(null);
-
-  useEffect(() => {
-    let vivo = true;
-    setContato(null);
-    setHistorico(null);
-    const supabase = createClient();
-    // quem abriu o cartão fica registrado (LGPD); falhar aqui não impede de ver
-    void supabase.rpc("jornada_registrar_acesso", { p_card: card.id });
-    void supabase
-      .from("jornada_paciente")
-      .select("celular, telefone")
-      .eq("prontuario", card.paciente_chave)
-      .maybeSingle()
-      .then(({ data }) => vivo && setContato((data as { celular: string | null; telefone: string | null } | null) ?? { celular: null, telefone: null }));
-    void supabase
-      .from("jornada_evento")
-      .select("quando, tipo, origem, de_coluna, para_coluna, detalhe")
-      .eq("card_id", card.id)
-      .order("quando", { ascending: false })
-      .limit(30)
-      .then(({ data }) => vivo && setHistorico((data as EventoCard[] | null) ?? []));
-    return () => {
-      vivo = false;
-    };
-  }, [card.id, card.paciente_chave]);
-
-  const wa = linkWhatsApp(contato?.celular ?? null);
-
-  return (
-    <>
-      <div className="jornada-fundo" onClick={aoFechar} aria-hidden="true" />
-      <aside className="jornada-detalhe" role="dialog" aria-modal="true" aria-label={`Detalhes de ${card.paciente_nome ?? card.paciente_chave}`}>
-        <header className="jornada-detalhe-cabeca">
-          <div>
-            <h2>{card.paciente_nome ?? `Prontuário ${card.paciente_chave}`}</h2>
-            <p>
-              Prontuário {card.paciente_chave} · {card.unidade || "sem unidade"} · {diaCurto(card.data_ref)}
-            </p>
-          </div>
-          <button type="button" className="icon-btn" onClick={aoFechar} aria-label="Fechar">
-            ✕
-          </button>
-        </header>
-
-        <p className="jornada-detalhe-coluna">
-          Coluna: <strong>{card.coluna_nome}</strong> ({card.origem === "klingo" ? "anda sozinha, pelo Klingo" : "movida pela equipe"}) · há {tempoNaColuna(card.minutos_na_coluna)}
-          {card.atrasado && <span className="jornada-atraso-txt"> · atrasado</span>}
-        </p>
-
-        <section>
-          <h3>Contato</h3>
-          {contato === null ? (
-            <p className="panel-sub">Carregando…</p>
-          ) : (
-            <p>
-              {contato.celular || contato.telefone ? (
-                <>
-                  {[contato.celular, contato.telefone].filter(Boolean).join(" · ")}
-                  {wa && (
-                    <>
-                      {" · "}
-                      <a href={wa} target="_blank" rel="noopener noreferrer">
-                        Abrir no WhatsApp
-                      </a>
-                    </>
-                  )}
-                </>
-              ) : (
-                "Sem telefone no Klingo."
-              )}
-            </p>
-          )}
-        </section>
-
-        <section>
-          <h3>Exames ({exames.length})</h3>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Hora</th>
-                  <th>Exame</th>
-                  <th>Convênio</th>
-                  <th>Situação</th>
-                  <th>Confirmação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exames.map((e) => (
-                  <tr key={e.marcacao_id}>
-                    <td>{horaCurta(e.agendado_para)}</td>
-                    <td>
-                      {e.procedimento}
-                      <small className="jornada-sub"> #{e.marcacao_id}</small>
-                    </td>
-                    <td>{e.operadora ?? "—"}</td>
-                    <td>
-                      <span className="jornada-chip" data-status={e.status}>
-                        {ROTULO_STATUS_EXAME[e.status]}
-                      </span>
-                      {e.cancelamento_motivo && <small className="jornada-sub"> {e.cancelamento_motivo}</small>}
-                    </td>
-                    <td>{e.confirm_status ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section>
-          <h3>Histórico</h3>
-          {historico === null ? (
-            <p className="panel-sub">Carregando…</p>
-          ) : historico.length === 0 ? (
-            <p className="panel-sub">Nada registrado ainda.</p>
-          ) : (
-            <ul className="jornada-historico">
-              {historico.map((h, i) => (
-                <li key={i}>
-                  <time dateTime={h.quando}>
-                    {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(h.quando))}
-                  </time>{" "}
-                  {textoEvento(h, nomeColuna)}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </aside>
-    </>
-  );
-}
-
-function textoEvento(h: EventoCard, nomeColuna: Map<string, string>): string {
-  const de = h.de_coluna ? (nomeColuna.get(h.de_coluna) ?? h.de_coluna) : null;
-  const para = h.para_coluna ? (nomeColuna.get(h.para_coluna) ?? h.para_coluna) : null;
-  const quem = h.origem === "klingo" ? "Klingo" : h.origem === "sistema" ? "Sistema" : "Equipe";
-  switch (h.tipo) {
-    case "criado":
-      return `${quem}: cartão criado em ${para ?? "—"}.`;
-    case "movido":
-      return `${quem}: ${de ?? "—"} → ${para ?? "—"}${typeof h.detalhe?.motivo === "string" ? ` (${h.detalhe.motivo})` : ""}${typeof h.detalhe?.nota === "string" ? ` — ${h.detalhe.nota}` : ""}.`;
-    case "divergencia":
-      return `${quem} indica "${para ?? "—"}", mas o cartão está em "${de ?? "—"}" e não foi puxado para trás.`;
-    case "atribuido":
-      return `${quem}: responsável alterado.`;
-    default:
-      return `${quem}: ${h.tipo}.`;
-  }
 }

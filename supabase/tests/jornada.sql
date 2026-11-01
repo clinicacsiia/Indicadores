@@ -1,5 +1,5 @@
--- Testa as migrations 20261101140000_jornada_modelo.sql, 20261101150000_jornada_pendencias.sql e 20261101160000_jornada_sincronizar.sql (quadro da Jornada: colunas,
--- regras do Klingo, movimentos à mão, chat, permissões, pendências e a leitura do #13825 que cria e move os cards) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
+-- Testa as migrations 20261101140000_jornada_modelo.sql, 20261101150000_jornada_pendencias.sql e 20261101160000_jornada_sincronizar.sql e 20261101170000_jornada_tempo_real.sql (quadro da Jornada: colunas,
+-- regras do Klingo, movimentos à mão, chat, permissões, pendências, a leitura do #13825 que cria e move os cards e os avisos em tempo real) num Postgres vazio (sem Supabase): papéis, auth.uid() e as tabelas do data warehouse são simulados aqui.
 --
 --   createdb jornada_teste && psql -v ON_ERROR_STOP=1 -d jornada_teste -f supabase/tests/jornada.sql    (na raiz do repositório)
 --
@@ -13,7 +13,7 @@ do $$ begin
 end $$;
 create schema auth;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-create table public.profiles (id uuid primary key, email text, role text not null default 'viewer', permissions jsonb not null default '{}'::jsonb, status text not null default 'ativo');
+create table public.profiles (id uuid primary key, email text, nome text, role text not null default 'viewer', permissions jsonb not null default '{}'::jsonb, status text not null default 'ativo');
 create function public.is_admin() returns boolean language sql security definer set search_path = '' stable as $$
   select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin') $$;
 grant execute on function public.is_admin() to authenticated;
@@ -23,6 +23,16 @@ grant select on public.profiles to authenticated;
 create schema cron;
 create table cron.agendados (nome text, agenda text, comando text);
 create function cron.schedule(p_nome text, p_agenda text, p_comando text) returns bigint language sql as $$ insert into cron.agendados values (p_nome, p_agenda, p_comando) returning 1::bigint $$;
+
+
+-- Realtime do Supabase: só registra o que seria enviado, e o canal só devolve o que a política deixa ler
+create schema realtime;
+create table realtime.messages (id bigserial primary key, topic text, event text, payload jsonb, private boolean);
+alter table realtime.messages enable row level security;
+create function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void language sql as $$ insert into realtime.messages (topic, event, payload, private) values (topic, event, payload, private) $$;
+create function realtime.topic() returns text language sql stable as $$ select current_setting('realtime.topic', true) $$;
+grant usage on schema realtime to authenticated;
+grant select on realtime.messages to authenticated;
 
 create table public.dim_relatorio (
   id uuid primary key default gen_random_uuid(), klingo_id text unique not null, nome text not null, ativo boolean not null default true,
@@ -51,9 +61,10 @@ insert into public.dim_relatorio (klingo_id, nome, granularidade, filtro_periodo
 \i supabase/migrations/20261101140000_jornada_modelo.sql
 \i supabase/migrations/20261101150000_jornada_pendencias.sql
 \i supabase/migrations/20261101160000_jornada_sincronizar.sql
+\i supabase/migrations/20261101170000_jornada_tempo_real.sql
 
 -- gente: admin, quem tem a permissão da Jornada, quem não tem
-insert into public.profiles values
+insert into public.profiles (id, email, role, permissions, status) values
   ('00000000-0000-0000-0000-00000000000a', 'adm@csi.local',  'admin',  '{}', 'ativo'),
   ('00000000-0000-0000-0000-00000000000b', 'ana@csi.local',  'viewer', '{"jornada": true}', 'ativo'),
   ('00000000-0000-0000-0000-00000000000c', 'bia@csi.local',  'viewer', '{}', 'ativo');
@@ -322,7 +333,7 @@ declare n integer; a public.aviso%rowtype;
 begin
   perform public.jornada_pendencias_sincronizar();
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 12 then raise exception 'esperava 12 avisos abertos (1 de relatórios + 11 pendências), achei %', n; end if;
+  if n <> 16 then raise exception 'esperava 16 avisos abertos (1 de relatórios + 15 pendências), achei %', n; end if;
   select * into a from public.aviso where painel = 'atendimento' and chave = 'jornada|api_escrita_klingo';
   if not found or a.nivel <> 'atencao' or not a.persistente or a.sensivel or jsonb_array_length(a.guia -> 'passos') < 1 then raise exception 'pendência da API do Klingo mal formada: %', row_to_json(a); end if;
   if a.titulo not like 'Jornada (etapa 2): %' then raise exception 'título sem a etapa: %', a.titulo; end if;
@@ -330,7 +341,7 @@ begin
   -- a conferência do painel Python não resolve as pendências da Jornada
   perform public.aviso_sincronizar('atendimento', array['', '2026-11'], 1, '[]'::jsonb);
   select count(*) into n from public.aviso where painel = 'atendimento' and escopo = 'jornada' and status = 'aberto';
-  if n <> 12 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
+  if n <> 16 then raise exception 'a conferência do painel resolveu pendências da Jornada (% abertas)', n; end if;
 
   -- pendência desativada some sozinha; nova aparece
   update public.jornada_pendencia set ativa = false where chave = 'feriados';
@@ -461,6 +472,79 @@ begin
   if (select arquivado_em from public.jornada_card where paciente_chave = 'V2') is not null then raise exception 'laudo pendente há 9 dias ainda é trabalho: não arquiva'; end if;
   if (select arquivado_em from public.jornada_card where paciente_chave = 'V3') is null then raise exception 'qualquer card com mais de 30 dias é arquivado'; end if;
   if (select arquivado_em from public.jornada_card where paciente_chave = 'manual:7') is not null then raise exception 'card manual não é arquivado sozinho'; end if;
+end $$;
+
+-- ---------------------------------------------------------------- 12. tempo real, nome de quem escreve e lista da equipe
+do $$
+declare
+  id1 bigint; n integer; ver integer; card bigint;
+begin
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+
+  -- mensagem: guarda o nome de quem escreveu e avisa os dois canais, sem levar o texto
+  update public.jornada_card set arquivado_em = null where id = 2;
+  select count(*) into n from realtime.messages;
+  id1 := public.jornada_enviar_mensagem(2, 'texto que não pode ir no aviso');
+  if (select autor_nome from public.jornada_mensagem where id = id1) <> 'ana' then raise exception 'devia guardar o nome "ana", guardou %', (select autor_nome from public.jornada_mensagem where id = id1); end if;
+  if not exists (select 1 from realtime.messages where topic = 'jornada:card:2' and event = 'mensagem' and (payload ->> 'id')::bigint = id1 and private) then raise exception 'faltou o aviso do chat do cartão'; end if;
+  if not exists (select 1 from realtime.messages where topic = 'jornada:quadro' and event = 'card' and (payload ->> 'card_id')::bigint = 2 and id > (select max(id) - 2 from realtime.messages)) then raise exception 'faltou o aviso do quadro'; end if;
+  if exists (select 1 from realtime.messages where payload::text like '%texto que não pode%') then raise exception 'o aviso não pode levar o texto da mensagem'; end if;
+
+  -- mover pela equipe e pelo Klingo avisa o quadro
+  select versao, id into ver, card from public.jornada_card where paciente_chave = 'P4';
+  select count(*) into n from realtime.messages where topic = 'jornada:quadro';
+  perform public.jornada_mover_card(card, 'finalizado', ver);
+  if (select count(*) from realtime.messages where topic = 'jornada:quadro') <= n then raise exception 'mover devia avisar o quadro'; end if;
+  select count(*) into n from realtime.messages where topic = 'jornada:quadro';
+  update public.jornada_card set prioridade = prioridade where id = card;          -- nada mudou: não avisa
+  if (select count(*) from realtime.messages where topic = 'jornada:quadro') <> n then raise exception 'sem mudança não devia avisar'; end if;
+  update public.jornada_exame set status = 'atendido' where card_id = card;
+  if (select count(*) from realtime.messages where topic = 'jornada:quadro') <= n then raise exception 'mudar o exame devia avisar o quadro'; end if;
+
+  -- se o Realtime falhar, a gravação segue
+  create or replace function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void language plpgsql as $f$ begin raise exception 'Realtime fora do ar'; end $f$;
+  id1 := public.jornada_enviar_mensagem(2, 'continua gravando');
+  if not exists (select 1 from public.jornada_mensagem where id = id1) then raise exception 'a mensagem devia gravar mesmo com o Realtime fora do ar'; end if;
+  create or replace function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void language sql as $f$ insert into realtime.messages (topic, event, payload, private) values (topic, event, payload, private) $f$;
+end $$;
+
+-- a equipe: administradores e quem tem a permissão (bia não tem)
+do $$
+declare nomes text;
+begin
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+  select string_agg(nome, ',' order by nome) into nomes from public.jornada_equipe();
+  if nomes <> 'adm,ana' then raise exception 'equipe devia ser adm,ana: %', nomes; end if;
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
+  begin perform * from public.jornada_equipe(); raise exception 'sem permissão devia falhar'; exception when raise_exception then
+    if sqlerrm not like 'Sem permissão%' then raise; end if; end;
+  if has_function_privilege('anon', 'public.jornada_equipe()', 'execute') then raise exception 'anon não lista a equipe'; end if;
+end $$;
+
+-- o canal: só "jornada:" e só com a permissão
+do $$
+declare n integer;
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'realtime' and tablename = 'messages' and policyname = 'jornada_canais_leitura') then raise exception 'faltou a política do canal'; end if;
+  perform set_config('realtime.topic', 'jornada:quadro', true);
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+  set local role authenticated;
+  select count(*) into n from realtime.messages;
+  reset role;
+  if n = 0 then raise exception 'quem tem a permissão devia receber o canal da Jornada'; end if;
+
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000c', true);
+  set local role authenticated;
+  select count(*) into n from realtime.messages;
+  reset role;
+  if n <> 0 then raise exception 'quem não tem a permissão não pode receber o canal'; end if;
+
+  perform set_config('realtime.topic', 'outro:canal', true);
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+  set local role authenticated;
+  select count(*) into n from realtime.messages;
+  reset role;
+  if n <> 0 then raise exception 'a política vale só para canais "jornada:"'; end if;
 end $$;
 
 \echo JORNADA OK

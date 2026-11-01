@@ -32,7 +32,7 @@ export default async function JornadaPage() {
   const supabase = await createClient();
   let dados: DadosQuadro | null = null;
   try {
-    dados = await carregarQuadro(supabase);
+    dados = await carregarQuadro(supabase, profile?.id ?? "");
   } catch (e) {
     console.error("Falha ao carregar o quadro da Jornada:", e instanceof Error ? e.message : e);
   }
@@ -44,7 +44,7 @@ export default async function JornadaPage() {
           <span className="eyebrow">Clínica CSI</span>
           <h1 className="page-title">Jornada do paciente</h1>
           <p className="page-lede">
-            Cada cartão é um paciente em um dia e uma unidade, com os exames dentro. As colunas do Klingo andam sozinhas; as da equipe ainda não podem ser movidas nesta versão (somente leitura).
+            Cada cartão é um paciente em um dia e uma unidade, com os exames dentro. As colunas do Klingo andam sozinhas; as da equipe se movem arrastando o cartão (ou pelos botões ao abri-lo). A conversa de cada cartão é só da equipe.
           </p>
         </div>
       </header>

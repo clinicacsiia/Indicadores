@@ -265,6 +265,8 @@ visão do quadro; tabela de pendências; sincronização com a aba Avisos; e `se
 **01/11/2026, `20261101160000_jornada_sincronizar.sql`:** a leitura do #13825 que cria e move os cards (ver "Jornada do paciente: a leitura do Klingo e a aba do quadro"). Aplicada em partes pelo `apply_migration` — só `create`, `grant` e `insert`. A função da janela passou por três versões até ficar em SQL puro, com a última leitura
 de cada mês calculada uma vez por mês (calculada por linha, levava 10 s). Primeira rodada feita à mão antes de ligar o cron `jornada-sincronizar`.
 
+**01/11/2026, `20261101170000_jornada_tempo_real.sql`:** tempo real, nome de quem escreve e lista da equipe (ver "Jornada do paciente: mover, atribuir, conversar e tempo real"). Aplicada em duas partes pelo `apply_migration` (funções e coluna; gatilhos e política do canal) — só `create`, `alter table add column`, `grant` e `insert`.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -760,6 +762,21 @@ Migration `20261101160000_jornada_sincronizar.sql` (teste em `supabase/tests/jor
   Ao abrir um cartão: contato (com link do WhatsApp), exames com situação e confirmação, e o histórico; abrir um cartão registra o acesso (`jornada_registrar_acesso`, LGPD). A tela se atualiza sozinha a cada 30 s e traz a barra de atualização da coleta.
   **Somente leitura:** mover cartões, atribuir e o chat vêm na etapa 4.
 - **Limite:** enquanto o #13825 filtrar pela data em que a marcação foi *feita*, um cancelamento ou confirmação de marcação antiga só chega na releitura do mês (15 min). O pedido do relatório novo está na aba Avisos.
+
+### Jornada do paciente: mover, atribuir, conversar e tempo real (etapa 4)
+
+Migration `20261101170000_jornada_tempo_real.sql` (teste em `supabase/tests/jornada.sql`, seção 12); tela em `app/(app)/jornada/` (`Quadro.tsx`, `Detalhe.tsx`, `Chat.tsx`).
+
+- **Mover:** arrastando o cartão para uma coluna da equipe (as colunas de destino aparecem tracejadas, mesmo vazias) ou pelos botões "Mover para" ao abrir o cartão (no celular só os botões). O servidor confere a transição e a versão
+  (`jornada_mover_card`); a tela move na hora e volta atrás se o servidor recusar. Se outra pessoa mexeu antes, aparece "Outra pessoa mexeu neste cartão" e o cartão é relido. "Perdido" pede o motivo.
+- **Atribuir:** no detalhe (lista da equipe vinda de `jornada_equipe()`: administradores e quem tem a permissão "Jornada"), com atalho "Ficar com este". O cartão mostra as iniciais; o filtro **Responsável** tem "Só os meus" e "Sem responsável".
+- **Conversa da equipe:** em cada cartão, só da equipe, com o nome de quem escreveu (`jornada_mensagem.autor_nome`). Mensagem não se edita nem se apaga. Enter envia. A tela avisa: sem diagnóstico nem resultado de exame.
+- **Tempo real:** gatilhos mandam um aviso curto pelo Realtime do Supabase (`realtime.send`, canal **privado**): `jornada:quadro` (evento `card`, só o número do cartão) e `jornada:card:<id>` (evento `mensagem`, só o número da mensagem). O navegador
+  relê **só** o que mudou, pelas mesmas regras de acesso; o aviso nunca leva texto nem dado de paciente. Entra no canal só quem tem a permissão da Jornada (política `jornada_canais_leitura` em `realtime.messages`). Se o Realtime falhar, a gravação segue
+  (o gatilho só avisa), a tela se atualiza a cada 30 s e a conversa a cada 15 s. O indicador "● tempo real" / "○ atualiza a cada 30 s" fica no resumo do quadro.
+- **Não verificado:** a conexão do Realtime (o ambiente de desenvolvimento não abre WebSocket). Em 01/11/2026 a tabela `realtime.messages` não tinha nenhuma partição, então `realtime.send` descartava o aviso (sem erro, só um WARNING). Ver a pendência
+  "Conferir se o tempo real está funcionando". Mover, atribuir, mensagem e equipe foram testados no banco real dentro de uma transação desfeita.
+- **Ainda não tem:** tarefas e checklist por cartão, mensagens "não lidas", quem está vendo o cartão (presença), criar cartão de contato à mão e as automações (etapas seguintes).
 
 ### Regras para somar e cruzar os dados
 
