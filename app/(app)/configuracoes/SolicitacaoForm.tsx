@@ -72,11 +72,6 @@ export function SolicitacaoForm({ id, usuario, nome, emailContato, desde, painei
               <span className="switch-track" aria-hidden="true" />
               <span className="switch-text">Metas</span>
             </label>
-            <label className="switch">
-              <input type="checkbox" name="jornada" />
-              <span className="switch-track" aria-hidden="true" />
-              <span className="switch-text">Jornada do paciente (quadro com todos os pacientes)</span>
-            </label>
             {paineis.map((p) => (
               <label className="switch" key={p.id}>
                 <input type="checkbox" name={`painel_${p.id}`} />

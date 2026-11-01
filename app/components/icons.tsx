@@ -116,11 +116,3 @@ export const IconPainel = (p: IconProps) => (
     <rect x="3" y="16" width="7" height="5" rx="1.5" />
   </Icon>
 );
-
-export const IconJornada = (p: IconProps) => (
-  <Icon {...p}>
-    <rect x="3.5" y="4.5" width="5" height="15" rx="1.2" />
-    <rect x="10" y="4.5" width="5" height="9" rx="1.2" />
-    <rect x="16.5" y="4.5" width="4" height="12" rx="1.2" />
-  </Icon>
-);

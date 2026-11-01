@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconAviso, IconConfig, IconInicio, IconJornada, IconMetas, IconPainel } from "./icons";
+import { IconAviso, IconConfig, IconInicio, IconMetas, IconPainel } from "./icons";
 import type { Painel } from "@/lib/paineis";
 
 type Props = {
   isAdmin: boolean;
-  // Quem pode ver o quadro da Jornada do paciente (permissão "jornada"; o administrador sempre).
-  jornada: boolean;
   paineis: Painel[];
   // Avisos abertos que esta pessoa pode ver (e quantos são críticos), para o contador do menu.
   avisos: { abertos: number; criticos: number };
@@ -16,7 +14,7 @@ type Props = {
   pedidos: number;
 };
 
-export function NavLinks({ isAdmin, jornada, paineis, avisos, pedidos }: Props) {
+export function NavLinks({ isAdmin, paineis, avisos, pedidos }: Props) {
   const pathname = usePathname();
 
   const links: {
@@ -39,7 +37,6 @@ export function NavLinks({ isAdmin, jornada, paineis, avisos, pedidos }: Props) 
       textoContador: (n) => `${n} ${n === 1 ? "aviso aberto" : "avisos abertos"}`,
     },
     { href: "/metas", rotulo: "Metas", icone: <IconMetas />, ativo: pathname.startsWith("/metas") },
-    ...(jornada ? [{ href: "/jornada", rotulo: "Jornada", icone: <IconJornada />, ativo: pathname.startsWith("/jornada") }] : []),
     ...paineis.map((p) => ({
       href: `/painel/${p.id}`,
       rotulo: p.nome,

@@ -259,20 +259,6 @@ As consultas do site são rápidas sozinhas (agenda ~0,3 s, Início ~0,2 s), mas
 e `proximos_trabalhos_ritmo`; trigger e `proximos_trabalhos` novos; pendência, relatórios no ritmo e cron; e o ajuste do vencimento ao minuto cheio) — só `create`, `grant` e `insert`. Antes dela, a Edge Function
 `sync-relatorios-dw` foi publicada na versão que entende `{"ritmo": true}` (versão 16): ordem importa, porque o cron novo chama a função com esse campo.
 
-**01/11/2026, `20261101140000_jornada_modelo.sql` e `20261101150000_jornada_pendencias.sql`:** modelo do quadro da Jornada (ver "Jornada do paciente: o quadro"). Aplicadas em partes pelo `apply_migration` (tabelas e permissões; regras e funções;
-visão do quadro; tabela de pendências; sincronização com a aba Avisos; e `search_path` fixo em `jornada_imutavel`, apontado pelo verificador de segurança) — só `create`, `grant` e `insert`.
-
-**01/11/2026, `20261101160000_jornada_sincronizar.sql`:** a leitura do #13825 que cria e move os cards (ver "Jornada do paciente: a leitura do Klingo e a aba do quadro"). Aplicada em partes pelo `apply_migration` — só `create`, `grant` e `insert`. A função da janela passou por três versões até ficar em SQL puro, com a última leitura
-de cada mês calculada uma vez por mês (calculada por linha, levava 10 s). Primeira rodada feita à mão antes de ligar o cron `jornada-sincronizar`.
-
-**01/11/2026, `20261101170000_jornada_tempo_real.sql`:** tempo real, nome de quem escreve e lista da equipe (ver "Jornada do paciente: mover, atribuir, conversar e tempo real"). Aplicada em duas partes pelo `apply_migration` (funções e coluna; gatilhos e política do canal) — só `create`, `alter table add column`, `grant` e `insert`.
-
-**01/11/2026, `20261101180000_jornada_automacoes.sql`:** automações da equipe (ver "Jornada do paciente: automações da equipe"). Aplicada em quatro partes pelo `apply_migration` (tabelas e tarefas; regras e gatilhos; visão do quadro e pendências; cron). Troca a restrição de tipos de `jornada_evento`
-(`alter table ... drop constraint` e `add constraint`, que o MCP aplica sem travar) para aceitar "tarefa" e "prioridade". Primeira execução das regras feita à mão (6 tarefas de "nova data", era domingo) antes de ligar o cron `jornada-regras`.
-
-**01/11/2026, `20261101190000_jornada_portal_paciente.sql`:** portal do paciente, desligado (ver "Jornada do paciente: portal do paciente e conversa com ele"). Aplicada em quatro partes pelo `apply_migration` (tabelas e permissões; funções da equipe; funções do paciente; visão e pendências) — só `create`, `alter table add column`, `grant` e `insert`. Teste de ponta a ponta no banco real
-feito com o portal ligado **dentro de uma transação desfeita**; conferido depois que `portal_ativo` segue falso e que não ficou cartão, link nem mensagem de teste.
-
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
@@ -730,93 +716,6 @@ do exame, ver o aviso abaixo).
   Atendimento, Prontuário, situação, confirmação, check-in, início/fim, laudo, autorização e carimbo de última alteração) e pede **Id do Atendimento / Id da Marcação / Prontuário** nos
   relatórios #13404 e #13402. Resolve sozinha quando o relatório existir e as colunas aparecerem. O escopo `jornada` existe para a conferência do painel Python (escopos `""` e `AAAA-MM`) não resolvê-la por engano.
 - **Limite:** sem o relatório por data do exame, a leitura de 1 min só enxerga marcações **novas**; cancelamento, confirmação e atendimento de marcação antiga só aparecem na releitura do mês.
-
-### Jornada do paciente: o quadro (modelo e regras, etapa 2)
-
-Migrations `20261101140000_jornada_modelo.sql` e `20261101150000_jornada_pendencias.sql`; teste `supabase/tests/jornada.sql` (cabeçalho do arquivo). Ainda **sem tela**: a leitura do Klingo
-que cria os cards e a aba do quadro vêm nas próximas etapas.
-
-- **Card** = um paciente num dia e numa unidade (`jornada_card`: prontuário + data + unidade), com os exames dentro (`jornada_exame`, uma linha por marcação do Klingo; sem valor em R$, que tem
-  permissão própria). Nome e telefones ficam em `jornada_paciente`. Tudo que acontece vira linha em `jornada_evento` (só se acrescenta; um trigger recusa alteração) e o chat do card em
-  `jornada_mensagem` (hoje só o canal `interno`; `paciente` fica reservado ao portal). `jornada_acesso` registra quem abriu cada card (LGPD, só o administrador lê).
-- **Colunas** (`jornada_coluna`, 17): manuais — Novo contato, Orçamento, Aguardando autorização, Chegou, Finalizado, Laudo pendente, Laudo entregue, Guia/faturamento, NPS e retorno, Concluído, Perdido;
-  do Klingo — A confirmar, Confirmado, Em atendimento, Cancelado, Remarcado, Faltou. Cada uma tem um prazo (`sla_min`) para o card ficar "atrasado" (valores iniciais meus; ver a pendência).
-- **Regras:** ninguém arrasta um card para coluna do Klingo, e movimento manual só pelas transições de `jornada_transicao` (`jornada_mover_card`, com trava de versão: "CONFLITO" se outra pessoa mexeu antes;
-  perder um contato exige motivo). O Klingo (`jornada_aplicar_klingo`, só o serviço) move para a frente e entre A confirmar e Confirmado, **nunca puxa para trás de uma coluna manual** (registra uma
-  "divergência", uma vez só); cancelar/remarcar vale até o atendimento começar; faltar só antes de a pessoa chegar. A matriz está em `jornada_klingo_pode_mover` e no teste.
-- **Quem vê:** a permissão `profiles.permissions.jornada` (o administrador sempre). Quem tem vê **tudo** do quadro e age nele; quem não tem não vê nada. Ninguém grava direto nas tabelas, só pelas funções.
-  A opção "Jornada" em Configurações entra com a tela do quadro; até lá, só pelo SQL (`update public.profiles set permissions = permissions || '{"jornada": true}' where email = '...'`).
-- **O que o quadro lê:** `v_jornada_quadro` (security invoker): exames ativos, mensagens, `atrasado` (passou do prazo da coluna) e `vazio` (sem exame ativo e sem mensagem numa coluna do Klingo: pode ficar oculto).
-- **Pendências para resolver de uma vez:** `jornada_pendencia` (lista que eu vou acrescentando a cada etapa) é publicada na aba Avisos (painel Atendimento, escopo `jornada`) por
-  `jornada_pendencias_sincronizar()` (todo dia às 06:00). Fechar exige justificativa; para tirar uma que deixou de valer: `update public.jornada_pendencia set ativa = false where chave = '...'`.
-  Hoje: feriados da coleta, prazos das colunas, quem cuida de cada coluna, contato/orçamento na primeira versão, jurídico do portal, API de escrita do Klingo, canal de aviso ao paciente, catálogo de preparo
-  dos exames, mais a dos relatórios do Klingo.
-
-### Jornada do paciente: a leitura do Klingo e a aba do quadro (etapa 3)
-
-Migration `20261101160000_jornada_sincronizar.sql` (teste em `supabase/tests/jornada.sql`, seção 11); tela em `app/(app)/jornada/`, contas em `lib/jornada.ts` (teste `tests/test_jornada_quadro.py`, que roda `tests/jornada_quadro.check.mts` no Node).
-
-- **De onde vêm os cards:** do relatório **#13825** (colunas `col0…col17`, ver "Agenda do Klingo" no histórico do CRM). `jornada_marcacoes_janela()` pega uma linha por marcação (a leitura mais recente), só com exame de hoje-2 a hoje+30 dias, e
-  `jornada_sincronizar_klingo()` cria pacientes, cards e exames e leva cada card para a coluna que o Klingo indica, com as regras da etapa 2. **O valor em R$ não é copiado.** Unidades: CSI 1, CSI 2, CSI Pediatria (`jornada_unidade_curta`).
-- **Situação do exame** (`jornada_status_exame`): atendido (Atendido = S, vale mesmo se cancelada depois) · remarcado/cancelado (Status Cancelada; motivo "Remarcado") · faltou (aberta, sem atendimento, dia já passado) · confirmado · agendado.
-  **Coluna do card** (`jornada_coluna_do_card`): algum atendido → Em atendimento; nenhum ativo → Faltou/Remarcado/Cancelado; todos confirmados → Confirmado; senão A confirmar.
-- **Automático:** Em atendimento de um dia que passou vira Finalizado (evento "sistema"); Cancelado/Remarcado/Faltou/Concluído com mais de 7 dias e qualquer card com mais de 30 são arquivados (não apagados; cards `manual:` ficam). Se a equipe já passou o card adiante, o atraso do Klingo é ignorado sem alarme.
-- **Quando roda:** o cron `jornada-sincronizar` (todo minuto) chama `jornada_sincronizar_se_preciso()`, que só trabalha quando o #13825 foi lido de novo ou virou o dia. Hoje o #13825 é lido de 15 em 15 min, então os cards andam nesse ritmo.
-  Custo: a primeira rodada levou ~7 s (1.656 cards); sem novidade, ~1 s. A leitura do histórico do relatório varia de 0,3 a 5 s conforme o cache; **não se criou índice** porque o banco está perto do limite de espaço (aviso "banco_espaco" na aba Avisos).
-- **A tela** (menu **Jornada**, só quem tem a permissão `jornada` em Configurações; o administrador sempre): colunas lado a lado com os cartões (nome, hora, chips dos exames, unidade, tempo na coluna, atraso); filtros de dia (Ontem, Hoje, Amanhã, 7 dias, 30 dias, Tudo), unidade, convênio,
-  busca (nome sem acento, prontuário, exame, nº da marcação), "só atrasados" e "mostrar cartões sem nada a fazer" (ocultos por padrão: sem exame ativo e sem mensagem numa coluna do Klingo). Colunas vazias somem; cada coluna mostra 40 cartões e "Mostrar mais".
-  Ao abrir um cartão: contato (com link do WhatsApp), exames com situação e confirmação, e o histórico; abrir um cartão registra o acesso (`jornada_registrar_acesso`, LGPD). A tela se atualiza sozinha a cada 30 s e traz a barra de atualização da coleta.
-  **Somente leitura:** mover cartões, atribuir e o chat vêm na etapa 4.
-- **Limite:** enquanto o #13825 filtrar pela data em que a marcação foi *feita*, um cancelamento ou confirmação de marcação antiga só chega na releitura do mês (15 min). O pedido do relatório novo está na aba Avisos.
-
-### Jornada do paciente: mover, atribuir, conversar e tempo real (etapa 4)
-
-Migration `20261101170000_jornada_tempo_real.sql` (teste em `supabase/tests/jornada.sql`, seção 12); tela em `app/(app)/jornada/` (`Quadro.tsx`, `Detalhe.tsx`, `Chat.tsx`).
-
-- **Mover:** arrastando o cartão para uma coluna da equipe (as colunas de destino aparecem tracejadas, mesmo vazias) ou pelos botões "Mover para" ao abrir o cartão (no celular só os botões). O servidor confere a transição e a versão
-  (`jornada_mover_card`); a tela move na hora e volta atrás se o servidor recusar. Se outra pessoa mexeu antes, aparece "Outra pessoa mexeu neste cartão" e o cartão é relido. "Perdido" pede o motivo.
-- **Atribuir:** no detalhe (lista da equipe vinda de `jornada_equipe()`: administradores e quem tem a permissão "Jornada"), com atalho "Ficar com este". O cartão mostra as iniciais; o filtro **Responsável** tem "Só os meus" e "Sem responsável".
-- **Conversa da equipe:** em cada cartão, só da equipe, com o nome de quem escreveu (`jornada_mensagem.autor_nome`). Mensagem não se edita nem se apaga. Enter envia. A tela avisa: sem diagnóstico nem resultado de exame.
-- **Tempo real:** gatilhos mandam um aviso curto pelo Realtime do Supabase (`realtime.send`, canal **privado**): `jornada:quadro` (evento `card`, só o número do cartão) e `jornada:card:<id>` (evento `mensagem`, só o número da mensagem). O navegador
-  relê **só** o que mudou, pelas mesmas regras de acesso; o aviso nunca leva texto nem dado de paciente. Entra no canal só quem tem a permissão da Jornada (política `jornada_canais_leitura` em `realtime.messages`). Se o Realtime falhar, a gravação segue
-  (o gatilho só avisa), a tela se atualiza a cada 30 s e a conversa a cada 15 s. O indicador "● tempo real" / "○ atualiza a cada 30 s" fica no resumo do quadro.
-- **Não verificado:** a conexão do Realtime (o ambiente de desenvolvimento não abre WebSocket). Em 01/11/2026 a tabela `realtime.messages` não tinha nenhuma partição, então `realtime.send` descartava o aviso (sem erro, só um WARNING). Ver a pendência
-  "Conferir se o tempo real está funcionando". Mover, atribuir, mensagem e equipe foram testados no banco real dentro de uma transação desfeita.
-- **Ainda não tem:** tarefas e checklist por cartão, mensagens "não lidas", quem está vendo o cartão (presença), criar cartão de contato à mão e as automações (etapas seguintes).
-
-### Jornada do paciente: automações da equipe (etapa 5)
-
-Migration `20261101180000_jornada_automacoes.sql` (teste em `supabase/tests/jornada.sql`, seção 13); tela: `app/(app)/jornada/Tarefas.tsx`. **Ainda não há mensagem automática ao paciente** (depende do portal e do jurídico): estas automações são internas.
-
-| Regra (`jornada_regra`) | O que faz sozinha |
-| --- | --- |
-| `checklist_por_coluna` | Ao entrar numa coluna, o cartão ganha as tarefas do modelo da coluna (`jornada_checklist_modelo`; iniciais: Chegou = pedido médico, documento e carteirinha, guia e autorização; Laudo pendente; Laudo entregue; Guia/faturamento). Dispara na hora (gatilho), uma vez por item. |
-| `confirmar_proximo_dia` | Cartão em **A confirmar** com atendimento hoje ou amanhã ganha "Confirmar presença com o paciente", que vence às 16h do dia anterior (parâmetros `dias_antes`, `vence_hora`). |
-| `remarcar_faltou` | Cartão em **Faltou** (ontem ou hoje) ganha "Ligar e oferecer nova data". |
-| `prioridade_por_atraso` | Passou do prazo da coluna: prioridade 2; com o dobro do prazo: 3 (cartão com borda laranja/vermelha e no topo da coluna); volta a 0 quando sai do atraso. Cada subida fica no histórico. |
-| `atribuir_por_escala` | Cartão de ontem, hoje e amanhã sem responsável vai para quem está escalado na coluna (`jornada_escala`) e tem menos cartões abertos. **Sem escala cadastrada não faz nada** (ver a pendência). |
-
-- **Cron:** `jornada-regras`, a cada 5 min (`jornada_aplicar_regras()`); o checklist não espera o cron. A mesma tarefa automática não se repete no cartão (índice único `card_id + chave`).
-- **Ligar/desligar e ajustar** (SQL Editor; só o administrador lê estas tabelas): `update public.jornada_regra set ativa = false where chave = '...'`; parâmetros em `parametros`; itens do checklist em `jornada_checklist_modelo`; escala:
-  `insert into public.jornada_escala (coluna, usuario) select 'chegou', id from public.profiles where email = '...'`.
-- **Na tela:** o cartão mostra `☑ n` (tarefas abertas; vermelho se alguma venceu); ao abrir, a seção **Tarefas** tem caixas de marcar, o selo "auto" nas criadas pelo sistema, o vencimento e um campo para criar tarefa; o filtro **Só com tarefa pendente**; o
-  histórico mostra tarefas, prioridade e atribuições do sistema. Tarefa criada, feita ou reaberta pela equipe fica no histórico (`jornada_criar_tarefa`, `jornada_marcar_tarefa`).
-- **Não faz:** checklist por tipo de exame (preparo, contraste, termo), porque falta o catálogo de preparo; concluir cartão sozinho depois do NPS; mensagens ao paciente.
-
-### Jornada do paciente: portal do paciente e conversa com ele (etapa 6)
-
-Migration `20261101190000_jornada_portal_paciente.sql` (teste em `supabase/tests/jornada.sql`, seção 14); página em `app/p/[token]/`, contas em `lib/portal.ts` (testadas em `tests/jornada_quadro.check.mts`), servidor em `lib/portal-servidor.ts`. **O portal nasce DESLIGADO** (`jornada_config.portal_ativo = false`): desligado, a equipe não gera link e a página responde "indisponível". Ver as pendências "Ligar o portal", "Aviso de privacidade" e "Link seguro × identificação".
-
-- **Como o paciente entra:** sem conta nem SMS. No cartão, **Paciente no site → Gerar link do paciente** (`jornada_portal_gerar_link`): o código tem 244 bits e aparece só naquela hora (o banco guarda o hash sha256). A tela copia o link ou abre o WhatsApp com a mensagem pronta
-  (só nome, dia e link; nenhum dado clínico). Vale até a virada do dia do atendimento + `link_validade_dias` (3). Gerar outro mata o anterior; "Revogar" mata na hora; desligar o portal derruba todos.
-- **Onde fica:** rota pública `/p/<código>` (o `proxy` não exige login ali; código que não tem 64 letras/números hexadecimais nem chega ao banco). `noindex` e `referrer: no-referrer`. O navegador do paciente **não fala com o Supabase**: a página (servidor) chama as funções `portal_*` com a chave de serviço
-  (`SUPABASE_SERVICE_ROLE_KEY`, só no servidor); essas funções não são executáveis por `anon` nem `authenticated`.
-- **O que o paciente vê:** primeiro nome, dia, unidade, exames (hora, nome, situação) e a conversa do canal "paciente". **Nunca** telefone, prontuário, convênio, valor, laudo nem a conversa interna (testado). **O que faz:** confirmar presença, pedir para remarcar, escrever para a equipe.
-- **Efeito para a equipe:** confirmar presença marca o cartão ("✔ site"), fecha a tarefa "Confirmar presença" e cria "Registrar no Klingo a confirmação feita pelo paciente" (o site ainda **não escreve no Klingo**); pedir remarcação cria tarefa (vence em 1 h), sobe a prioridade e entra na conversa; mensagem do paciente cria a tarefa
-  "Responder a mensagem do paciente", que a resposta da equipe fecha sozinha. Tudo fica no histórico do cartão. A equipe conversa em duas abas no cartão: **Equipe** (interna) e **Paciente** (o paciente lê).
-- **Proteções:** código errado é contado por origem (hash do IP + `PORTAL_SAL`, opcional): 30 por hora e a origem é bloqueada (`tentativas_por_hora`); no máximo 20 mensagens por hora por cartão (`mensagens_por_hora`); mensagem de 1 a 1000 letras; o paciente só confirma/remarca cartão de hoje em diante que ainda esteja em "A confirmar" ou "Confirmado".
-- **Para ligar:** `update public.jornada_config set portal_ativo = true;` (só depois de resolver o jurídico). Desligar: `... = false`.
-- **Não faz:** laudo, resultado de exame, documentos, login com senha/código por SMS, aviso automático ao paciente (a equipe envia o link) e escrita no Klingo.
 
 ### Regras para somar e cruzar os dados
 
