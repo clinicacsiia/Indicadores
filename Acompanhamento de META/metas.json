@@ -44,5 +44,22 @@
       ]
     }
   ],
-  "metas_por_mes": {}
+  "metas_por_mes": {
+    "2026-11": {
+      "csi2/ressonancias": 1090,
+      "csi2/tomografias": 180,
+      "csi1/densitometria": 500,
+      "csi1/mamografias": 470,
+      "csi1/histerossalpingografia": 125,
+      "csi1/endometriose": 600,
+      "csi1/ultrassons": 1900,
+      "csi1/ecg": 50,
+      "csi1/consultas_gineco": 400,
+      "csi1/preventivo": 50,
+      "csi1/contrastados": 100,
+      "csi1/ecocardiogramas": 50,
+      "pediatria/consultas_pediatricas": 700,
+      "pediatria/eeg": 40
+    }
+  }
 }
