@@ -6,6 +6,7 @@ import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
 import { metasConfig as metasBase } from "@/lib/metas/config";
 import { INICIO_KLINGO, primeiroMesValido } from "@/lib/inicio-klingo";
 import { ComparacaoPagante } from "./ComparacaoPagante";
+import { HistoricoMetas, type MesFechado } from "./HistoricoMetas";
 import {
   agoraSaoPaulo,
   agruparAlteracoes,
@@ -258,6 +259,25 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
   }
   const achados = resultado?.convenioInformado ? analisarPagante(resultado, serie) : [];
 
+  // Registro dos meses já fechados (todos antes do mês atual), com a meta que valia em cada um. Não depende do período escolhido.
+  // Um mês cuja leitura falhar ou que não tenha atendimentos simplesmente fica de fora do gráfico.
+  const fechados: MesFechado[] = (
+    await Promise.all(
+      meses
+        .filter((m) => m < mesAtual)
+        .map(async (m): Promise<MesFechado | null> => {
+          const { data, error: erroMes } = await supabase.rpc("metas_atendimentos_mes", { p_mes: m });
+          if (erroMes) {
+            console.error("Falha ao carregar o histórico das metas:", erroMes.message);
+            return null;
+          }
+          const r = (data ?? null) as RespostaMetas | null;
+          if (!r?.mapeado || !r.linhas?.length) return null;
+          return { mes: m, resultado: calcularPeriodo(metasConfig, `${m}-01`, fimDoMes(m), r.linhas, agora) };
+        })
+    )
+  ).filter((f): f is MesFechado => f !== null);
+
   let sync: { texto: string; estado: "ok" | "stale" | "none" } = { texto: "Ainda sem sincronização", estado: "none" };
   if (resposta?.ultimo_sync) {
     const quando = new Date(resposta.ultimo_sync);
@@ -468,6 +488,8 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
           {resultado.convenioInformado && (
             <ComparacaoPagante resultado={resultado} serie={serie} achados={achados} nomePeriodo={nomePeriodo} />
           )}
+
+          <HistoricoMetas fechados={fechados} />
 
           {resultado.fora.length > 0 && (
             <details className="panel meta-fora">
