@@ -10,6 +10,7 @@ import { NovoUsuarioForm } from "./NovoUsuarioForm";
 import { SolicitacaoForm } from "./SolicitacaoForm";
 import { UsuarioForm } from "./UsuarioForm";
 import { ExtrairForm } from "./ExtrairForm";
+import { itensParaExtrair } from "@/lib/extrair";
 import { MetasForm } from "./MetasForm";
 import { removerMudancaMeta } from "./actions";
 import { mesesParaMudarMeta, metasConfig, SERVICOS_METAS } from "@/lib/metas/config";
@@ -281,7 +282,7 @@ export default async function ConfiguracoesPage({ searchParams }: Props) {
               </p>
             </div>
           </div>
-          <ExtrairForm paineis={PAINEIS.map((p) => ({ id: p.id, nome: p.nome, descricao: p.descricao }))} />
+          <ExtrairForm paineis={itensParaExtrair(PAINEIS).map((p) => ({ id: p.id, nome: p.nome, descricao: p.descricao }))} />
         </section>
       )}
     </>
