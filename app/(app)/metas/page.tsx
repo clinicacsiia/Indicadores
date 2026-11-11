@@ -5,6 +5,7 @@ import { IconAlerta, IconCalendario } from "@/app/components/icons";
 import { FiltroPeriodo } from "@/app/components/FiltroPeriodo";
 import { metasConfig as metasBase } from "@/lib/metas/config";
 import { INICIO_KLINGO, primeiroMesValido } from "@/lib/inicio-klingo";
+import { AtualizarTudoForm } from "../atualizar-tudo-form";
 import { ComparacaoPagante } from "./ComparacaoPagante";
 import { HistoricoMetas, type MesFechado } from "./HistoricoMetas";
 import {
@@ -308,6 +309,8 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
           {sync.texto}
         </span>
       </header>
+
+      <AtualizarTudoForm />
 
       <FiltroPeriodo
         basePath="/metas"
