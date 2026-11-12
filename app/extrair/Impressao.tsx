@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Item = { id: string; nome: string };
+type Item = { id: string; nome: string; src: string; pagina: boolean };
 
 const ESPERA_GRAFICOS_MS = 1500; // os gráficos dos painéis são desenhados por script logo depois do carregamento
 
@@ -19,7 +19,17 @@ export function Impressao({ paineis }: { paineis: Item[] }) {
     if (q && corpo) q.style.height = `${Math.ceil(corpo.getBoundingClientRect().height)}px`;
   };
 
-  const aoCarregar = (id: string) => {
+  // Páginas do site (Metas, Avisos) vêm com o menu lateral: esconde para sobrar só o conteúdo.
+  const limparPagina = (id: string) => {
+    const doc = quadros.current.get(id)?.contentDocument;
+    if (!doc) return;
+    const estilo = doc.createElement("style");
+    estilo.textContent = ".sidebar, .skip-link { display: none !important; } .shell { display: block !important; } .main { margin: 0 !important; padding: 0 !important; }";
+    doc.head.appendChild(estilo);
+  };
+
+  const aoCarregar = (id: string, pagina: boolean) => {
+    if (pagina) limparPagina(id);
     ajustar(id);
     setProntos((atual) => new Set(atual).add(id));
   };
@@ -53,9 +63,9 @@ export function Impressao({ paineis }: { paineis: Item[] }) {
               else quadros.current.delete(p.id);
             }}
             title={p.nome}
-            src={`/api/painel?id=${encodeURIComponent(p.id)}`}
+            src={p.src}
             referrerPolicy="same-origin"
-            onLoad={() => aoCarregar(p.id)}
+            onLoad={() => aoCarregar(p.id, p.pagina)}
           />
         </section>
       ))}

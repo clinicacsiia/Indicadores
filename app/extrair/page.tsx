@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/supabase/profile";
 import { PAINEIS } from "@/lib/paineis";
-import { paineisParaExtrair } from "@/lib/extrair";
+import { itensParaExtrair, paineisParaExtrair } from "@/lib/extrair";
 import { Impressao } from "./Impressao";
 
 export const metadata: Metadata = { title: "Extrair relatórios" };
@@ -15,8 +15,8 @@ export default async function ExtrairPage({ searchParams }: Props) {
   const profile = await getCurrentProfile();
   if (profile?.role !== "admin") redirect("/");
 
-  const paineis = paineisParaExtrair(p, PAINEIS);
+  const paineis = paineisParaExtrair(p, itensParaExtrair(PAINEIS));
   if (paineis.length === 0) redirect("/configuracoes?aba=extrair");
 
-  return <Impressao paineis={paineis.map((x) => ({ id: x.id, nome: x.nome }))} />;
+  return <Impressao paineis={paineis.map((x) => ({ id: x.id, nome: x.nome, src: x.src, pagina: x.pagina }))} />;
 }
