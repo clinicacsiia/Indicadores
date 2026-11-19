@@ -33,6 +33,7 @@
   --s-realizados: #2f7be0;
   --s-agendados: #c46a12;
   --s-neutra: #8d9db5;
+  --restante: #f0bd3c; /* parcela que ainda falta da meta (Consumo realizado × previsão) */
 
   --side-bg: #0b1e3a;
   --side-ink: #bccbe3;
@@ -1571,6 +1572,88 @@ select {
 }
 .kpi .meter {
   margin-top: 10px;
+}
+
+/* Consumo realizado × previsão: o realizado mantém a cor da situação; só o que falta fica amarelo. */
+.consumo-total {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.consumo-total .meta-pct {
+  font-size: clamp(36px, 8vw, 52px);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.consumo-barra {
+  --meter-color: var(--ink-3);
+  display: flex;
+  height: 14px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--restante);
+}
+.consumo-barra[data-status="batida"],
+.consumo-barra[data-status="ritmo"],
+.consumo-legenda[data-status="batida"],
+.consumo-legenda[data-status="ritmo"] {
+  --meter-color: var(--ok);
+}
+.consumo-barra[data-status="atencao"],
+.consumo-legenda[data-status="atencao"] {
+  --meter-color: var(--warn);
+}
+.consumo-barra[data-status="atrasado"],
+.consumo-legenda[data-status="atrasado"] {
+  --meter-color: var(--danger);
+}
+.consumo-barra > span {
+  background: var(--meter-color);
+  transition: width 0.3s ease;
+}
+.consumo-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 16px;
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.consumo-legenda span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.consumo-legenda span::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--restante);
+}
+.consumo-legenda span:first-child::before {
+  background: var(--meter-color, var(--ink-3));
+}
+.consumo-grupos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px 24px;
+  margin: 20px 0 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+.consumo-grupos .consumo-barra {
+  height: 8px;
+  margin-top: 6px;
+}
+.consumo-grupo-topo {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
 }
 
 .meta-table td,
