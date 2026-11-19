@@ -19,6 +19,7 @@ import {
   serieDiaria,
   type LinhaAtendimento,
   type LinhaAtendimentoDia,
+  type ResultadoMes,
   type ResultadoItem,
   type Situacao,
 } from "@/lib/metas/calculo";
@@ -88,13 +89,111 @@ function Barra({ pct, esperado, situacao }: { pct: number; esperado: number; sit
   );
 }
 
-// Consumo realizado × previsão: quanto da meta já foi consumido (cor da situação) e quanto ainda falta (amarelo).
-function BarraConsumo({ pct, situacao }: { pct: number; situacao: Situacao }) {
-  const feito = Math.max(0, Math.min(pct, 100));
+// Previsão de fechamento: verde = já realizado (cor da situação), listrado = o que o ritmo atual ainda deve render até o fim, amarelo = o que ficaria faltando.
+function BarraProjecao({ real, proj, situacao }: { real: number; proj: number; situacao: Situacao }) {
+  const feito = Math.max(0, Math.min(real, 100));
+  const total = Math.max(feito, Math.min(proj, 100));
   return (
-    <div className="consumo-barra" data-status={situacao} aria-hidden="true">
+    <div className="consumo-barra" data-status={situacao} data-completa={total >= 99.9 ? "" : undefined} aria-hidden="true">
       <span style={{ width: `${feito}%` }} />
+      <span className="consumo-proj" style={{ width: `${total - feito}%` }} />
     </div>
+  );
+}
+
+function PrevisaoFechamento({ resultado, nomePeriodo }: { resultado: ResultadoMes; nomePeriodo: string }) {
+  if (resultado.fechado) return null; // período fechado: o resultado final já está na tabela
+  const linhas = resultado.grupos
+    .flatMap((g) => g.itens.map((i) => ({ ...i, grupo: g.nome })))
+    .filter((i) => i.meta > 0 && i.projecao !== null)
+    .map((i) => {
+      const proj = i.projecao as number;
+      return {
+        id: `${i.grupo}|${i.id}`,
+        nome: i.nome,
+        grupo: i.grupo,
+        meta: i.meta,
+        proj,
+        diferenca: proj - i.meta,
+        pctProj: (proj / i.meta) * 100,
+        pctReal: i.pct,
+        ritmo: resultado.diasDecorridos > 0 ? Math.round(i.realizado / resultado.diasDecorridos) : 0,
+        situacao: i.situacao,
+      };
+    })
+    .sort((a, b) => a.pctProj - b.pctProj);
+
+  if (linhas.length === 0) {
+    return (
+      <section className="panel" aria-labelledby="previsao-titulo">
+        <div className="panel-head">
+          <div>
+            <h2 className="panel-title" id="previsao-titulo">
+              Previsão de fechamento
+            </h2>
+            <p className="panel-sub">A previsão aparece depois do primeiro dia útil de atendimento do {nomePeriodo}.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const somaMeta = linhas.reduce((t, l) => t + l.meta, 0);
+  const pctProjGeral = (linhas.reduce((t, l) => t + Math.min(l.proj, l.meta), 0) / somaMeta) * 100;
+  const pctRealGeral = resultado.geral.pct;
+  const abaixo = linhas.filter((l) => l.diferenca < 0).length;
+  const maisProjetado = Math.max(0, pctProjGeral - pctRealGeral);
+  const faltando = Math.max(0, 100 - pctProjGeral);
+
+  return (
+    <section className="panel" aria-labelledby="previsao-titulo">
+      <div className="panel-head">
+        <div>
+          <h2 className="panel-title" id="previsao-titulo">
+            Previsão de fechamento
+          </h2>
+          <p className="panel-sub">
+            Onde cada meta deve terminar o {nomePeriodo} se o ritmo médio por dia útil de hoje continuar.
+          </p>
+        </div>
+      </div>
+      <div className="panel-body">
+        <div className="consumo-total">
+          <span className="meta-pct">{pctTexto(pctProjGeral)}</span>
+          <span className="panel-sub">das metas no fim do {nomePeriodo}</span>
+        </div>
+        <BarraProjecao real={pctRealGeral} proj={pctProjGeral} situacao={resultado.geral.situacao} />
+        <div className="consumo-legenda" data-status={resultado.geral.situacao}>
+          <span>Já realizado</span>
+          <span data-tipo="proj">+{pctTexto(maisProjetado)} até o fim, no ritmo atual</span>
+          <span>{pctTexto(faltando)} ainda faltaria</span>
+        </div>
+        <p className="consumo-resumo">
+          <b>{abaixo}</b> de {linhas.length} metas devem fechar <b>abaixo</b> do previsto; <b>{linhas.length - abaixo}</b> devem bater.
+        </p>
+        <ul className="consumo-itens" aria-label="Previsão de cada meta, da mais ameaçada para a menos">
+          {linhas.map((l) => (
+            <li key={l.id}>
+              <div className="consumo-item-topo">
+                <span>
+                  {l.nome} <small className="meta-sep">{l.grupo}</small>
+                </span>
+                <span>
+                  fecha em <b>{inteiro.format(l.proj)}</b> ({pctTexto(l.pctProj)}) <span className="meta-sep">·</span>{" "}
+                  {l.diferenca < 0 ? (
+                    <b className="consumo-falta">faltariam {inteiro.format(-l.diferenca)}</b>
+                  ) : (
+                    <b className="consumo-sobra">sobram {inteiro.format(l.diferenca)}</b>
+                  )}{" "}
+                  <span className="meta-sep">·</span> ritmo {inteiro.format(l.ritmo)}/dia útil
+                </span>
+              </div>
+              <BarraProjecao real={l.pctReal} proj={l.pctProj} situacao={l.situacao} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -403,40 +502,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
             </div>
           </section>
 
-          <section className="panel" aria-labelledby="consumo-titulo">
-            <div className="panel-head">
-              <div>
-                <h2 className="panel-title" id="consumo-titulo">
-                  Consumo realizado × previsão
-                </h2>
-                <p className="panel-sub">Quanto das metas já foi consumido em {rotulo} e quanto ainda falta para chegar à previsão.</p>
-              </div>
-            </div>
-            <div className="panel-body">
-            <div className="consumo-total">
-              <span className="meta-pct">{pctTexto(resultado.geral.pct)}</span>
-              <span className="panel-sub">consumido</span>
-            </div>
-            <BarraConsumo pct={resultado.geral.pct} situacao={resultado.geral.situacao} />
-            <div className="consumo-legenda" data-status={resultado.geral.situacao}>
-              <span>{pctTexto(resultado.geral.pct)} realizado</span>
-              <span>{pctTexto(Math.max(0, 100 - resultado.geral.pct))} restante</span>
-            </div>
-            <ul className="consumo-grupos">
-              {resultado.grupos.map((g) => (
-                <li key={g.id}>
-                  <div className="consumo-grupo-topo">
-                    <span>{g.nome}</span>
-                    <span>
-                      <b>{pctTexto(g.pct)}</b> realizado <span className="meta-sep">·</span> {pctTexto(Math.max(0, 100 - g.pct))} restante
-                    </span>
-                  </div>
-                  <BarraConsumo pct={g.pct} situacao={g.situacao} />
-                </li>
-              ))}
-            </ul>
-            </div>
-          </section>
+          <PrevisaoFechamento resultado={resultado} nomePeriodo={nomePeriodo} />
 
           {resultado.grupos.map((g) => (
             <section className="panel" key={g.id} aria-labelledby={`grupo-${g.id}`}>
