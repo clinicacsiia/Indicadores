@@ -412,6 +412,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                 <p className="panel-sub">Quanto das metas já foi consumido em {rotulo} e quanto ainda falta para chegar à previsão.</p>
               </div>
             </div>
+            <div className="panel-body">
             <div className="consumo-total">
               <span className="meta-pct">{pctTexto(resultado.geral.pct)}</span>
               <span className="panel-sub">consumido</span>
@@ -434,6 +435,7 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                 </li>
               ))}
             </ul>
+            </div>
           </section>
 
           {resultado.grupos.map((g) => (
