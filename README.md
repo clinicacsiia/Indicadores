@@ -255,6 +255,14 @@ no comentário da migration); a função, pelo `apply_migration` (`create or rep
 As consultas do site são rápidas sozinhas (agenda ~0,3 s, Início ~0,2 s), mas ficavam 10 a 20 vezes mais lentas com o banco ocupado. O que mais ocupava era `proximos_trabalhos` (coleta automática, a cada 5 min):
 ~5 s e 472 mil blocos por chamada, por falta de índice em `sync_relatorio_runs (relatorio_id, periodo, status)`. Com o índice: ~0,2 s e 46 mil blocos. Aplicada pelo `apply_migration` (só `create index`).
 
+**19/11/2026, `20261119130000_evita_inchaco_e_coleta_parada.sql`:** o selo "Atualizado em 15/11 às 08:25" das Metas não andava. A coleta (pg_cron a cada 5 min) estava **parada desde 15/11**: o cron rodava
+e dava `succeeded`, a Edge Function respondia 200, mas com `processados: 0`, porque `proximos_trabalhos` devolvia vazio. O banco estava em **478 MB** e o freio de 470 MB (plano gratuito = 500 MB) desliga a coleta.
+A gordura era inchaço (linhas mortas): cada coleta apaga e regrava o mês/dia inteiro e o autovacuum padrão só passa com ~85 mil linhas mortas, então a tabela crescia ~74 MB em horas, e o `vacuum full` só rodava aos domingos
+(a mesma parada já tinha acontecido de 05/11 a 11/11). Corrigido: `vacuum full` manual das 4 tabelas pelo `execute_sql` (478 → 404 MB, o freio soltou e a coleta voltou) e esta migration, aplicada em 2 partes pelo
+`apply_migration` (`alter table ... set (autovacuum_*)` mais agressivo e a compactação **diária** às 03:00 de Brasília, não só aos domingos). **Como saber se parou de novo:** `select max(finished_at) from sync_relatorio_runs`
+e `select pg_size_pretty(pg_database_size(current_database()))`; `select count(*) from proximos_trabalhos(100)` = 0 com o banco acima de 470 MB é o freio. Os dados em si somam ~400 MB: se o banco voltar a passar de 450 MB
+mesmo compactado, o caminho é reduzir `janela_dias` / o histórico dos relatórios ou subir para o plano Pro.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
