@@ -1574,7 +1574,7 @@ select {
   margin-top: 10px;
 }
 
-/* Consumo realizado × previsão: o realizado mantém a cor da situação; só o que falta fica amarelo. */
+/* Previsão de fechamento: verde = já realizado (cor da situação), listrado = projetado até o fim, amarelo = o que ainda faltaria. */
 .consumo-total {
   display: flex;
   align-items: baseline;
@@ -1608,9 +1608,20 @@ select {
 .consumo-legenda[data-status="atrasado"] {
   --meter-color: var(--danger);
 }
+.consumo-barra[data-completa] {
+  background: var(--meter-color);
+}
 .consumo-barra > span {
   background: var(--meter-color);
   transition: width 0.3s ease;
+}
+.consumo-barra > .consumo-proj,
+.consumo-legenda span[data-tipo="proj"]::before {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--meter-color) 0 3px,
+    color-mix(in srgb, var(--meter-color) 35%, var(--surface)) 3px 6px
+  );
 }
 .consumo-legenda {
   display: flex;
@@ -1636,29 +1647,24 @@ select {
 .consumo-legenda span:first-child::before {
   background: var(--meter-color, var(--ink-3));
 }
-.consumo-grupos {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px 32px;
-  margin: 20px 0 0;
-  padding: 16px 0 0;
+.consumo-resumo {
+  margin: 16px 0 0;
+  padding-top: 14px;
   border-top: 1px solid var(--line);
-  list-style: none;
-}
-.consumo-grupos .consumo-barra {
-  height: 8px;
-  margin-top: 6px;
+  color: var(--ink-2);
+  font-size: 14px;
 }
 .consumo-itens {
   display: grid;
-  gap: 10px;
-  margin: 12px 0 0;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px 32px;
+  margin: 14px 0 0;
   padding: 0;
   list-style: none;
 }
 .consumo-itens .consumo-barra {
-  height: 6px;
-  margin-top: 4px;
+  height: 8px;
+  margin-top: 6px;
 }
 .consumo-item-topo {
   display: flex;
@@ -1668,11 +1674,11 @@ select {
   color: var(--ink-2);
   font-size: 13px;
 }
-.consumo-grupo-topo {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 14px;
+.consumo-falta {
+  color: var(--danger);
+}
+.consumo-sobra {
+  color: var(--ok);
 }
 
 .meta-table td,
