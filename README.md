@@ -263,6 +263,17 @@ A gordura era inchaço (linhas mortas): cada coleta apaga e regrava o mês/dia i
 e `select pg_size_pretty(pg_database_size(current_database()))`; `select count(*) from proximos_trabalhos(100)` = 0 com o banco acima de 470 MB é o freio. Os dados em si somam ~400 MB: se o banco voltar a passar de 450 MB
 mesmo compactado, o caminho é reduzir `janela_dias` / o histórico dos relatórios ou subir para o plano Pro.
 
+**19/11/2026, `20261119140000_desativa_relatorios_sem_consumidor.sql` (espaço do banco):** mesmo depois de compactar, o banco ia para ~460 MB com a coleta recuperando o atraso e crescia ~25-30 MB por mês
+(os relatórios mensais não são podados). Sem assinar o plano Pro, foram **desativados 27 relatórios que a coleta buscava e ninguém lê** (nenhum painel, tela ou função do banco): 18, 19, 21, 47, 52, 235, 243, 260, 275, 319, 370, 681,
+843, 6881, 7128, 12624, 12625, 12640, 12712, 12757, 13149, 13222, 13256, 13302, 13434, 13437 e 13510. `ativo = false` (a coleta para de buscá-los) e `janela_dias = 1` nos por dia, e a poda diária que já existia
+(`podar_linhas_antigas`, sem `delete` novo no MCP) apagou as linhas: **122.487 linhas, banco de 436 para 321 MB**, e os painéis continuam iguais (leem da cópia `painel_dados`). Aplicado pelo `execute_sql`
+(um `update`, a chamada da função e `vacuum full`). Os que **ficam** são os dos painéis (`*/relatorios.json`), 13339 (Metas), 13397 (Início) e 13825 (agenda do CRM).
+Maiores entre os desativados, para saber o custo de voltar (dado, sem índices; no banco é cerca de o dobro): 319 Produção Médica ~10 MB, 52 Extrato Analítico por Convênio ~9 MB, 275 Retorno de Pacientes ~7 MB, 12757 Atendimento por Serviço ×
+Solicitante ~7 MB, 18 Produtividade × Efetividade ~4,5 MB, 13510 Consolidado Analítico ~3,5 MB, 47 Marcações Bloqueadas e Canceladas ~2 MB; os demais, menos de 2 MB.
+**Para voltar um deles** (aqui o 319): `update public.dim_relatorio set ativo = true, janela_dias = 90 where klingo_id = '319';` (os "pontuais" 19, 6881, 12712, 13256 e 13437 só precisam de `ativo = true`). A coleta busca
+os 90 dias de novo no Klingo em poucos ciclos de 5 min. Se for reativar vários, confira o tamanho do banco: o freio aos 470 MB desliga a coleta de tudo. Próximos candidatos, se precisar de mais espaço: 13825 (~15 MB de dado, só a agenda
+do CRM) e reduzir `janela_dias` dos relatórios por dia que sobraram.
+
 ### Para colocar no ar
 
 1. **Banco:** aplicar `supabase/migrations/20261013130000_paineis_python.sql` e, para a aba Avisos,
