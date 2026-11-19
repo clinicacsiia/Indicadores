@@ -1638,8 +1638,8 @@ select {
 }
 .consumo-grupos {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px 24px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px 32px;
   margin: 20px 0 0;
   padding: 16px 0 0;
   border-top: 1px solid var(--line);
@@ -1648,6 +1648,25 @@ select {
 .consumo-grupos .consumo-barra {
   height: 8px;
   margin-top: 6px;
+}
+.consumo-itens {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.consumo-itens .consumo-barra {
+  height: 6px;
+  margin-top: 4px;
+}
+.consumo-item-topo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  color: var(--ink-2);
+  font-size: 13px;
 }
 .consumo-grupo-topo {
   display: flex;

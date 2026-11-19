@@ -432,6 +432,23 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                     </span>
                   </div>
                   <BarraConsumo pct={g.pct} situacao={g.situacao} />
+                  <ul className="consumo-itens" aria-label={`Consumo de cada meta de ${g.nome}`}>
+                    {g.itens
+                      .filter((i) => i.meta > 0)
+                      .map((i) => (
+                        <li key={i.id}>
+                          <div className="consumo-item-topo">
+                            <span>{i.nome}</span>
+                            <span>
+                              <b>{inteiro.format(i.realizado)}</b> de {inteiro.format(i.meta)} <span className="meta-sep">·</span>{" "}
+                              {pctTexto(i.pct)} realizado <span className="meta-sep">·</span>{" "}
+                              {i.faltam ? `faltam ${inteiro.format(i.faltam)}` : "meta batida"}
+                            </span>
+                          </div>
+                          <BarraConsumo pct={i.pct} situacao={i.situacao} />
+                        </li>
+                      ))}
+                  </ul>
                 </li>
               ))}
             </ul>
