@@ -88,6 +88,16 @@ function Barra({ pct, esperado, situacao }: { pct: number; esperado: number; sit
   );
 }
 
+// Consumo realizado × previsão: quanto da meta já foi consumido (cor da situação) e quanto ainda falta (amarelo).
+function BarraConsumo({ pct, situacao }: { pct: number; situacao: Situacao }) {
+  const feito = Math.max(0, Math.min(pct, 100));
+  return (
+    <div className="consumo-barra" data-status={situacao} aria-hidden="true">
+      <span style={{ width: `${feito}%` }} />
+    </div>
+  );
+}
+
 function BarraConvenio({ sus, naoSus, cetrus, semConvenio }: { sus: number; naoSus: number; cetrus: number; semConvenio: number }) {
   const total = sus + naoSus + cetrus + semConvenio;
   const parte = (v: number) => `${(v / total) * 100}%`;
@@ -391,6 +401,39 @@ export default async function MetasPage({ searchParams }: { searchParams: Promis
                 <p className="kpi-meta">{inteiro.format(resultado.totalAtendimentos)} atendimentos no {nomePeriodo}</p>
               </article>
             </div>
+          </section>
+
+          <section className="panel" aria-labelledby="consumo-titulo">
+            <div className="panel-head">
+              <div>
+                <h2 className="panel-title" id="consumo-titulo">
+                  Consumo realizado × previsão
+                </h2>
+                <p className="panel-sub">Quanto das metas já foi consumido em {rotulo} e quanto ainda falta para chegar à previsão.</p>
+              </div>
+            </div>
+            <div className="consumo-total">
+              <span className="meta-pct">{pctTexto(resultado.geral.pct)}</span>
+              <span className="panel-sub">consumido</span>
+            </div>
+            <BarraConsumo pct={resultado.geral.pct} situacao={resultado.geral.situacao} />
+            <div className="consumo-legenda" data-status={resultado.geral.situacao}>
+              <span>{pctTexto(resultado.geral.pct)} realizado</span>
+              <span>{pctTexto(Math.max(0, 100 - resultado.geral.pct))} restante</span>
+            </div>
+            <ul className="consumo-grupos">
+              {resultado.grupos.map((g) => (
+                <li key={g.id}>
+                  <div className="consumo-grupo-topo">
+                    <span>{g.nome}</span>
+                    <span>
+                      <b>{pctTexto(g.pct)}</b> realizado <span className="meta-sep">·</span> {pctTexto(Math.max(0, 100 - g.pct))} restante
+                    </span>
+                  </div>
+                  <BarraConsumo pct={g.pct} situacao={g.situacao} />
+                </li>
+              ))}
+            </ul>
           </section>
 
           {resultado.grupos.map((g) => (
